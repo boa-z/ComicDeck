@@ -1,0 +1,11 @@
+.DS_Store
+DerivedData/
+build/
+
+*.xcuserstate
+xcuserdata/
+ComicDeck.xcodeproj/xcuserdata/
+ComicDeck.xcodeproj/project.xcworkspace/xcuserdata/
+
+**/__pycache__/
+*.pyc

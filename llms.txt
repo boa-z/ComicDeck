@@ -1,0 +1,17 @@
+# ComicDeck
+> SwiftUI-based iOS comic library, discovery, download, and reading app.
+
+## Core Files
+- [README.md]: Project overview, build entry point, documentation links
+- [docs/README.md]: Documentation index
+- [docs/ARCHITECTURE.md]: Layering, ownership, and deliberate constraints
+- [docs/USER_GUIDE.md]: User-facing workflows and expected behavior
+- [docs/TROUBLESHOOTING.md]: Recovery paths for common failures
+- [docs/LOCALIZATION.md]: Localization workflow and boundaries
+- [docs/RELEASE_CHECKLIST.md]: Pre-release validation checklist
+
+## Key Concepts
+- Layered architecture: `App -> Features -> Runtime -> Core`, with `Features -> Core` as the only shortcut
+- Offline model: active queue state and offline library state are intentionally separate
+- Backup boundary: local/WebDAV backup covers library data and settings, not offline chapter files
+- Localization model: app-owned UI uses semantic keys in `Localizable.xcstrings` via `AppLocalization`

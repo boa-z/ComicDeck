@@ -1,0 +1,2700 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ · v%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · v%2$@"
+          }
+        }
+      }
+    },
+    "%@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@: %2$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lld / %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "%lld bookmarks" : {
+
+    },
+    "%lld chapters, %lld ready offline, %lld incomplete" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld chapters, %2$lld ready offline, %3$lld incomplete"
+          }
+        }
+      }
+    },
+    "%lld selected" : {
+
+    },
+    "%lld/%lld pages" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld/%2$lld pages"
+          }
+        }
+      }
+    },
+    "• %@" : {
+
+    },
+    "• %lld left" : {
+
+    },
+    "↩ %lld" : {
+
+    },
+    "♥ %lld" : {
+
+    },
+    "About" : {
+
+    },
+    "Account" : {
+
+    },
+    "Account Login" : {
+
+    },
+    "Actions" : {
+
+    },
+    "Active Source" : {
+
+    },
+    "Add" : {
+
+    },
+    "Add Bookmarks" : {
+
+    },
+    "Add Favorite" : {
+
+    },
+    "Add selected bookmarks to shelf" : {
+
+    },
+    "Add to %@" : {
+
+    },
+    "Add to Shelf" : {
+
+    },
+    "All bookmarks are already in this shelf." : {
+
+    },
+    "All downloaded chapters are ready for offline reading." : {
+
+    },
+    "All offline chapter files and their indexed records will be removed." : {
+
+    },
+    "Already in folder" : {
+
+    },
+    "Animate page transitions" : {
+
+    },
+    "App" : {
+
+    },
+    "Appearance" : {
+
+    },
+    "Apply Filters" : {
+
+    },
+    "Apply Ranking" : {
+
+    },
+    "Author: %@" : {
+
+    },
+    "Auto-load enabled" : {
+
+    },
+    "Auto-load repository on open" : {
+
+    },
+    "Back" : {
+
+    },
+    "Background" : {
+
+    },
+    "Bookmark comics from detail pages to keep them in your local library." : {
+
+    },
+    "Bookmarks" : {
+
+    },
+    "Browse layout" : {
+
+    },
+    "Browse Mode" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Cancel Reply" : {
+
+    },
+    "Categories" : {
+
+    },
+    "Category Filters" : {
+
+    },
+    "Chapter" : {
+
+    },
+    "Chapter Files" : {
+
+    },
+    "Check Updates" : {
+
+    },
+    "Choose where to place %lld bookmark%@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Choose where to place %1$lld bookmark%2$@."
+          }
+        }
+      }
+    },
+    "Clear" : {
+
+    },
+    "Clear all history?" : {
+
+    },
+    "Clear download queue?" : {
+
+    },
+    "Clear History" : {
+
+    },
+    "Clear Offline" : {
+
+    },
+    "Clear offline library?" : {
+
+    },
+    "Clear Queue" : {
+
+    },
+    "Close" : {
+
+    },
+    "Comic" : {
+
+    },
+    "Comic management and reading for iOS." : {
+
+    },
+    "Comic Title" : {
+
+    },
+    "ComicDeck" : {
+
+    },
+    "Comics" : {
+
+    },
+    "Comments" : {
+
+    },
+    "common.clear" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除"
+          }
+        }
+      }
+    },
+    "common.copy" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制"
+          }
+        }
+      }
+    },
+    "common.ok" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好"
+          }
+        }
+      }
+    },
+    "common.share" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享"
+          }
+        }
+      }
+    },
+    "Completed local chapters are indexed here for offline reading and management." : {
+
+    },
+    "Cookie Login" : {
+
+    },
+    "Copy ID" : {
+
+    },
+    "Copy Title" : {
+
+    },
+    "Copy URL" : {
+
+    },
+    "Create" : {
+
+    },
+    "Create a shelf first in Library -> Shelves." : {
+
+    },
+    "Create a shelf for organizing your bookmarked comics." : {
+
+    },
+    "Create shelves to group bookmarks by project, mood, or reading priority." : {
+
+    },
+    "Current source" : {
+
+    },
+    "Debug Logs" : {
+
+    },
+    "Default" : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete “%@”? Comics will remain in Bookmarks." : {
+
+    },
+    "Delete %lld selected history item%@? This action cannot be undone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Delete %1$lld selected history item%2$@? This action cannot be undone."
+          }
+        }
+      }
+    },
+    "Delete %lld selected installed source%@? This action cannot be undone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Delete %1$lld selected installed source%2$@? This action cannot be undone."
+          }
+        }
+      }
+    },
+    "Delete %lld selected offline chapters and remove their local files." : {
+
+    },
+    "Delete %lld selected queue items." : {
+
+    },
+    "Delete selected history?" : {
+
+    },
+    "Delete selected offline chapters?" : {
+
+    },
+    "Delete selected queue items?" : {
+
+    },
+    "Delete selected sources?" : {
+
+    },
+    "Delete Shelf" : {
+
+    },
+    "Details" : {
+
+    },
+    "Directory URL" : {
+
+    },
+    "Disabled" : {
+
+    },
+    "Discover" : {
+
+    },
+    "Done" : {
+
+    },
+    "Download %@" : {
+
+    },
+    "Download Chapter 1" : {
+
+    },
+    "Downloads" : {
+
+    },
+    "Enable debug logging and reproduce the issue to collect logs." : {
+
+    },
+    "Enabled" : {
+
+    },
+    "Explore Pages" : {
+
+    },
+    "Export" : {
+
+    },
+    "Export CBZ" : {
+
+    },
+    "Export Comic EPUB" : {
+
+    },
+    "Export Comic PDF" : {
+
+    },
+    "Export Comic ZIP" : {
+
+    },
+    "Export EPUB" : {
+
+    },
+    "Export Failed" : {
+
+    },
+    "Export Latest Chapter CBZ" : {
+
+    },
+    "Export Latest Chapter EPUB" : {
+
+    },
+    "Export Latest Chapter PDF" : {
+
+    },
+    "Export Latest Chapter ZIP" : {
+
+    },
+    "Export PDF" : {
+
+    },
+    "Export ZIP" : {
+
+    },
+    "Exposed Methods" : {
+
+    },
+    "Failed to load image" : {
+
+    },
+    "Favorite status" : {
+
+    },
+    "Favorited" : {
+
+    },
+    "Favorites" : {
+
+    },
+    "Files" : {
+
+    },
+    "Filter Groups" : {
+
+    },
+    "Filters" : {
+
+    },
+    "Folder (%@)" : {
+
+    },
+    "Go" : {
+
+    },
+    "Hide Preview" : {
+
+    },
+    "History" : {
+
+    },
+    "Home" : {
+
+    },
+    "home.action.browse_discover" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browse Discover"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浏览发现"
+          }
+        }
+      }
+    },
+    "home.action.library" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料库"
+          }
+        }
+      }
+    },
+    "home.action.resume" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续阅读"
+          }
+        }
+      }
+    },
+    "home.action.search" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open search"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开搜索"
+          }
+        }
+      }
+    },
+    "home.action.search_short" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索"
+          }
+        }
+      }
+    },
+    "home.action.settings" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开设置"
+          }
+        }
+      }
+    },
+    "home.chapter.page" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %@ 页"
+          }
+        }
+      }
+    },
+    "home.continue.page_updated" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page %@ • Updated %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %@ 页 · 更新于 %@"
+          }
+        }
+      }
+    },
+    "home.continue.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue Reading"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续阅读"
+          }
+        }
+      }
+    },
+    "home.empty.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start from Discover or Search, then Home will surface your current comic and today's reading time."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从发现或搜索开始阅读，Home 会显示你当前在读的漫画和今日阅读时长。"
+          }
+        }
+      }
+    },
+    "home.empty.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No reading session yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有阅读记录"
+          }
+        }
+      }
+    },
+    "home.glance.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At a Glance"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "概览"
+          }
+        }
+      }
+    },
+    "home.library_snapshot.bookmarks" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ bookmarks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 个书签"
+          }
+        }
+      }
+    },
+    "home.library_snapshot.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ shelves · %@ history records"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 个书架 · %@ 条历史记录"
+          }
+        }
+      }
+    },
+    "home.library_snapshot.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library Snapshot"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料库快照"
+          }
+        }
+      }
+    },
+    "home.metric.bookmarks" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bookmarks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "书签"
+          }
+        }
+      }
+    },
+    "home.metric.installed" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已安装"
+          }
+        }
+      }
+    },
+    "home.metric.library" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料库"
+          }
+        }
+      }
+    },
+    "home.metric.offline" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "离线"
+          }
+        }
+      }
+    },
+    "home.metric.reading" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读"
+          }
+        }
+      }
+    },
+    "home.metric.reading_time" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading time"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读时长"
+          }
+        }
+      }
+    },
+    "home.metric.ready" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可读"
+          }
+        }
+      }
+    },
+    "home.metric.sources" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sources"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图源"
+          }
+        }
+      }
+    },
+    "home.metric.today" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天"
+          }
+        }
+      }
+    },
+    "home.navigation.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Home"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首页"
+          }
+        }
+      }
+    },
+    "home.offline_spotlight.ready_pages" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline ready · %@ pages"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "离线可读 · %@ 页"
+          }
+        }
+      }
+    },
+    "home.offline_spotlight.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline Spotlight"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "离线推荐"
+          }
+        }
+      }
+    },
+    "home.quick_actions.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick Actions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷入口"
+          }
+        }
+      }
+    },
+    "home.quick.discover.none" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No source"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无图源"
+          }
+        }
+      }
+    },
+    "home.quick.discover.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browse active sources"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浏览当前图源内容"
+          }
+        }
+      }
+    },
+    "home.quick.discover.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discover"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发现"
+          }
+        }
+      }
+    },
+    "home.quick.downloads.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline chapters"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "离线章节"
+          }
+        }
+      }
+    },
+    "home.quick.downloads.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloads"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载"
+          }
+        }
+      }
+    },
+    "home.quick.history.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume recent reads"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续最近阅读"
+          }
+        }
+      }
+    },
+    "home.quick.history.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "历史"
+          }
+        }
+      }
+    },
+    "home.quick.library.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bookmarks, shelves, history"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "书签、书架、历史"
+          }
+        }
+      }
+    },
+    "home.quick.library.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料库"
+          }
+        }
+      }
+    },
+    "home.quick.sources.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installed and updates"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已安装与更新"
+          }
+        }
+      }
+    },
+    "home.quick.sources.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sources"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图源"
+          }
+        }
+      }
+    },
+    "home.recent_reading.empty" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your recent reading will appear here once you open a chapter."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开章节后，最近阅读会显示在这里。"
+          }
+        }
+      }
+    },
+    "home.recent_reading.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent Reading"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近阅读"
+          }
+        }
+      }
+    },
+    "home.search.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jump straight to titles, authors, and tags."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速查找标题、作者和标签。"
+          }
+        }
+      }
+    },
+    "home.search.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search Comics"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索漫画"
+          }
+        }
+      }
+    },
+    "home.source.active" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active Source"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前图源"
+          }
+        }
+      }
+    },
+    "home.source.browse_hint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browse fresh content from the current source."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浏览当前图源的最新内容。"
+          }
+        }
+      }
+    },
+    "home.source.empty_hint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Discover to choose a source."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前往发现页选择图源。"
+          }
+        }
+      }
+    },
+    "home.source.select" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a source"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择图源"
+          }
+        }
+      }
+    },
+    "Import" : {
+
+    },
+    "Import Complete" : {
+
+    },
+    "Import Failed" : {
+
+    },
+    "Incomplete chapters are separated below so readable chapters stay easy to access." : {
+
+    },
+    "index.json URL" : {
+
+    },
+    "Install" : {
+
+    },
+    "Interaction" : {
+
+    },
+    "Invalid image request" : {
+
+    },
+    "Invert left/right tap" : {
+
+    },
+    "Jump to %@" : {
+
+    },
+    "Jump to page" : {
+
+    },
+    "Keep screen on" : {
+
+    },
+    "Last Result" : {
+
+    },
+    "Last Sync" : {
+
+    },
+    "Latest" : {
+
+    },
+    "Library" : {
+
+    },
+    "library.navigation.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "资料库"
+          }
+        }
+      }
+    },
+    "library.offline_ready.chapter_pages" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ • %@ pages"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %@ 页"
+          }
+        }
+      }
+    },
+    "library.offline_ready.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Offline Ready"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "离线可读"
+          }
+        }
+      }
+    },
+    "library.recent.empty" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your reading history will appear here after you open a chapter."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开章节后，阅读历史会显示在这里。"
+          }
+        }
+      }
+    },
+    "library.recent.page" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %@ 页"
+          }
+        }
+      }
+    },
+    "library.recent.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent Activity"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近活动"
+          }
+        }
+      }
+    },
+    "library.workspace.bookmarks.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your local reading list and shelf organization"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地稍后读列表与书架整理"
+          }
+        }
+      }
+    },
+    "library.workspace.bookmarks.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bookmarks"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "书签"
+          }
+        }
+      }
+    },
+    "library.workspace.downloads.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queue, offline library, and storage cleanup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载队列、离线库和存储清理"
+          }
+        }
+      }
+    },
+    "library.workspace.downloads.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloads"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载"
+          }
+        }
+      }
+    },
+    "library.workspace.favorites.source" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图源"
+          }
+        }
+      }
+    },
+    "library.workspace.favorites.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source-side favorites and folders"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图源侧收藏与文件夹"
+          }
+        }
+      }
+    },
+    "library.workspace.favorites.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Favorites"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收藏"
+          }
+        }
+      }
+    },
+    "library.workspace.history.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume chapters and manage reading history"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续阅读并管理历史记录"
+          }
+        }
+      }
+    },
+    "library.workspace.history.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "历史"
+          }
+        }
+      }
+    },
+    "library.workspaces.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Workspaces"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作区"
+          }
+        }
+      }
+    },
+    "Like" : {
+
+    },
+    "Liked" : {
+
+    },
+    "Load More" : {
+
+    },
+    "Load Sources" : {
+
+    },
+    "Loading category..." : {
+
+    },
+    "Loading comic details..." : {
+
+    },
+    "Loading comments..." : {
+
+    },
+    "Loading explore..." : {
+
+    },
+    "Loading files…" : {
+
+    },
+    "Loading ranking..." : {
+
+    },
+    "Loading..." : {
+
+    },
+    "Log Filter" : {
+
+    },
+    "Login With Account" : {
+
+    },
+    "Manual load" : {
+
+    },
+    "Mode" : {
+
+    },
+    "Needs Attention" : {
+
+    },
+    "New" : {
+
+    },
+    "New Shelf" : {
+
+    },
+    "No bookmarks match your search." : {
+
+    },
+    "No comments" : {
+
+    },
+    "No Debug Logs" : {
+
+    },
+    "No explore page" : {
+
+    },
+    "No files in this chapter" : {
+
+    },
+    "No folders" : {
+
+    },
+    "No images" : {
+
+    },
+    "No offline chapters" : {
+
+    },
+    "No preview comments in detail payload." : {
+
+    },
+    "No queued downloads" : {
+
+    },
+    "No ranking data" : {
+
+    },
+    "No reading history" : {
+
+    },
+    "No remote backups loaded" : {
+
+    },
+    "No results" : {
+
+    },
+    "No Shelves Available" : {
+
+    },
+    "No source favorites" : {
+
+    },
+    "No source installed" : {
+
+    },
+    "No source settings available." : {
+
+    },
+    "Not Favorited" : {
+
+    },
+    "Not in folder" : {
+
+    },
+    "Offline mode only. Network fallback is disabled for downloaded chapters." : {
+
+    },
+    "Offline Reading" : {
+
+    },
+    "Offline Ready" : {
+
+    },
+    "OK" : {
+
+    },
+    "Open In Browser" : {
+
+    },
+    "Open page picker" : {
+
+    },
+    "Open Ranking" : {
+
+    },
+    "Open Register Page" : {
+
+    },
+    "Open search" : {
+
+    },
+    "Open search filters" : {
+
+    },
+    "Open this chapter in the reader" : {
+
+    },
+    "Open Web Login" : {
+
+    },
+    "Options" : {
+
+    },
+    "Page %lld" : {
+
+    },
+    "Page %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Page %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "Page number" : {
+
+    },
+    "Pages" : {
+
+    },
+    "Password" : {
+
+    },
+    "Preload nearby pages: %lld" : {
+
+    },
+    "Preset" : {
+
+    },
+    "Preview hidden. Tap “Show Preview” to inspect inline comments." : {
+
+    },
+    "Project" : {
+
+    },
+    "Queue All" : {
+
+    },
+    "Queue download for all chapters?" : {
+
+    },
+    "Queued, downloading, and failed download tasks will be removed." : {
+
+    },
+    "Queued, downloading, and failed tasks appear here until they are completed or removed." : {
+
+    },
+    "Ranking" : {
+
+    },
+    "Ranking Filters" : {
+
+    },
+    "Read (single chapter)" : {
+
+    },
+    "Read %@" : {
+
+    },
+    "Read Offline" : {
+
+    },
+    "Reader settings" : {
+
+    },
+    "Reader Settings" : {
+
+    },
+    "Reading Direction" : {
+
+    },
+    "Reading mode" : {
+
+    },
+    "Reading progress" : {
+
+    },
+    "Ready to Read" : {
+
+    },
+    "Recent Keywords" : {
+
+    },
+    "Refresh" : {
+
+    },
+    "Refresh Login Status" : {
+
+    },
+    "Refresh Remote Backups" : {
+
+    },
+    "Refresh source repository" : {
+
+    },
+    "Refreshing..." : {
+
+    },
+    "Reindex" : {
+
+    },
+    "Reinstall" : {
+
+    },
+    "Reload" : {
+
+    },
+    "Reload current page" : {
+
+    },
+    "Remote Backups" : {
+
+    },
+    "Remote File Name" : {
+
+    },
+    "Remote sources stay idle until you explicitly load them." : {
+
+    },
+    "Remove" : {
+
+    },
+    "Remove %lld selected bookmark%@ from your local library?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Remove %1$lld selected bookmark%2$@ from your local library?"
+          }
+        }
+      }
+    },
+    "Remove %lld selected favorite%@ from this source folder?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Remove %1$lld selected favorite%2$@ from this source folder?"
+          }
+        }
+      }
+    },
+    "Remove Favorite" : {
+
+    },
+    "Remove selected bookmarks?" : {
+
+    },
+    "Remove selected favorites?" : {
+
+    },
+    "Rename" : {
+
+    },
+    "Rename Imported Comic" : {
+
+    },
+    "Rename Shelf" : {
+
+    },
+    "Reorder" : {
+
+    },
+    "Reorder Shelves" : {
+
+    },
+    "Replies" : {
+
+    },
+    "Replies %lld" : {
+
+    },
+    "Reply" : {
+
+    },
+    "Reply To" : {
+
+    },
+    "Reply..." : {
+
+    },
+    "Repository" : {
+
+    },
+    "Restore Configured Backup" : {
+
+    },
+    "Restore Latest Remote Backup" : {
+
+    },
+    "Resume" : {
+
+    },
+    "Resume Offline" : {
+
+    },
+    "Retry" : {
+
+    },
+    "Return to the previous screen" : {
+
+    },
+    "Save" : {
+
+    },
+    "Save Configuration" : {
+
+    },
+    "Saved Comics" : {
+
+    },
+    "Search" : {
+
+    },
+    "Search bookmarks" : {
+
+    },
+    "Search chapter" : {
+
+    },
+    "Search comics" : {
+
+    },
+    "Search installed sources" : {
+
+    },
+    "Search keyword" : {
+
+    },
+    "Search methods: %@" : {
+
+    },
+    "Search repository sources" : {
+
+    },
+    "Search Settings" : {
+
+    },
+    "Searching..." : {
+
+    },
+    "Section" : {
+
+    },
+    "Select" : {
+
+    },
+    "Select All" : {
+
+    },
+    "Select Page" : {
+
+    },
+    "Selected" : {
+
+    },
+    "Server" : {
+
+    },
+    "Session" : {
+
+    },
+    "Settings" : {
+
+    },
+    "settings.about.app_name" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ComicDeck"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ComicDeck"
+          }
+        }
+      }
+    },
+    "settings.about.build" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "构建 %@ "
+          }
+        }
+      }
+    },
+    "settings.about.version" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本 %@ "
+          }
+        }
+      }
+    },
+    "settings.appearance.browse_layout" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comic Browse Layout"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "漫画浏览布局"
+          }
+        }
+      }
+    },
+    "settings.appearance.browse_layout_hint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Applies to search, favorites, history, category, and ranking pages."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用于搜索、收藏、历史、分类和榜单页面。"
+          }
+        }
+      }
+    },
+    "settings.appearance.theme" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Theme"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主题"
+          }
+        }
+      }
+    },
+    "settings.appearance.theme_hint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Theme applies across the whole app."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主题会应用到整个 App。"
+          }
+        }
+      }
+    },
+    "settings.backup.error_title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backup Error"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备份错误"
+          }
+        }
+      }
+    },
+    "settings.backup.restored_title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backup Restored"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备份已恢复"
+          }
+        }
+      }
+    },
+    "settings.backup.unknown_error" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown backup error"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知备份错误"
+          }
+        }
+      }
+    },
+    "settings.data.backup_hint" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backups include favorites, reading history, source preferences, and reader/app settings. Offline files and active download queue are not included."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备份包含收藏、阅读历史、图源偏好以及阅读器与 App 设置。不包含离线文件和当前下载队列。"
+          }
+        }
+      }
+    },
+    "settings.data.export_backup" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Backup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出备份"
+          }
+        }
+      }
+    },
+    "settings.data.restore_backup" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Backup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复备份"
+          }
+        }
+      }
+    },
+    "settings.data.webdav" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WebDAV Sync"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WebDAV 同步"
+          }
+        }
+      }
+    },
+    "settings.debug.copied_message" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The visible debug logs have been copied."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前可见的调试日志已复制。"
+          }
+        }
+      }
+    },
+    "settings.debug.copied_title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied to Clipboard"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已复制到剪贴板"
+          }
+        }
+      }
+    },
+    "settings.debug.enable_logs" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Debug Logs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用调试日志"
+          }
+        }
+      }
+    },
+    "settings.debug.no_matching.subtitle" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current filter does not match any in-memory log lines."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前筛选条件没有匹配到任何内存中的日志。"
+          }
+        }
+      }
+    },
+    "settings.debug.no_matching.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Matching Logs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配的日志"
+          }
+        }
+      }
+    },
+    "settings.debug.visible_count" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ visible"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 条可见"
+          }
+        }
+      }
+    },
+    "settings.diagnostics.debug_logs" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debug Logs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调试日志"
+          }
+        }
+      }
+    },
+    "settings.navigation.title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置"
+          }
+        }
+      }
+    },
+    "settings.reader.cache" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reader Cache"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读缓存"
+          }
+        }
+      }
+    },
+    "settings.reader.cache_efficiency" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reader Cache Efficiency"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读缓存效率"
+          }
+        }
+      }
+    },
+    "settings.reader.clear_cache" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Reader Cache"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除阅读缓存"
+          }
+        }
+      }
+    },
+    "settings.reader.memory_cache" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reader Memory Cache"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读内存缓存"
+          }
+        }
+      }
+    },
+    "settings.section.appearance" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外观"
+          }
+        }
+      }
+    },
+    "settings.section.data" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数据"
+          }
+        }
+      }
+    },
+    "settings.section.diagnostics" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diagnostics"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "诊断"
+          }
+        }
+      }
+    },
+    "settings.section.reader" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reader"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读器"
+          }
+        }
+      }
+    },
+    "Shelf name" : {
+
+    },
+    "Shelves" : {
+
+    },
+    "Show installed only" : {
+
+    },
+    "Show Less" : {
+
+    },
+    "Show More" : {
+
+    },
+    "Show Preview" : {
+
+    },
+    "Sorted ascending" : {
+
+    },
+    "Sorted descending" : {
+
+    },
+    "Source" : {
+
+    },
+    "Source (%@)" : {
+
+    },
+    "Source Search Features" : {
+
+    },
+    "Sources" : {
+
+    },
+    "Status" : {
+
+    },
+    "Summary tags" : {
+
+    },
+    "Supported" : {
+
+    },
+    "Tap for details" : {
+
+    },
+    "Tap Zones" : {
+
+    },
+    "Test Connection" : {
+
+    },
+    "The repository index refreshes automatically when you open Sources." : {
+
+    },
+    "This action cannot be undone." : {
+
+    },
+    "This only renames the imported offline entry in ComicDeck." : {
+
+    },
+    "This will queue %lld chapters." : {
+
+    },
+    "Unavailable" : {
+
+    },
+    "Update" : {
+
+    },
+    "Update %lld selected source%@ with available updates?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Update %1$lld selected source%2$@ with available updates?"
+          }
+        }
+      }
+    },
+    "Update All" : {
+
+    },
+    "Update available: %@" : {
+
+    },
+    "Update selected sources?" : {
+
+    },
+    "Updating..." : {
+
+    },
+    "Upload Backup" : {
+
+    },
+    "Upload timestamped snapshots" : {
+
+    },
+    "Use an existing WebDAV directory. Restore from a specific remote backup or keep using the configured latest backup file. Offline files and active download queue are not uploaded." : {
+
+    },
+    "Use Official Index" : {
+
+    },
+    "Use Source" : {
+
+    },
+    "Username" : {
+
+    },
+    "Validate Cookies" : {
+
+    },
+    "View All Comments" : {
+
+    },
+    "View Files" : {
+
+    },
+    "View More" : {
+
+    },
+    "Web Login" : {
+
+    },
+    "WebDAV Sync" : {
+
+    },
+    "Working..." : {
+
+    },
+    "Workspace" : {
+
+    },
+    "Write a comment" : {
+
+    },
+    "Your Shelves" : {
+
+    },
+    "榜单" : {
+
+    }
+  },
+  "version" : "1.0"
+}
