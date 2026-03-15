@@ -5,6 +5,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build IPA (unsigned)
@@ -129,9 +132,30 @@ jobs:
         run: |
           sh .github/build_github.sh
 
+      - name: Prepare Nightly IPA Asset
+        if: success() && github.event_name != 'pull_request'
+        run: cp "${{ steps.artifact_metadata.outputs.artifact_name }}.ipa" ComicDeck.ipa
+
       - name: Upload IPA Artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.artifact_metadata.outputs.artifact_name }}.ipa
           path: ${{ steps.artifact_metadata.outputs.artifact_name }}.ipa
+
+      - name: Publish Nightly Release Asset
+        if: success() && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Nightly
+          prerelease: true
+          make_latest: false
+          body: |
+            Version: ${{ steps.artifact_metadata.outputs.version_label }}
+            Commit: ${{ steps.artifact_metadata.outputs.short_sha }}
+            Message: ${{ github.event.head_commit.message || github.sha }}
+            Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+          files: |
+            ComicDeck.ipa
+          overwrite_files: true

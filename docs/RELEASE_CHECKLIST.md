@@ -8,6 +8,7 @@ Confirm:
 2. release archive succeeds
 3. app launches cleanly on a fresh install
 4. GitHub Actions produces an unsigned `.ipa` artifact
+5. nightly `apps.json` update includes the direct GitHub release `.ipa` URL at the app top level and in the nightly release channel
 
 Recommended command:
 

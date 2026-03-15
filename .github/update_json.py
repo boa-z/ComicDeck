@@ -1,94 +1,138 @@
 import json
-import re
 import os
+import re
 from datetime import datetime
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
-def prepare_description(text):
-    text = re.sub('<[^<]+?>', '', text) # Remove HTML tags
-    text = re.sub(r'#{1,6}\s?', '', text) # Remove markdown header tags
-    text = re.sub(r'\*{2}', '', text) # Remove all occurrences of two consecutive asterisks
-    text = re.sub(r'(?<=\r|\n)-', '•', text) # Only replace - with • if it is preceded by \r or \n
-    text = re.sub(r'`', '\"', text) # Replace ` with \"
-    text = re.sub(r'\r\n\r\n', '\r \n', text) # Replace \r\n\r\n with \r \n (avoid incorrect display of the description regarding paragraphs)
-    return text
 
-def get_latest_nightly_build(repo_url):
-    # Since we are using actions, we need to get the latest run
-    # For now, we will assume the environment variables are passed to this script
-    return {
-        "tag_name": "nightly",
-        "published_at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "body": os.environ.get("COMMIT_MSG", "Automatic nightly build"),
-        "assets": [
-            {
-                "name": "ComicDeck.ipa",
-                "browser_download_url": os.environ.get("IPA_URL", ""),
-                "size": int(os.environ.get("IPA_SIZE", 0))
-            }
-        ]
+def prepare_description(text: str) -> str:
+    text = re.sub("<[^<]+?>", "", text)
+    text = re.sub(r"#{1,6}\s?", "", text)
+    text = re.sub(r"\*{2}", "", text)
+    text = re.sub(r"(?<=\r|\n)-", "•", text)
+    text = re.sub(r"`", "\"", text)
+    text = re.sub(r"\r\n\r\n", "\r \n", text)
+    return text.strip()
+
+
+def fetch_release_by_tag(repo_url: str, tag: str) -> dict:
+    api_url = f"https://api.github.com/repos/{repo_url}/releases/tags/{tag}"
+    headers = {
+        "Accept": "application/vnd.github+json",
     }
-
-def update_json_file(repo_url, json_file):
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = Request(api_url, headers=headers)
     try:
-        with open(json_file, "r") as file:
-            data = json.load(file)
-    except json.JSONDecodeError as e:
-        print(f"Error reading JSON file: {e}")
-        raise
+        with urlopen(request, timeout=30) as response:
+            return json.load(response)
+    except (HTTPError, URLError) as exc:
+        raise RuntimeError(f"Failed to fetch nightly release metadata: {exc}") from exc
+
+
+def extract_metadata_from_release(release: dict) -> tuple[str, str, str]:
+    body = release.get("body") or ""
+    version_match = re.search(r"^Version:\s*(.+)$", body, re.MULTILINE)
+    commit_match = re.search(r"^Commit:\s*([0-9a-f]{7,40})$", body, re.MULTILINE)
+    message_match = re.search(r"^Message:\s*(.+)$", body, re.MULTILINE)
+
+    version_label = (
+        version_match.group(1).strip()
+        if version_match
+        else os.environ.get("VERSION_LABEL", "0.0.1+1")
+    )
+    commit = (
+        commit_match.group(1).strip()[:7]
+        if commit_match
+        else os.environ.get("GITHUB_SHA", "")[:7]
+    )
+    headline = (
+        message_match.group(1).strip()
+        if message_match
+        else os.environ.get("COMMIT_MSG", "Automatic nightly build").strip()
+    )
+    return version_label, commit, headline
+
+
+def build_version_description(release: dict, commit: str, headline: str) -> str:
+    workflow_link_match = re.search(r"^Workflow:\s*(https?://\S+)$", release.get("body") or "", re.MULTILINE)
+    workflow_link = workflow_link_match.group(1).strip() if workflow_link_match else ""
+
+    lines = []
+    if commit:
+        lines.append(f"Commit: {commit}")
+    if headline:
+        lines.append(f"Message: {headline}")
+    if workflow_link:
+        lines.append(f"Workflow: {workflow_link}")
+    if not lines:
+        lines.append("Automatic nightly build")
+    return prepare_description("\n".join(lines))
+
+
+def update_json_file(repo_url: str, json_file: str) -> None:
+    with open(json_file, "r", encoding="utf-8") as file:
+        data = json.load(file)
 
     app = data["apps"][0]
+    release = fetch_release_by_tag(repo_url, "nightly")
 
-    ipa_filename = os.environ.get("IPA_FILENAME", "")
-    version_match = re.match(r"^ComicDeck-(?P<version>[^-]+)-(?P<commit>[0-9a-f]{7})-unsigned\.ipa$", ipa_filename)
-    if not version_match:
-        raise RuntimeError(f"Unable to parse version from IPA filename: {ipa_filename}")
-    version_label = version_match.group("version")
-    commit = version_match.group("commit")
+    ipa_asset = next((asset for asset in release.get("assets", []) if asset["name"].endswith(".ipa")), None)
+    if ipa_asset is None:
+        raise RuntimeError("No IPA asset found in nightly release.")
 
-    nightly_data = get_latest_nightly_build(repo_url)
-    version_date = nightly_data["published_at"]
-    description = prepare_description(nightly_data["body"])
-
-    download_url = nightly_data["assets"][0]["browser_download_url"]
-    size = nightly_data["assets"][0]["size"]
+    version_label, commit, headline = extract_metadata_from_release(release)
+    version_date = release.get("published_at") or datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    description = build_version_description(release, commit, headline)
 
     version_entry = {
         "version": version_label,
         "date": version_date,
         "localizedDescription": description,
-        "downloadURL": download_url,
-        "size": size,
-        "commit": commit
+        "downloadURL": ipa_asset["browser_download_url"],
+        "size": ipa_asset["size"],
     }
+    if commit:
+        version_entry["commit"] = commit
+    if headline:
+        version_entry["headline"] = headline
 
-    # Update nightly channel
-    nightly_channel = None
-    for channel in app.get('releaseChannels', []):
-        if channel['track'] == 'nightly':
-            nightly_channel = channel
-            break
+    app["versions"] = [version_entry]
+    app.update(
+        {
+            "version": version_label,
+            "versionDate": version_date,
+            "versionDescription": description,
+            "downloadURL": ipa_asset["browser_download_url"],
+            "size": ipa_asset["size"],
+        }
+    )
+    if commit:
+        app["commit"] = commit
+    if headline:
+        app["headline"] = headline
+
+    nightly_channel = next(
+        (channel for channel in app.get("releaseChannels", []) if channel["track"] == "nightly"),
+        None,
+    )
     if nightly_channel is None:
         nightly_channel = {"track": "nightly", "releases": []}
         app.setdefault("releaseChannels", []).append(nightly_channel)
-    nightly_channel['releases'] = [version_entry]
+    nightly_channel["releases"] = [version_entry]
 
-    try:
-        with open(json_file, "w") as file:
-            json.dump(data, file, indent=2)
-        print("JSON file updated successfully.")
-    except IOError as e:
-        print(f"Error writing to JSON file: {e}")
-        raise
+    with open(json_file, "w", encoding="utf-8") as file:
+        json.dump(data, file, indent=2, ensure_ascii=False)
+        file.write("\n")
 
-def main():
-    repo_url = "boa-z/ComicDeck"
-    json_file = "./.github/apps.json"
+    print("JSON file updated successfully.")
 
-    try:
-        update_json_file(repo_url, json_file)
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        raise
+
+def main() -> None:
+    update_json_file("boa-z/ComicDeck", "./.github/apps.json")
+
 
 if __name__ == "__main__":
     main()
