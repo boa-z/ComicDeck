@@ -104,6 +104,7 @@ The repository includes automated workflows in `.github/workflows/`.
 
 Mac Catalyst release notes:
 - The macOS artifact is a `.dmg` containing `ComicDeck.app` and an `Applications` shortcut.
+- A versioned `.app.zip` artifact is also uploaded for direct inspection and manual packaging.
 - The app is unsigned and not notarized.
 - macOS users may need to right-click and choose `Open` on first launch.
 

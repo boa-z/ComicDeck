@@ -9,9 +9,10 @@ Confirm:
 3. app launches cleanly on a fresh install
 4. GitHub Actions produces an unsigned `.ipa` artifact
 5. GitHub Actions produces a Mac Catalyst `.dmg` artifact
-6. nightly `apps.json` update includes the direct GitHub release `.ipa` URL at the app top level and in the nightly release channel
-7. AltStore source parsing fields remain present, including `developerName`, `subtitle`, `localizedDescription`, `category`, and top-level source metadata
-8. the Mac Catalyst `.dmg` mounts cleanly and contains `ComicDeck.app` plus an `Applications` shortcut
+6. GitHub Actions produces a Mac Catalyst `.app.zip` artifact
+7. nightly `apps.json` update includes the direct GitHub release `.ipa` URL at the app top level and in the nightly release channel
+8. AltStore source parsing fields remain present, including `developerName`, `subtitle`, `localizedDescription`, `category`, and top-level source metadata
+9. the Mac Catalyst `.dmg` mounts cleanly and contains `ComicDeck.app` plus an `Applications` shortcut
 
 Recommended command:
 

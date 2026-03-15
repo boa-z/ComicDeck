@@ -236,18 +236,18 @@ jobs:
           echo "short_sha=$short_sha" >> $GITHUB_OUTPUT
           echo "artifact_name=$artifact_name" >> $GITHUB_OUTPUT
 
-      - name: Archive Mac Catalyst App
+      - name: Build Mac Catalyst App
         env:
           scheme: ${{ steps.scheme.outputs.scheme }}
           filetype_parameter: ${{ steps.filetype_parameter.outputs.filetype_parameter }}
           file_to_build: ${{ steps.file_to_build.outputs.file_to_build }}
         run: |
           set -o pipefail
-          xcodebuild archive \
-            -archivePath "$archive_path" \
+          xcodebuild build \
             -scheme "$scheme" \
             -"$filetype_parameter" "$file_to_build" \
-            -destination "platform=macOS,variant=Mac Catalyst" \
+            -destination "generic/platform=macOS,variant=Mac Catalyst" \
+            -derivedDataPath "$derived_data_path" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_STYLE=Manual \
@@ -258,9 +258,25 @@ jobs:
             SWIFT_ENABLE_EXPLICIT_MODULES=NO \
             -configuration Release | tee build-maccatalyst.log
 
-      - name: Tar Mac Catalyst Archive
+      - name: Resolve Mac Catalyst App Path
         if: success()
-        run: tar -cvf "$archive_path.xcarchive.tar" "$archive_path.xcarchive"
+        env:
+          scheme: ${{ steps.scheme.outputs.scheme }}
+        run: |
+          app_path="$derived_data_path/Build/Products/Release-maccatalyst/$scheme.app"
+          if [ ! -d "$app_path" ]; then
+            echo "Mac Catalyst app not found at $app_path" >&2
+            exit 1
+          fi
+          echo "app_path=$app_path" >> $GITHUB_ENV
+
+      - name: Package Mac App Artifact
+        if: success()
+        env:
+          scheme: ${{ steps.scheme.outputs.scheme }}
+        run: |
+          rm -f "${{ steps.artifact_metadata.outputs.artifact_name }}.app.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "${{ steps.artifact_metadata.outputs.artifact_name }}.app.zip"
 
       - name: Upload Mac Build Log
         if: always()
@@ -269,18 +285,19 @@ jobs:
           name: build-maccatalyst.log
           path: build-maccatalyst.log
 
-      - name: Upload Mac Archive Artifact
+      - name: Upload Mac App Artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.artifact_metadata.outputs.artifact_name }}.xcarchive.tar
-          path: ${{ env.archive_path }}.xcarchive.tar
+          name: ${{ steps.artifact_metadata.outputs.artifact_name }}.app.zip
+          path: ${{ steps.artifact_metadata.outputs.artifact_name }}.app.zip
 
       - name: Create DMG
         if: success()
         env:
           artifact_name: ${{ steps.artifact_metadata.outputs.artifact_name }}
           volume_name: ComicDeck
+          app_path: ${{ env.app_path }}
         run: |
           sh .github/build_macos_dmg.sh
 
