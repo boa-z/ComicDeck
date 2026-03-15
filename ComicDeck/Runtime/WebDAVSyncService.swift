@@ -7,7 +7,16 @@ struct WebDAVSyncConfiguration: Hashable {
     var remoteFileName: String
 
     var directoryURL: URL? {
-        URL(string: directoryURLString.trimmingCharacters(in: .whitespacesAndNewlines))
+        let trimmed = directoryURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var components = URLComponents(string: trimmed), components.scheme != nil, components.host != nil else {
+            return nil
+        }
+        if components.path.isEmpty {
+            components.path = "/"
+        } else if !components.path.hasSuffix("/") {
+            components.path += "/"
+        }
+        return components.url
     }
 
     var remoteFileURL: URL? {
@@ -177,7 +186,11 @@ final class WebDAVSyncService {
     }
 
     private func validatedDirectoryURL(_ configuration: WebDAVSyncConfiguration) throws -> URL {
-        guard let url = configuration.directoryURL else {
+        guard
+            let url = configuration.directoryURL,
+            url.scheme?.isEmpty == false,
+            url.host?.isEmpty == false
+        else {
             throw WebDAVSyncError.invalidDirectoryURL
         }
         return url

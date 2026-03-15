@@ -9,12 +9,12 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-ios:
     name: Build IPA (unsigned)
     runs-on: macos-latest
     env:
       scheme: ComicDeck
-      archive_path: archive
+      archive_path: archive-ios
 
     steps:
       - uses: maxim-lobanov/setup-xcode@v1
@@ -158,4 +158,155 @@ jobs:
             Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
           files: |
             ComicDeck.ipa
+          overwrite_files: true
+
+  build-macos-catalyst:
+    name: Build Mac Catalyst DMG
+    runs-on: macos-latest
+    env:
+      scheme: ComicDeck
+      archive_path: archive-maccatalyst
+
+    steps:
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "latest-stable"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set Scheme
+        id: scheme
+        run: |
+          if [ "$scheme" = "default" ]
+          then
+            scheme_list=$(xcodebuild -list -json | tr -d "\n")
+            scheme=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
+            echo Using default scheme: $scheme
+          else
+            echo Using configured scheme: $scheme
+          fi
+          echo "scheme=$scheme" >> $GITHUB_OUTPUT
+
+      - name: Set filetype_parameter
+        id: filetype_parameter
+        run: |
+          filetype_parameter=`ls -A | grep -i \.xcworkspace$ && echo workspace || echo project`
+          echo "filetype_parameter=$filetype_parameter" >> $GITHUB_OUTPUT
+
+      - name: Set file_to_build
+        id: file_to_build
+        run: |
+          file_to_build=`ls -A | grep -i \.xcworkspace$ || ls -A | grep -i \.xcodeproj$`
+          file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
+          echo "file_to_build=$file_to_build" >> $GITHUB_OUTPUT
+
+      - name: Set artifact metadata
+        id: artifact_metadata
+        env:
+          filetype_parameter: ${{ steps.filetype_parameter.outputs.filetype_parameter }}
+          file_to_build: ${{ steps.file_to_build.outputs.file_to_build }}
+          scheme: ${{ steps.scheme.outputs.scheme }}
+        run: |
+          build_settings=$(xcodebuild \
+            -showBuildSettings \
+            -scheme "$scheme" \
+            -"$filetype_parameter" "$file_to_build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            PROVISIONING_PROFILE="" \
+            CODE_SIGN_IDENTITY="")
+          marketing_version=$(echo "$build_settings" | awk -F' = ' '/MARKETING_VERSION = / {print $2; exit}')
+          build_version=$(echo "$build_settings" | awk -F' = ' '/CURRENT_PROJECT_VERSION = / {print $2; exit}')
+
+          if [ -z "$marketing_version" ] || [ -z "$build_version" ]; then
+            echo "Failed to resolve MARKETING_VERSION or CURRENT_PROJECT_VERSION from build settings" >&2
+            exit 1
+          fi
+
+          short_sha=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          version_label="${marketing_version}+${build_version}"
+          artifact_name="${scheme}-${version_label}-${short_sha}-maccatalyst"
+          echo "marketing_version=$marketing_version" >> $GITHUB_OUTPUT
+          echo "build_version=$build_version" >> $GITHUB_OUTPUT
+          echo "version_label=$version_label" >> $GITHUB_OUTPUT
+          echo "short_sha=$short_sha" >> $GITHUB_OUTPUT
+          echo "artifact_name=$artifact_name" >> $GITHUB_OUTPUT
+
+      - name: Archive Mac Catalyst App
+        env:
+          scheme: ${{ steps.scheme.outputs.scheme }}
+          filetype_parameter: ${{ steps.filetype_parameter.outputs.filetype_parameter }}
+          file_to_build: ${{ steps.file_to_build.outputs.file_to_build }}
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -archivePath "$archive_path" \
+            -scheme "$scheme" \
+            -"$filetype_parameter" "$file_to_build" \
+            -destination "platform=macOS,variant=Mac Catalyst" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            PROVISIONING_PROFILE="" \
+            CODE_SIGN_IDENTITY="" \
+            -configuration Release | tee build-maccatalyst.log
+
+      - name: Tar Mac Catalyst Archive
+        if: success()
+        run: tar -cvf "$archive_path.xcarchive.tar" "$archive_path.xcarchive"
+
+      - name: Upload Mac Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-maccatalyst.log
+          path: build-maccatalyst.log
+
+      - name: Upload Mac Archive Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact_metadata.outputs.artifact_name }}.xcarchive.tar
+          path: ${{ env.archive_path }}.xcarchive.tar
+
+      - name: Create DMG
+        if: success()
+        env:
+          artifact_name: ${{ steps.artifact_metadata.outputs.artifact_name }}
+          volume_name: ComicDeck
+        run: |
+          sh .github/build_macos_dmg.sh
+
+      - name: Prepare Nightly DMG Asset
+        if: success() && github.event_name != 'pull_request'
+        run: cp "${{ steps.artifact_metadata.outputs.artifact_name }}.dmg" ComicDeck-maccatalyst.dmg
+
+      - name: Upload DMG Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact_metadata.outputs.artifact_name }}.dmg
+          path: ${{ steps.artifact_metadata.outputs.artifact_name }}.dmg
+
+      - name: Publish Nightly Mac Asset
+        if: success() && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Nightly
+          prerelease: true
+          make_latest: false
+          body: |
+            Version: ${{ steps.artifact_metadata.outputs.version_label }}
+            Commit: ${{ steps.artifact_metadata.outputs.short_sha }}
+            Message: ${{ github.event.head_commit.message || github.sha }}
+            Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+          files: |
+            ComicDeck-maccatalyst.dmg
           overwrite_files: true

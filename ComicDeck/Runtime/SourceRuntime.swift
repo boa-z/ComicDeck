@@ -1,5 +1,5 @@
 import Foundation
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 import ActivityKit
 #endif
 
@@ -425,7 +425,7 @@ final class SourceRuntime {
                 requests: requests
             )
             var message = library.status
-#if canImport(ActivityKit)
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
             if #available(iOS 16.1, *), !ActivityAuthorizationInfo().areActivitiesEnabled {
                 message = "Download queued. Live Activities is disabled in system settings."
             }

@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import Security
 import SwiftUI
 
 @MainActor
@@ -14,6 +15,7 @@ final class SettingsScreenModel {
         static let uploadSnapshots = "backup.webdav.uploadSnapshots"
         static let passwordService = "boa.ComicDeck.WebDAV"
         static let passwordAccount = "backup.webdav.password"
+        static let passwordFallback = "backup.webdav.passwordFallback"
     }
 
     var readerCacheSize = "Calculating..."
@@ -42,6 +44,8 @@ final class SettingsScreenModel {
     var webDAVEntries: [WebDAVRemoteBackup] = []
     var webDAVLastSyncAt: Date?
     var webDAVLastSyncSummary = "Never synced"
+    var webDAVError: String?
+    var webDAVSuccessMessage: String?
 
     private let webDAVService = WebDAVSyncService()
 
@@ -115,8 +119,13 @@ final class SettingsScreenModel {
         defaults.set(webDAVUploadSnapshots, forKey: WebDAVPersistKey.uploadSnapshots)
         do {
             try SecureStore.save(webDAVPassword, service: WebDAVPersistKey.passwordService, account: WebDAVPersistKey.passwordAccount)
+            defaults.removeObject(forKey: WebDAVPersistKey.passwordFallback)
         } catch {
-            backupError = error.localizedDescription
+            if shouldFallbackWebDAVPasswordStorage(for: error) {
+                defaults.set(webDAVPassword, forKey: WebDAVPersistKey.passwordFallback)
+            } else {
+                webDAVError = error.localizedDescription
+            }
         }
         if webDAVDirectoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             webDAVEntries = []
@@ -127,24 +136,26 @@ final class SettingsScreenModel {
 
     func testWebDAVConnection() async {
         testingWebDAV = true
-        backupError = nil
+        webDAVError = nil
+        webDAVSuccessMessage = nil
         defer { testingWebDAV = false }
         do {
             saveWebDAVConfiguration()
             try await webDAVService.testConnection(currentWebDAVConfiguration())
             webDAVStatus = "Connection verified"
             updateWebDAVSyncMetadata(summary: "Connection verified")
+            webDAVSuccessMessage = "WebDAV connection verified."
         } catch {
             webDAVStatus = "Connection failed"
-            backupError = error.localizedDescription
+            webDAVError = error.localizedDescription
             updateWebDAVSyncMetadata(summary: "Connection failed")
         }
     }
 
     func uploadBackupToWebDAV(using library: LibraryViewModel) async {
         uploadingWebDAV = true
-        backupError = nil
-        backupSuccessMessage = nil
+        webDAVError = nil
+        webDAVSuccessMessage = nil
         defer { uploadingWebDAV = false }
 
         do {
@@ -155,14 +166,14 @@ final class SettingsScreenModel {
                 _ = try await webDAVService.uploadSnapshotBackup(payload, configuration: currentWebDAVConfiguration())
             }
             webDAVStatus = "Uploaded backup to WebDAV"
-            backupSuccessMessage = webDAVUploadSnapshots
+            webDAVSuccessMessage = webDAVUploadSnapshots
                 ? "Latest backup and timestamped snapshot uploaded to WebDAV."
                 : "Backup uploaded to WebDAV."
             updateWebDAVSyncMetadata(summary: "Uploaded backup")
             await refreshWebDAVEntries()
         } catch {
             webDAVStatus = "Upload failed"
-            backupError = error.localizedDescription
+            webDAVError = error.localizedDescription
             updateWebDAVSyncMetadata(summary: "Upload failed")
         }
     }
@@ -172,8 +183,8 @@ final class SettingsScreenModel {
         sourceManager: SourceManagerViewModel
     ) async {
         downloadingWebDAV = true
-        backupError = nil
-        backupSuccessMessage = nil
+        webDAVError = nil
+        webDAVSuccessMessage = nil
         defer { downloadingWebDAV = false }
 
         do {
@@ -181,11 +192,11 @@ final class SettingsScreenModel {
             let payload = try await webDAVService.downloadBackup(configuration: currentWebDAVConfiguration())
             try await library.restore(from: payload, sourceManager: sourceManager)
             webDAVStatus = "Downloaded and restored backup"
-            backupSuccessMessage = "Backup downloaded from WebDAV and restored."
+            webDAVSuccessMessage = "Backup downloaded from WebDAV and restored."
             updateWebDAVSyncMetadata(summary: "Restored from WebDAV")
         } catch {
             webDAVStatus = "Download failed"
-            backupError = error.localizedDescription
+            webDAVError = error.localizedDescription
             updateWebDAVSyncMetadata(summary: "Restore failed")
         }
     }
@@ -195,8 +206,8 @@ final class SettingsScreenModel {
         sourceManager: SourceManagerViewModel
     ) async {
         downloadingWebDAV = true
-        backupError = nil
-        backupSuccessMessage = nil
+        webDAVError = nil
+        webDAVSuccessMessage = nil
         defer { downloadingWebDAV = false }
 
         do {
@@ -204,18 +215,18 @@ final class SettingsScreenModel {
             let payload = try await webDAVService.downloadLatestBackup(configuration: currentWebDAVConfiguration())
             try await library.restore(from: payload, sourceManager: sourceManager)
             webDAVStatus = "Restored latest remote backup"
-            backupSuccessMessage = "Latest WebDAV backup restored."
+            webDAVSuccessMessage = "Latest WebDAV backup restored."
             updateWebDAVSyncMetadata(summary: "Restored latest backup")
         } catch {
             webDAVStatus = "Restore failed"
-            backupError = error.localizedDescription
+            webDAVError = error.localizedDescription
             updateWebDAVSyncMetadata(summary: "Restore failed")
         }
     }
 
     func refreshWebDAVEntries() async {
         loadingWebDAVEntries = true
-        backupError = nil
+        webDAVError = nil
         defer { loadingWebDAVEntries = false }
 
         do {
@@ -225,7 +236,7 @@ final class SettingsScreenModel {
             updateWebDAVSyncMetadata(summary: webDAVStatus)
         } catch {
             webDAVStatus = "Remote listing failed"
-            backupError = error.localizedDescription
+            webDAVError = error.localizedDescription
             updateWebDAVSyncMetadata(summary: "Remote listing failed")
         }
     }
@@ -236,8 +247,8 @@ final class SettingsScreenModel {
         sourceManager: SourceManagerViewModel
     ) async {
         downloadingWebDAV = true
-        backupError = nil
-        backupSuccessMessage = nil
+        webDAVError = nil
+        webDAVSuccessMessage = nil
         defer { downloadingWebDAV = false }
 
         do {
@@ -245,18 +256,19 @@ final class SettingsScreenModel {
             let payload = try await webDAVService.downloadBackup(from: entry.url, configuration: currentWebDAVConfiguration())
             try await library.restore(from: payload, sourceManager: sourceManager)
             webDAVStatus = "Restored \(entry.name)"
-            backupSuccessMessage = "Backup restored from \(entry.name)."
+            webDAVSuccessMessage = "Backup restored from \(entry.name)."
             updateWebDAVSyncMetadata(summary: "Restored \(entry.name)")
         } catch {
             webDAVStatus = "Restore failed"
-            backupError = error.localizedDescription
+            webDAVError = error.localizedDescription
             updateWebDAVSyncMetadata(summary: "Restore failed")
         }
     }
 
     func deleteWebDAVEntry(_ entry: WebDAVRemoteBackup) async {
         deletingWebDAVEntry = true
-        backupError = nil
+        webDAVError = nil
+        webDAVSuccessMessage = nil
         defer { deletingWebDAVEntry = false }
 
         do {
@@ -265,9 +277,10 @@ final class SettingsScreenModel {
             webDAVEntries.removeAll { $0.id == entry.id }
             webDAVStatus = "Deleted \(entry.name)"
             updateWebDAVSyncMetadata(summary: "Deleted \(entry.name)")
+            webDAVSuccessMessage = "Deleted \(entry.name)."
         } catch {
             webDAVStatus = "Delete failed"
-            backupError = error.localizedDescription
+            webDAVError = error.localizedDescription
             updateWebDAVSyncMetadata(summary: "Delete failed")
         }
     }
@@ -278,7 +291,11 @@ final class SettingsScreenModel {
         webDAVUsername = defaults.string(forKey: WebDAVPersistKey.username) ?? ""
         webDAVRemoteFileName = defaults.string(forKey: WebDAVPersistKey.remoteFileName) ?? "comicdeck-backup-latest.json"
         webDAVUploadSnapshots = defaults.object(forKey: WebDAVPersistKey.uploadSnapshots) as? Bool ?? true
-        webDAVPassword = (try? SecureStore.read(service: WebDAVPersistKey.passwordService, account: WebDAVPersistKey.passwordAccount)) ?? ""
+        webDAVPassword = (
+            (try? SecureStore.read(service: WebDAVPersistKey.passwordService, account: WebDAVPersistKey.passwordAccount))
+            ?? defaults.string(forKey: WebDAVPersistKey.passwordFallback)
+            ?? ""
+        )
         webDAVLastSyncAt = defaults.object(forKey: WebDAVPersistKey.lastSyncAt) as? Date
         webDAVLastSyncSummary = defaults.string(forKey: WebDAVPersistKey.lastSyncSummary) ?? "Never synced"
         webDAVStatus = webDAVDirectoryURL.isEmpty ? "Not configured" : "Ready"
@@ -303,5 +320,12 @@ final class SettingsScreenModel {
 
     var webDAVActionsDisabled: Bool {
         testingWebDAV || uploadingWebDAV || downloadingWebDAV || loadingWebDAVEntries || deletingWebDAVEntry
+    }
+
+    private func shouldFallbackWebDAVPasswordStorage(for error: Error) -> Bool {
+        guard case let SecureStoreError.saveFailed(status) = error else {
+            return false
+        }
+        return status == errSecMissingEntitlement
     }
 }

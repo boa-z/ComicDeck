@@ -99,8 +99,13 @@ The About screen reads build metadata from the app bundle:
 ### GitHub Actions
 The repository includes automated workflows in `.github/workflows/`.
 
-- `build.yml`: Builds unsigned IPA artifacts.
+- `build.yml`: Builds unsigned iOS `.ipa` artifacts and Mac Catalyst `.dmg` artifacts.
 - `update_source.yml`: Automatically generates an AltStore-compatible source manifest (`apps.json`) after nightly builds, including direct nightly IPA release links and app metadata required by AltStore parsers.
+
+Mac Catalyst release notes:
+- The macOS artifact is a `.dmg` containing `ComicDeck.app` and an `Applications` shortcut.
+- The app is unsigned and not notarized.
+- macOS users may need to right-click and choose `Open` on first launch.
 
 #### AltStore Installation
 You can add ComicDeck to AltStore using the following source URL:

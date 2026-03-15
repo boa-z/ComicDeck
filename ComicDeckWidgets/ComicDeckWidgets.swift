@@ -1,7 +1,11 @@
-import ActivityKit
 import WidgetKit
 import SwiftUI
 
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+import ActivityKit
+#endif
+
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 struct ComicDownloadActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         var comicTitle: String
@@ -14,7 +18,9 @@ struct ComicDownloadActivityAttributes: ActivityAttributes {
 
     var chapterKey: String
 }
+#endif
 
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
 struct ComicDownloadLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ComicDownloadActivityAttributes.self) { context in
@@ -87,6 +93,7 @@ struct ComicDownloadLiveActivityWidget: Widget {
         Int((progressValue(from: state) * 100).rounded())
     }
 }
+#endif
 
 private struct ComicDeckPlaceholderEntry: TimelineEntry {
     let date: Date
@@ -130,6 +137,8 @@ struct ComicDeckPlaceholderWidget: Widget {
 struct ComicDeckWidgetsBundle: WidgetBundle {
     var body: some Widget {
         ComicDeckPlaceholderWidget()
+        #if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
         ComicDownloadLiveActivityWidget()
+        #endif
     }
 }

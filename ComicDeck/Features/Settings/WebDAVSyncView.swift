@@ -145,6 +145,22 @@ struct WebDAVSyncView: View {
         }
         .navigationTitle("WebDAV Sync")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("WebDAV Error", isPresented: Binding(
+            get: { model.webDAVError != nil },
+            set: { if !$0 { model.webDAVError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.webDAVError ?? "Unknown WebDAV error")
+        }
+        .alert("WebDAV Complete", isPresented: Binding(
+            get: { model.webDAVSuccessMessage != nil },
+            set: { if !$0 { model.webDAVSuccessMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.webDAVSuccessMessage ?? "")
+        }
         .task {
             if model.webDAVEntries.isEmpty, !model.webDAVDirectoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 await model.refreshWebDAVEntries()
