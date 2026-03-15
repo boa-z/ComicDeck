@@ -255,6 +255,7 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER="" \
             PROVISIONING_PROFILE="" \
             CODE_SIGN_IDENTITY="" \
+            SWIFT_ENABLE_EXPLICIT_MODULES=NO \
             -configuration Release | tee build-maccatalyst.log
 
       - name: Tar Mac Catalyst Archive
