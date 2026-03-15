@@ -26,11 +26,11 @@
         {
           "version": "0.0.1+1",
           "date": "2026-03-15T04:26:26Z",
-          "localizedDescription": "Commit: aac9a1f\nMessage: feat: add nightly IPA release link to apps.json and update workflows\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23103279428/attempts/1",
+          "localizedDescription": "Commit: e49e31e\nMessage: fix: align AltStore source metadata and apply the new app icon assets\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23105998617/attempts/1",
           "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-          "size": 1935662,
-          "commit": "aac9a1f",
-          "headline": "feat: add nightly IPA release link to apps.json and update workflows"
+          "size": 5246561,
+          "commit": "e49e31e",
+          "headline": "fix: align AltStore source metadata and apply the new app icon assets"
         }
       ],
       "releaseChannels": [
@@ -44,22 +44,22 @@
             {
               "version": "0.0.1+1",
               "date": "2026-03-15T04:26:26Z",
-              "localizedDescription": "Commit: aac9a1f\nMessage: feat: add nightly IPA release link to apps.json and update workflows\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23103279428/attempts/1",
+              "localizedDescription": "Commit: e49e31e\nMessage: fix: align AltStore source metadata and apply the new app icon assets\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23105998617/attempts/1",
               "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-              "size": 1935662,
-              "commit": "aac9a1f",
-              "headline": "feat: add nightly IPA release link to apps.json and update workflows"
+              "size": 5246561,
+              "commit": "e49e31e",
+              "headline": "fix: align AltStore source metadata and apply the new app icon assets"
             }
           ]
         }
       ],
       "version": "0.0.1+1",
       "versionDate": "2026-03-15T04:26:26Z",
-      "versionDescription": "Commit: aac9a1f\nMessage: feat: add nightly IPA release link to apps.json and update workflows\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23103279428/attempts/1",
+      "versionDescription": "Commit: e49e31e\nMessage: fix: align AltStore source metadata and apply the new app icon assets\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23105998617/attempts/1",
       "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-      "size": 1935662,
-      "commit": "aac9a1f",
-      "headline": "feat: add nightly IPA release link to apps.json and update workflows"
+      "size": 5246561,
+      "commit": "e49e31e",
+      "headline": "fix: align AltStore source metadata and apply the new app icon assets"
     }
   ],
   "news": []
