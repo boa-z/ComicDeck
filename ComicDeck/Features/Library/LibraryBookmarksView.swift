@@ -10,7 +10,7 @@ private struct BookmarkBatchSelectionBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text("\(selectedCount) selected")
+            Text(AppLocalization.text("library.bookmarks.selected", "\(selectedCount) selected"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .padding(.horizontal, 10)
@@ -20,14 +20,14 @@ private struct BookmarkBatchSelectionBar: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 8) {
-                Button(selectedCount == totalCount ? "Clear" : "Select All") {
+                Button(selectedCount == totalCount ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("common.select_all", "Select All")) {
                     selectAllAction()
                 }
                 .font(.subheadline.weight(.semibold))
                 .controlSize(.small)
                 .buttonStyle(.bordered)
 
-                Button("Add to Shelf") {
+                Button(AppLocalization.text("library.bookmarks.add_to_shelf", "Add to Shelf")) {
                     addToShelfAction()
                 }
                 .font(.subheadline.weight(.semibold))
@@ -35,7 +35,7 @@ private struct BookmarkBatchSelectionBar: View {
                 .buttonStyle(.bordered)
                 .disabled(selectedCount == 0 || isWorking)
 
-                Button("Remove", role: .destructive) {
+                Button(AppLocalization.text("library.bookmarks.remove", "Remove"), role: .destructive) {
                     removeAction()
                 }
                 .font(.subheadline.weight(.semibold))

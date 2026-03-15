@@ -68,32 +68,32 @@ struct SourceManagementView: View {
             .padding(.bottom, AppSpacing.xl)
         }
         .background(AppSurface.grouped.ignoresSafeArea())
-        .navigationTitle("Sources")
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search installed sources")
+        .navigationTitle(AppLocalization.text("source.management.installed", "Sources"))
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: AppLocalization.text("source.management.search_placeholder", "Search installed sources"))
         .toolbar {
             if !installedSources.isEmpty {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(isSelecting ? "Done" : "Select") {
+                    Button(isSelecting ? AppLocalization.text("common.done", "Done") : AppLocalization.text("source.action.select", "Select")) {
                         toggleSelecting()
                     }
                 }
             }
         }
-        .alert("Update selected sources?", isPresented: $showBatchUpdateConfirm) {
-            Button("Update", role: .none) {
+        .alert(AppLocalization.text("source.alert.batch_update.title", "Update selected sources?"), isPresented: $showBatchUpdateConfirm) {
+            Button(AppLocalization.text("source.action.update", "Update"), role: .none) {
                 Task { await updateSelectedSources() }
             }
-            Button("Cancel", role: .cancel) { }
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) { }
         } message: {
-            Text("Update \(selectedInstalledSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }.count) selected source\(selectedInstalledSources.count == 1 ? "" : "s") with available updates?")
+            Text(AppLocalization.text("source.alert.batch_update.message", "Update \(selectedInstalledSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }.count) selected source\(selectedInstalledSources.count == 1 ? "" : "s") with available updates?"))
         }
-        .alert("Delete selected sources?", isPresented: $showBatchDeleteConfirm) {
-            Button("Delete", role: .destructive) {
+        .alert(AppLocalization.text("source.alert.batch_delete.title", "Delete selected sources?"), isPresented: $showBatchDeleteConfirm) {
+            Button(AppLocalization.text("source.action.delete", "Delete"), role: .destructive) {
                 Task { await deleteSelectedSources() }
             }
-            Button("Cancel", role: .cancel) { }
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) { }
         } message: {
-            Text("Delete \(selectedInstalledSources.count) selected installed source\(selectedInstalledSources.count == 1 ? "" : "s")? This action cannot be undone.")
+            Text(AppLocalization.text("source.alert.batch_delete.message", "Delete \(selectedInstalledSources.count) selected installed source\(selectedInstalledSources.count == 1 ? "" : "s")? This action cannot be undone."))
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if isSelecting {
@@ -110,20 +110,20 @@ struct SourceManagementView: View {
             SourceRepositoryView(vm: vm, sourceManager: sourceManager)
         } label: {
             ComicDetailSectionCard(
-                title: "Repository",
+                title: AppLocalization.text("source.management.repository", "Repository"),
                 subtitle: sourceManager.remoteSources.isEmpty
-                    ? "Index settings, update checks, and remote source discovery"
+                    ? AppLocalization.text("source.management.repository_hint", "Index settings, update checks, and remote source discovery")
                     : "\(sourceManager.remoteSources.count) remote sources cached"
             ) {
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
                     HStack(spacing: 10) {
                         metricPill(
-                            title: "Remote",
+                            title: AppLocalization.text("source.management.metric.remote", "Remote"),
                             value: sourceManager.remoteSources.isEmpty ? "-" : "\(sourceManager.remoteSources.count)",
                             tint: AppTint.success
                         )
                         metricPill(
-                            title: "Updates",
+                            title: AppLocalization.text("source.management.metric.updates", "Updates"),
                             value: "\(updateCount)",
                             tint: updateCount == 0 ? .secondary : AppTint.warning
                         )
@@ -131,7 +131,7 @@ struct SourceManagementView: View {
 
                     HStack(alignment: .center, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(sourceManager.autoLoadRemoteSources ? "Auto-load enabled" : "Manual load")
+                            Text(sourceManager.autoLoadRemoteSources ? AppLocalization.text("source.management.auto_load", "Auto-load enabled") : AppLocalization.text("source.management.manual_load", "Manual load"))
                                 .font(.subheadline.weight(.semibold))
                             Text(sourceManager.status)
                                 .font(.caption)
@@ -157,16 +157,16 @@ struct SourceManagementView: View {
 
     private var installedSection: some View {
         ComicDetailSectionCard(
-            title: "Installed Sources",
+            title: AppLocalization.text("source.management.installed", "Installed Sources"),
             subtitle: sourceManager.installedSources.isEmpty
-                ? "Install a source from the repository below"
-                : "Manage active sources, updates, and selection"
+                ? AppLocalization.text("source.management.installed_hint", "Manage active sources, updates, and selection")
+                : AppLocalization.text("source.management.installed_hint", "Manage active sources, updates, and selection")
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 if sourceManager.installedSources.isEmpty {
                     emptyState(
-                        title: "No installed sources",
-                        subtitle: "Refresh the repository and install a source to start browsing."
+                        title: AppLocalization.text("source.management.empty", "No installed sources"),
+                        subtitle: AppLocalization.text("source.management.empty_hint", "Refresh the repository and install a source to start browsing.")
                     )
                 } else {
                     ForEach(installedSources) { source in
@@ -179,7 +179,7 @@ struct SourceManagementView: View {
 
     private var selectionBar: some View {
         HStack(spacing: 10) {
-            Text("\(selectedSourceKeys.count) selected")
+            Text(AppLocalization.text("source.management.selected", "\(selectedSourceKeys.count) selected"))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .padding(.horizontal, 10)
@@ -188,7 +188,7 @@ struct SourceManagementView: View {
 
             Spacer(minLength: 0)
 
-            Button(selectedSourceKeys.count == installedSources.count ? "Clear" : "Select All") {
+            Button(selectedSourceKeys.count == installedSources.count ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("source.management.select_all", "Select All")) {
                 if selectedSourceKeys.count == installedSources.count {
                     selectedSourceKeys.removeAll()
                 } else {

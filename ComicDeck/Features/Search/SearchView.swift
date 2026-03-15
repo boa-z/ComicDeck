@@ -18,14 +18,14 @@ struct SearchView: View {
         NavigationStack {
             searchWorkspace
             .background(AppSurface.grouped.ignoresSafeArea())
-            .navigationTitle("Search")
+            .navigationTitle(AppLocalization.text("search.title", "Search"))
             .searchable(
                 text: Binding(
                     get: { model.keyword },
                     set: { model.keyword = $0 }
                 ),
                 placement: .navigationBarDrawer(displayMode: .automatic),
-                prompt: "Search keyword"
+                prompt: AppLocalization.text("search.placeholder", "Search keyword")
             )
             .onSubmit(of: .search) {
                 Task { await performSearch() }
@@ -48,7 +48,7 @@ struct SearchView: View {
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
-                    .accessibilityLabel("Open search filters")
+                    .accessibilityLabel(AppLocalization.text("search.action.open_filters", "Open search filters"))
                 }
             }
             .sheet(isPresented: $showSearchSettings) {

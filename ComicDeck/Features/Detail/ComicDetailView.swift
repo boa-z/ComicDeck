@@ -149,19 +149,19 @@ struct ComicDetailView: View {
                 }
             }
             .confirmationDialog(
-                "Queue download for all chapters?",
+                AppLocalization.text("detail.queue_all.title", "Queue download for all chapters?"),
                 isPresented: showQueueConfirmBinding,
                 titleVisibility: .visible
             ) {
-                Button("Queue All", role: .destructive) {
+                Button(AppLocalization.text("detail.queue_all.action", "Queue All"), role: .destructive) {
                     if model.detail != nil {
                         Task { await model.queueAllChapters(using: vm, library: library) }
                     }
                 }
-                Button("Cancel", role: .cancel) {}
+                Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) {}
             } message: {
                 if let detail = model.detail {
-                    Text("This will queue \(detail.chapters.count) chapters.")
+                    Text(AppLocalization.text("detail.queue_all.message", "This will queue \(detail.chapters.count) chapters."))
                 }
             }
     }
@@ -204,17 +204,17 @@ struct ComicDetailView: View {
     }
 
     private var loadingCard: some View {
-        ComicDetailSectionCard(title: "Loading", subtitle: "Fetching detail, comments, and favorite state") {
-            ProgressView("Loading comic details...")
+        ComicDetailSectionCard(title: AppLocalization.text("detail.loading", "Loading"), subtitle: AppLocalization.text("detail.loading.subtitle", "Fetching detail, comments, and favorite state")) {
+            ProgressView(AppLocalization.text("detail.loading.progress", "Loading comic details..."))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     private var errorCard: some View {
-        ComicDetailSectionCard(title: "Load Failed", subtitle: "The source returned an error") {
+        ComicDetailSectionCard(title: AppLocalization.text("detail.load_failed", "Load Failed"), subtitle: AppLocalization.text("detail.load_failed.subtitle", "The source returned an error")) {
             Text(model.errorText)
                 .foregroundStyle(AppTint.danger)
-            Button("Retry") {
+            Button(AppLocalization.text("common.retry", "Retry")) {
                 Task { await model.load(using: vm, library: library) }
             }
             .buttonStyle(.borderedProminent)
@@ -223,20 +223,20 @@ struct ComicDetailView: View {
 
     private var toolbarMenu: some View {
         Menu {
-            Button("Copy Title") {
+            Button(AppLocalization.text("detail.action.copy_title", "Copy Title")) {
                 let title = (model.detail?.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
                     ? (model.detail?.title ?? item.title)
                     : item.title
                 copyText(title)
             }
-            Button("Copy ID") {
+            Button(AppLocalization.text("detail.action.copy_id", "Copy ID")) {
                 copyText(item.id)
             }
             if let url = model.browserURLString {
-                Button("Copy URL") {
+                Button(AppLocalization.text("detail.action.copy_url", "Copy URL")) {
                     copyText(url)
                 }
-                Button("Open In Browser") {
+                Button(AppLocalization.text("detail.action.open_browser", "Open In Browser")) {
                     if let target = URL(string: url) {
                         openURL(target)
                     }

@@ -38,7 +38,7 @@ struct DownloadManagerView: View {
             .padding(.bottom, AppSpacing.xl)
         }
         .background(AppSurface.grouped.ignoresSafeArea())
-        .navigationTitle("Downloads")
+        .navigationTitle(AppLocalization.text("downloads.navigation.title", "Downloads"))
         .sheet(item: $sharedExportURL) { shareFile in
             ActivityShareSheet(items: [shareFile.url])
         }
@@ -59,45 +59,45 @@ struct DownloadManagerView: View {
                 selectionBar
             }
         }
-        .alert("Export Failed", isPresented: Binding(
+        .alert(AppLocalization.text("downloads.alert.export_failed", "Export Failed"), isPresented: Binding(
             get: { exportError != nil },
             set: { if !$0 { exportError = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(AppLocalization.text("common.ok", "OK"), role: .cancel) {}
         } message: {
-            Text(exportError ?? "Unable to export offline chapters.")
+            Text(exportError ?? AppLocalization.text("downloads.alert.export_failed", "Unable to export offline chapters."))
         }
-        .alert("Import Failed", isPresented: Binding(
+        .alert(AppLocalization.text("downloads.alert.import_failed", "Import Failed"), isPresented: Binding(
             get: { importError != nil },
             set: { if !$0 { importError = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(AppLocalization.text("common.ok", "OK"), role: .cancel) {}
         } message: {
-            Text(importError ?? "Unable to import offline archive.")
+            Text(importError ?? AppLocalization.text("downloads.alert.import_failed", "Unable to import offline archive."))
         }
-        .alert("Import Complete", isPresented: Binding(
+        .alert(AppLocalization.text("downloads.alert.import_complete", "Import Complete"), isPresented: Binding(
             get: { importMessage != nil },
             set: { if !$0 { importMessage = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(AppLocalization.text("common.ok", "OK"), role: .cancel) {}
         } message: {
             Text(importMessage ?? "")
         }
-        .alert(model.workspace == .queue ? "Clear download queue?" : "Clear offline library?", isPresented: $model.showClearConfirm) {
-            Button(model.workspace == .queue ? "Clear Queue" : "Clear Offline", role: .destructive) {
+        .alert(model.workspace == .queue ? AppLocalization.text("downloads.alert.clear_queue.title", "Clear download queue?") : AppLocalization.text("downloads.alert.clear_offline.title", "Clear offline library?"), isPresented: $model.showClearConfirm) {
+            Button(model.workspace == .queue ? AppLocalization.text("downloads.action.clear_queue", "Clear Queue") : AppLocalization.text("downloads.action.clear_offline", "Clear Offline"), role: .destructive) {
                 Task { await model.clearCurrentWorkspace(using: library) }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) {}
         } message: {
-            Text(model.workspace == .queue ? "Queued, downloading, and failed download tasks will be removed." : "All offline chapter files and their indexed records will be removed.")
+            Text(model.workspace == .queue ? AppLocalization.text("downloads.empty.no_queue_hint", "Queued, downloading, and failed download tasks will be removed.") : AppLocalization.text("downloads.alert.clear_offline.message", "All offline chapter files and their indexed records will be removed."))
         }
-        .alert(model.workspace == .queue ? "Delete selected queue items?" : "Delete selected offline chapters?", isPresented: $model.showDeleteSelectionConfirm) {
-            Button("Delete", role: .destructive) {
+        .alert(model.workspace == .queue ? AppLocalization.text("downloads.alert.delete_selection.title", "Delete selected queue items?") : AppLocalization.text("downloads.alert.delete_selection.title", "Delete selected offline chapters?"), isPresented: $model.showDeleteSelectionConfirm) {
+            Button(AppLocalization.text("downloads.action.delete", "Delete"), role: .destructive) {
                 Task { await model.deleteSelected(using: library) }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) {}
         } message: {
-            Text(model.workspace == .queue ? "Delete \(model.selectedCount) selected queue items." : "Delete \(model.selectedCount) selected offline chapters and remove their local files.")
+            Text(model.workspace == .queue ? AppLocalization.text("downloads.alert.delete_selection.message", "Delete \(model.selectedCount) selected queue items.") : AppLocalization.text("downloads.alert.delete_selection.message", "Delete \(model.selectedCount) selected offline chapters and remove their local files."))
         }
         .task {
             model.sync(from: library)

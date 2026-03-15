@@ -26,9 +26,9 @@ enum ReaderMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .ltr: return "LTR"
-        case .rtl: return "RTL"
-        case .vertical: return "Vertical"
+        case .ltr: return AppLocalization.text("reader.mode.ltr", "LTR")
+        case .rtl: return AppLocalization.text("reader.mode.rtl", "RTL")
+        case .vertical: return AppLocalization.text("reader.mode.vertical", "Vertical")
         }
     }
 
@@ -51,10 +51,10 @@ enum ReaderBackgroundMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .system: return "System"
-        case .auto: return "Auto"
-        case .white: return "White"
-        case .black: return "Black"
+        case .system: return AppLocalization.text("reader.background.system", "System")
+        case .auto: return AppLocalization.text("reader.background.auto", "Auto")
+        case .white: return AppLocalization.text("reader.background.white", "White")
+        case .black: return AppLocalization.text("reader.background.black", "Black")
         }
     }
 }
@@ -71,12 +71,12 @@ enum TapZonePreset: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .auto: return "Automatic"
-        case .leftRight: return "Left/Right"
-        case .lShaped: return "L-shaped"
-        case .kindle: return "Kindle"
-        case .edge: return "Edge"
-        case .disabled: return "Disabled"
+        case .auto: return AppLocalization.text("reader.tap.auto", "Automatic")
+        case .leftRight: return AppLocalization.text("reader.tap.left_right", "Left/Right")
+        case .lShaped: return AppLocalization.text("reader.tap.l_shaped", "L-shaped")
+        case .kindle: return AppLocalization.text("reader.tap.kindle", "Kindle")
+        case .edge: return AppLocalization.text("reader.tap.edge", "Edge")
+        case .disabled: return AppLocalization.text("reader.tap.disabled", "Disabled")
         }
     }
 }
@@ -208,25 +208,25 @@ struct ComicReaderView: View {
                     Text(session.errorText).foregroundStyle(.red)
                         .multilineTextAlignment(.center)
                     if isOfflineReading {
-                        Text("Offline mode only. Network fallback is disabled for downloaded chapters.")
+                        Text(AppLocalization.text("reader.error.offline_mode", "Offline mode only. Network fallback is disabled for downloaded chapters."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }
                     HStack(spacing: 12) {
-                        Button("Back") {
+                        Button(AppLocalization.text("common.back", "Back")) {
                             dismiss()
                         }
                         .buttonStyle(.bordered)
-                        .accessibilityHint("Return to the previous screen")
+                        .accessibilityHint(AppLocalization.text("common.accessibility.back", "Return to the previous screen"))
 
-                        Button("Retry") { Task { await load() } }
+                        Button(AppLocalization.text("common.retry", "Retry")) { Task { await load() } }
                             .buttonStyle(.borderedProminent)
                     }
                 }
                 .padding()
             } else if session.imageRequests.isEmpty {
-                Text("No images")
+                Text(AppLocalization.text("reader.error.no_images", "No images"))
                     .foregroundStyle(.white.opacity(0.75))
             } else {
                 GeometryReader { geo in

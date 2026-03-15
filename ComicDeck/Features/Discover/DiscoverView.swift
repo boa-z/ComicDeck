@@ -10,7 +10,7 @@ struct DiscoverView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                Picker("Section", selection: $mode) {
+                Picker(AppLocalization.text("discover.picker.section", "Section"), selection: $mode) {
                     ForEach(DiscoverMode.allCases, id: \.self) { section in
                         Text(section.title).tag(section)
                     }
@@ -30,13 +30,13 @@ struct DiscoverView: View {
                 }
             }
             .background(AppSurface.grouped)
-            .navigationTitle("Discover")
+            .navigationTitle(AppLocalization.text("discover.navigation.title", "Discover"))
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: onOpenSearch) {
                         Image(systemName: "magnifyingglass")
                     }
-                    .accessibilityLabel("Open search")
+                    .accessibilityLabel(AppLocalization.text("home.action.search", "Open search"))
                 }
             }
         }
@@ -49,8 +49,8 @@ private enum DiscoverMode: CaseIterable {
 
     var title: String {
         switch self {
-        case .explore: return "Explore"
-        case .category: return "Category"
+        case .explore: return AppLocalization.text("discover.mode.explore", "Explore")
+        case .category: return AppLocalization.text("discover.mode.category", "Category")
         }
     }
 }
@@ -63,12 +63,12 @@ struct ExploreView: View {
 
     var body: some View {
         List {
-            Section("Source") {
+            Section(AppLocalization.text("discover.section.source", "Source")) {
                 if vm.sourceManager.installedSources.isEmpty {
-                    Text("No source installed")
+                    Text(AppLocalization.text("discover.no_source_installed", "No source installed"))
                         .foregroundStyle(.secondary)
                 } else {
-                    Picker("Active Source", selection: $vm.sourceManager.selectedSourceKey) {
+                    Picker(AppLocalization.text("discover.picker.active_source", "Active Source"), selection: $vm.sourceManager.selectedSourceKey) {
                         ForEach(vm.sourceManager.installedSources) { source in
                             Text(source.name).tag(source.key)
                         }
@@ -77,7 +77,7 @@ struct ExploreView: View {
             }
 
             if !model.pages.isEmpty {
-                Section("Explore Pages") {
+                Section(AppLocalization.text("discover.explore_pages", "Explore Pages")) {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: AppSpacing.sm) {
                             ForEach(model.pages) { item in
@@ -131,7 +131,7 @@ struct ExploreView: View {
             Section {
                 HStack {
                     Spacer()
-                    ProgressView("Loading explore...")
+                    ProgressView(AppLocalization.text("discover.loading", "Loading explore..."))
                     Spacer()
                 }
             }
@@ -173,7 +173,7 @@ struct ExploreView: View {
                             .listRowBackground(Color.clear)
                         }
                         if let target = part.viewMore {
-                            Button("View More") { openJumpTarget(target: target, fallbackLabel: part.title) }
+                            Button(AppLocalization.text("discover.view_more", "View More")) { openJumpTarget(target: target, fallbackLabel: part.title) }
                         }
                     }
                 }

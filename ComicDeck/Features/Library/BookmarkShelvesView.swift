@@ -68,16 +68,16 @@ private struct BookmarkShelfReorderView: View {
                 }
             }
             .environment(\.editMode, $editMode)
-            .navigationTitle("Reorder Shelves")
+            .navigationTitle(AppLocalization.text("library.shelves.reorder", "Reorder Shelves"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") {
+                    Button(AppLocalization.text("common.cancel", "Cancel")) {
                         dismiss()
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") {
+                    Button(AppLocalization.text("common.save", "Save")) {
                         Task {
                             await library.reorderBookmarkShelves(model.reorderCategories)
                             dismiss()
@@ -107,63 +107,63 @@ struct BookmarkShelvesView: View {
                     .listRowSeparator(.hidden)
             }
 
-            Section("Your Shelves") {
+            Section(AppLocalization.text("library.shelves.your_shelves", "Your Shelves")) {
                 categoriesSection
             }
         }
         .scrollContentBackground(.hidden)
         .background(AppSurface.grouped.ignoresSafeArea())
         .listStyle(.insetGrouped)
-        .navigationTitle("Shelves")
+        .navigationTitle(AppLocalization.text("library.shelves.title", "Shelves"))
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if library.favoriteCategories.count > 1 {
-                    Button("Reorder") {
+                    Button(AppLocalization.text("library.shelves.reorder", "Reorder")) {
                         model.beginReorder(with: library.favoriteCategories)
                     }
                 }
-                Button("New") {
+                Button(AppLocalization.text("library.shelves.new", "New")) {
                     model.showingCreate = true
                 }
             }
         }
-        .alert("New Shelf", isPresented: $model.showingCreate) {
-            TextField("Shelf name", text: $model.createName)
-            Button("Create") {
+        .alert(AppLocalization.text("library.shelves.new_shelf", "New Shelf"), isPresented: $model.showingCreate) {
+            TextField(AppLocalization.text("library.shelves.name_placeholder", "Shelf name"), text: $model.createName)
+            Button(AppLocalization.text("common.create", "Create")) {
                 let name = model.createName
                 Task { await library.createBookmarkShelf(name: name) }
                 model.resetCreate()
             }
-            Button("Cancel", role: .cancel) {
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) {
                 model.resetCreate()
             }
         } message: {
-            Text("Create a shelf for organizing your bookmarked comics.")
+            Text(AppLocalization.text("library.shelves.new_hint", "Create a shelf for organizing your bookmarked comics."))
         }
-        .alert("Rename Shelf", isPresented: renameAlertBinding) {
-            TextField("Shelf name", text: $model.renameName)
-            Button("Save") {
+        .alert(AppLocalization.text("library.shelves.rename", "Rename Shelf"), isPresented: renameAlertBinding) {
+            TextField(AppLocalization.text("library.shelves.name_placeholder", "Shelf name"), text: $model.renameName)
+            Button(AppLocalization.text("common.save", "Save")) {
                 guard let category = model.categoryToRename else { return }
                 let name = model.renameName
                 Task { await library.renameBookmarkShelf(category, name: name) }
                 model.categoryToRename = nil
             }
-            Button("Cancel", role: .cancel) {
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) {
                 model.categoryToRename = nil
             }
         }
-        .alert("Delete Shelf", isPresented: deleteAlertBinding) {
-            Button("Delete", role: .destructive) {
+        .alert(AppLocalization.text("library.shelves.delete", "Delete Shelf"), isPresented: deleteAlertBinding) {
+            Button(AppLocalization.text("common.delete", "Delete"), role: .destructive) {
                 guard let category = model.categoryToDelete else { return }
                 Task { await library.deleteBookmarkShelf(category) }
                 model.categoryToDelete = nil
             }
-            Button("Cancel", role: .cancel) {
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) {
                 model.categoryToDelete = nil
             }
         } message: {
             if let category = model.categoryToDelete {
-                Text("Delete “\(category.name)”? Comics will remain in Bookmarks.")
+                Text(AppLocalization.text("library.shelves.delete_confirm", "Delete \"\(category.name)\"? Comics will remain in Bookmarks."))
             }
         }
         .sheet(item: addFavoritesSheetBinding) { category in
@@ -187,15 +187,15 @@ struct BookmarkShelvesView: View {
 
     private var summarySection: some View {
         HStack(spacing: AppSpacing.md) {
-            statCard(title: "Shelves", value: "\(library.favoriteCategories.count)", subtitle: "Groups")
-            statCard(title: "Assigned", value: "\(library.favoriteCategoryMemberships.values.reduce(0) { $0 + $1.count })", subtitle: "Bookmarks")
+            statCard(title: AppLocalization.text("library.shelves.shelves", "Shelves"), value: "\(library.favoriteCategories.count)", subtitle: AppLocalization.text("library.shelves.groups", "Groups"))
+            statCard(title: AppLocalization.text("library.shelves.assigned", "Assigned"), value: "\(library.favoriteCategoryMemberships.values.reduce(0) { $0 + $1.count })", subtitle: AppLocalization.text("library.bookmarks.title", "Bookmarks"))
         }
     }
 
     private var categoriesSection: some View {
         Group {
             if library.favoriteCategories.isEmpty {
-                Text("Create shelves to group bookmarks by project, mood, or reading priority.")
+                Text(AppLocalization.text("library.shelves.empty_hint", "Create shelves to group bookmarks by project, mood, or reading priority."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
