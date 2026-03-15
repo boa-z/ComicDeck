@@ -1,0 +1,20 @@
+{
+  "name": "ComicDeck",
+  "identifier": "boa.ComicDeck",
+  "developer": "boa",
+  "versions": [],
+  "apps": [
+    {
+      "name": "ComicDeck",
+      "bundleIdentifier": "boa.ComicDeck",
+      "developer": "boa",
+      "versions": [],
+      "releaseChannels": [
+        {
+          "track": "stable",
+          "releases": []
+        }
+      ]
+    }
+  ]
+}

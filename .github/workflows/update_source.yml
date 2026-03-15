@@ -1,0 +1,65 @@
+name: Update AltStore Source
+on:
+  workflow_run:
+    workflows: ["Xcode - Build"] # Name of your build workflow
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  update-source:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # Download artifacts from the previous build workflow
+      - name: Download artifact
+        uses: actions/github-script@v6
+        with:
+          script: |
+            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               run_id: context.payload.workflow_run.id,
+            });
+            let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
+              return artifact.name == "ComicDeck-unsigned.ipa" // Adjust to your artifact name
+            })[0];
+            let download = await github.rest.actions.downloadArtifact({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               artifact_id: matchArtifact.id,
+               archive_format: 'zip',
+            });
+            let fs = require('fs');
+            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/ComicDeck.zip`, Buffer.from(download.data));
+
+      - name: Extract and get info
+        run: |
+          unzip ComicDeck.zip
+          echo "IPA_URL=https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts" >> $GITHUB_ENV
+          echo "IPA_SIZE=$(stat -c%s ComicDeck.ipa)" >> $GITHUB_ENV
+          echo "COMMIT_MSG=${{ github.event.workflow_run.head_commit.message }}" >> $GITHUB_ENV
+          echo "GITHUB_SHA=${{ github.event.workflow_run.head_commit.id }}" >> $GITHUB_ENV
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Update apps.json
+        env:
+          INFO_PLIST_PATH: ComicDeck/App/Info.plist # Adjust path
+        run: python .github/update_json.py
+
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/apps.json
+          git commit -m "Update apps.json for nightly build"
+          git push

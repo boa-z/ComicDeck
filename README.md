@@ -97,14 +97,14 @@ The About screen reads build metadata from the app bundle:
 - short commit ID injected at build time
 
 ### GitHub Actions
+The repository includes automated workflows in `.github/workflows/`.
 
-The repository includes an unsigned IPA workflow in `.github/workflows/build.yml`.
+- `build.yml`: Builds unsigned IPA artifacts.
+- `update_source.yml`: Automatically generates an AltStore-compatible source manifest (`apps.json`) after nightly builds.
 
-- Triggers: `push`, `pull_request`, manual dispatch
-- Outputs: unsigned `.ipa`, `build.log`, versioned `.xcarchive.tar`
-- Signing: not included; artifacts must be signed externally for installation
-- Artifact naming: `ComicDeck-<version>-<shortsha>-unsigned`
-- Version label format: `MARKETING_VERSION+CURRENT_PROJECT_VERSION`
+#### AltStore Installation
+You can add ComicDeck to AltStore using the following source URL:
+`https://raw.githubusercontent.com/boa-z/ComicDeck/main/.github/apps.json`
 
 ## Documentation
 
