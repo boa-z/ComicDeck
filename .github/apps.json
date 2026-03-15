@@ -5,6 +5,7 @@
   "subtitle": "ComicDeck official AltStore source.",
   "description": "This is the official AltStore source for ComicDeck.\n\nRead comics from installed sources, manage offline downloads, and keep your library in sync.",
   "tintColor": "#2F6FED",
+  "iconURL": "https://raw.githubusercontent.com/boa-z/ComicDeck/main/ComicDeck/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png",
   "apps": [
     {
       "beta": false,
@@ -15,6 +16,7 @@
       "localizedDescription": "Read comics from installed sources, manage offline downloads, and keep your library in sync.",
       "category": "entertainment",
       "tintColor": "#2F6FED",
+      "iconURL": "https://raw.githubusercontent.com/boa-z/ComicDeck/main/ComicDeck/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png",
       "screenshotURLs": [],
       "appPermissions": {
         "entitlements": [],

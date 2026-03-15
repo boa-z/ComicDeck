@@ -1,0 +1,57 @@
+name: Source Compatibility Issue
+description: This is for compatibility issues with sources
+title: "[SOURCE] "
+labels: ["source", "compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this Source Compatibility Issue report! Before you continue filling out the report, please **[read our FAQ](docs/FAQ.md) and [search in GitHub Issues](https://github.com/ComicDeck/ComicDeck/issues) for the source you are experiencing issues with** in case it has already been reported.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the issue
+      description: What is the problem? How did you discover it?
+      placeholder: Please be concise with your explanation.
+    validations:
+      required: true
+  - type: textarea
+    id: how-to-reproduce
+    attributes:
+      label: Instructions to reproduce
+      description: Please include consistent instructions to reproduce the problem to make it easier for us to fix it.
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: What version of ComicDeck and iOS are you using?
+      description: To retrieve ComicDeck version, go to Settings -> About.
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Verify steps
+      options:
+        - label: I downloaded ComicDeck from releases / actions section.
+        - label: I have the latest ComicDeck.
+        - label: I have the latest version of the source.
+        - label: I have tried to refresh the source and reinstalled it.
+  - type: textarea
+    id: source-info
+    attributes:
+      label: The source name and version
+      description: Please put the **exact** name and version of the source having issues here. If the source is open-source please also provide link to the repo.
+    validations:
+      required: true
+  - type: textarea
+    id: crash-log
+    attributes:
+      label: Crash Log
+      description: If a crash happened, please upload the crash log in iOS settings - Privacy Security - Analytics Improvements - Analytics Data - Search ComicDeck. **Do not copy and paste.** Instead, please change .ips to .txt and upload it.
+  - type: textarea
+    id: other-info
+    attributes:
+      label: Other info
+      description: If you have any other info that might be useful, or if you found a workaround, please put it here.

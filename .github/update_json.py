@@ -85,6 +85,10 @@ def update_json_file(repo_url: str, json_file: str) -> None:
         "This is the official AltStore source for ComicDeck.\n\nRead comics from installed sources, manage offline downloads, and keep your library in sync.",
     )
     data.setdefault("tintColor", "#2F6FED")
+    data.setdefault(
+        "iconURL",
+        "https://raw.githubusercontent.com/boa-z/ComicDeck/main/ComicDeck/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png",
+    )
     data.setdefault("news", [])
 
     app = data["apps"][0]
@@ -97,6 +101,10 @@ def update_json_file(repo_url: str, json_file: str) -> None:
     )
     app.setdefault("category", "entertainment")
     app.setdefault("tintColor", "#2F6FED")
+    app.setdefault(
+        "iconURL",
+        "https://raw.githubusercontent.com/boa-z/ComicDeck/main/ComicDeck/Assets.xcassets/AppIcon.appiconset/icon-ios-1024x1024.png",
+    )
     app.setdefault("screenshotURLs", [])
     app.setdefault("appPermissions", {"entitlements": [], "privacy": {}})
     release = fetch_release_by_tag(repo_url, "nightly")
