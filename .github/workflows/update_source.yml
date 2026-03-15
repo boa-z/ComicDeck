@@ -48,17 +48,18 @@ jobs:
       - name: Extract and get info
         run: |
           unzip ComicDeck.zip
+          IPA_FILE=$(find . -maxdepth 1 -name '*.ipa' | head -n1)
+          if [ -z "$IPA_FILE" ]; then
+            echo "No IPA found after extracting artifact zip" >&2
+            exit 1
+          fi
+          echo "IPA_FILENAME=$(basename "$IPA_FILE")" >> $GITHUB_ENV
           echo "IPA_URL=https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}/artifacts" >> $GITHUB_ENV
-          echo "IPA_SIZE=$(stat -c%s ComicDeck.ipa)" >> $GITHUB_ENV
+          echo "IPA_SIZE=$(stat -c%s "$IPA_FILE")" >> $GITHUB_ENV
           echo "COMMIT_MSG=${{ github.event.workflow_run.head_commit.message }}" >> $GITHUB_ENV
           echo "GITHUB_SHA=${{ github.event.workflow_run.head_commit.id }}" >> $GITHUB_ENV
 
-      - name: Install dependencies
-        run: pip install requests
-
       - name: Update apps.json
-        env:
-          INFO_PLIST_PATH: ComicDeck/App/Info.plist # Adjust path
         run: python .github/update_json.py
 
       - name: Commit and Push

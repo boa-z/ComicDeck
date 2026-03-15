@@ -1,7 +1,5 @@
 import json
-import plistlib
 import re
-import requests
 import os
 from datetime import datetime
 
@@ -40,14 +38,12 @@ def update_json_file(repo_url, json_file):
 
     app = data["apps"][0]
 
-    # Dynamically find the Info.plist path
-    plist_path = os.environ.get("INFO_PLIST_PATH", "ComicDeck/App/Info.plist")
-
-    with open(plist_path, 'rb') as infile:
-        info_plist = plistlib.load(infile)
-
-    full_version = info_plist.get("CFBundleVersion", "1.0.0")
-    short_version = info_plist.get("CFBundleShortVersionString", "1.0")
+    ipa_filename = os.environ.get("IPA_FILENAME", "")
+    version_match = re.match(r"^ComicDeck-(?P<version>[^-]+)-(?P<commit>[0-9a-f]{7})-unsigned\.ipa$", ipa_filename)
+    if not version_match:
+        raise RuntimeError(f"Unable to parse version from IPA filename: {ipa_filename}")
+    version_label = version_match.group("version")
+    commit = version_match.group("commit")
 
     nightly_data = get_latest_nightly_build(repo_url)
     version_date = nightly_data["published_at"]
@@ -57,19 +53,24 @@ def update_json_file(repo_url, json_file):
     size = nightly_data["assets"][0]["size"]
 
     version_entry = {
-        "version": f"{short_version}-{full_version}",
+        "version": version_label,
         "date": version_date,
         "localizedDescription": description,
         "downloadURL": download_url,
         "size": size,
-        "commit": os.environ.get("GITHUB_SHA", "")[:7]
+        "commit": commit
     }
 
     # Update nightly channel
+    nightly_channel = None
     for channel in app.get('releaseChannels', []):
         if channel['track'] == 'nightly':
-            channel['releases'] = [version_entry]
+            nightly_channel = channel
             break
+    if nightly_channel is None:
+        nightly_channel = {"track": "nightly", "releases": []}
+        app.setdefault("releaseChannels", []).append(nightly_channel)
+    nightly_channel['releases'] = [version_entry]
 
     try:
         with open(json_file, "w") as file:
