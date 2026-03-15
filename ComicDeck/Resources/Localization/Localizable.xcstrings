@@ -21,6 +21,9 @@
         }
       }
     },
+    "%@ access token" : {
+
+    },
     "%@: %@" : {
       "localizations" : {
         "en" : {
@@ -45,6 +48,9 @@
       }
     },
     "%lld bookmarks" : {
+
+    },
+    "%lld ch" : {
 
     },
     "%lld chapters, %lld ready offline, %lld incomplete" : {
@@ -127,6 +133,12 @@
     "Already in folder" : {
 
     },
+    "AniList OAuth client ID" : {
+
+    },
+    "AniList OAuth client secret" : {
+
+    },
     "Animate page transitions" : {
 
     },
@@ -143,6 +155,12 @@
 
     },
     "Author: %@" : {
+
+    },
+    "Authorize AniList" : {
+
+    },
+    "Authorizing..." : {
 
     },
     "Auto-load enabled" : {
@@ -313,6 +331,28 @@
     "Completed local chapters are indexed here for offline reading and management." : {
 
     },
+    "Connect %@" : {
+
+    },
+    "Connect %@ in Settings before linking this comic." : {
+
+    },
+    "Connected as %@ user %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Connected as %1$@ user %2$@"
+          }
+        }
+      }
+    },
+    "Connected as AniList user %@" : {
+
+    },
+    "Connecting..." : {
+
+    },
     "Cookie Login" : {
 
     },
@@ -402,6 +442,9 @@
     "Disabled" : {
 
     },
+    "Disconnect" : {
+
+    },
     "Discover" : {
 
     },
@@ -421,6 +464,9 @@
 
     },
     "Enabled" : {
+
+    },
+    "Error" : {
 
     },
     "Explore Pages" : {
@@ -1629,6 +1675,12 @@
     "Liked" : {
 
     },
+    "Link %@" : {
+
+    },
+    "Link %@ Entry" : {
+
+    },
     "Load More" : {
 
     },
@@ -1675,6 +1727,9 @@
 
     },
     "New Shelf" : {
+
+    },
+    "No %@ results yet." : {
 
     },
     "No bookmarks match your search." : {
@@ -1729,6 +1784,9 @@
 
     },
     "No source settings available." : {
+
+    },
+    "Not connected" : {
 
     },
     "Not Favorited" : {
@@ -1807,6 +1865,9 @@
     "Preview hidden. Tap “Show Preview” to inspect inline comments." : {
 
     },
+    "Progress %lld" : {
+
+    },
     "Project" : {
 
     },
@@ -1814,6 +1875,9 @@
 
     },
     "Queue download for all chapters?" : {
+
+    },
+    "Queued Sync Events" : {
 
     },
     "Queued, downloading, and failed download tasks will be removed." : {
@@ -1858,6 +1922,9 @@
     "Recent Keywords" : {
 
     },
+    "Reconnect OAuth" : {
+
+    },
     "Refresh" : {
 
     },
@@ -1871,6 +1938,9 @@
 
     },
     "Refreshing..." : {
+
+    },
+    "Register %@ as the redirect URI in your AniList app, then authorize here. ComicDeck exchanges the returned authorization code locally and keeps the access token plus client secret in Keychain." : {
 
     },
     "Reindex" : {
@@ -1965,6 +2035,9 @@
     "Restore Latest Remote Backup" : {
 
     },
+    "Results" : {
+
+    },
     "Resume" : {
 
     },
@@ -1987,6 +2060,9 @@
 
     },
     "Search" : {
+
+    },
+    "Search %@ manga" : {
 
     },
     "Search bookmarks" : {
@@ -2595,6 +2671,12 @@
     "Supported" : {
 
     },
+    "Sync Now" : {
+
+    },
+    "Syncing..." : {
+
+    },
     "Tap for details" : {
 
     },
@@ -2616,7 +2698,13 @@
     "This will queue %lld chapters." : {
 
     },
+    "Tracking" : {
+
+    },
     "Unavailable" : {
+
+    },
+    "Unlink" : {
 
     },
     "Update" : {
@@ -2662,7 +2750,13 @@
     "Username" : {
 
     },
+    "Validate Connection" : {
+
+    },
     "Validate Cookies" : {
+
+    },
+    "Validating..." : {
 
     },
     "View All Comments" : {

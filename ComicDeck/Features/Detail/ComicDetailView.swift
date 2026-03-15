@@ -19,6 +19,7 @@ struct ComicDetailView: View {
     @State private var readRoute: ReaderLaunchContext?
     @State private var tagRoute: CategoryNavigationTarget?
     @State private var didConsumeInitialReadRoute = false
+    @State private var trackerSearchProvider: TrackerProvider?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
@@ -115,6 +116,16 @@ struct ComicDetailView: View {
                         )
                     }
                 }
+            }
+            .sheet(item: $trackerSearchProvider) { provider in
+                TrackerSearchSheet(
+                    item: item,
+                    provider: provider,
+                    initialQuery: detailSearchQuery
+                ) {
+                    Task { await model.load(using: vm, library: library) }
+                }
+                .environment(vm.tracker)
             }
             .navigationDestination(item: $readRoute) { route in
                 ComicReaderView(
@@ -314,6 +325,21 @@ struct ComicDetailView: View {
         )
         .id("hero")
 
+        ComicTrackerSection(
+            providers: TrackerProvider.allCases.map {
+                ComicTrackerProviderState(
+                    provider: $0,
+                    account: vm.tracker.account(for: $0),
+                    binding: vm.tracker.binding(for: item, provider: $0),
+                    syncing: vm.tracker.syncing,
+                    statusText: vm.tracker.status
+                )
+            },
+            onLink: { trackerSearchProvider = $0 },
+            onSync: { syncTrackerBinding(detail: detail, provider: $0) },
+            onUnlink: { unlinkTrackerBinding(provider: $0) }
+        )
+
         ComicDetailTagsSection(groups: detail.tags) { namespace, tag in
             Task { await onTagTap(namespace: namespace, tag: tag) }
         }
@@ -397,6 +423,45 @@ struct ComicDetailView: View {
             }
         )
         .id(DetailAnchor.chapters)
+    }
+
+    private var detailSearchQuery: String {
+        let resolved = model.detail?.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let resolved, !resolved.isEmpty {
+            return resolved
+        }
+        return item.title
+    }
+
+    private func syncTrackerBinding(detail: ComicDetail, provider: TrackerProvider) {
+        let progress: Int
+        let targetStatus: TrackerReadingStatus
+        if let history = library.latestHistoryForComic(sourceKey: item.sourceKey, comicID: item.id),
+           let chapterID = history.chapterID,
+           let index = detail.chapters.firstIndex(where: { $0.id == chapterID }) {
+            progress = index + 1
+            targetStatus = progress >= detail.chapters.count ? .completed : .current
+        } else {
+            progress = 0
+            targetStatus = .planning
+        }
+        Task {
+            do {
+                try await vm.tracker.syncNow(item, progress: progress, status: targetStatus, provider: provider)
+            } catch {
+                vm.tracker.status = error.localizedDescription
+            }
+        }
+    }
+
+    private func unlinkTrackerBinding(provider: TrackerProvider) {
+        Task {
+            do {
+                try await vm.tracker.unbind(item, provider: provider)
+            } catch {
+                vm.tracker.status = error.localizedDescription
+            }
+        }
     }
 
     private func previewNote(for detail: ComicDetail) -> String? {

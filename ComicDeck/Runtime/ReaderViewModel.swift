@@ -33,6 +33,7 @@ final class ReaderViewModel {
     var sourceManager = SourceManagerViewModel()
     var library = LibraryViewModel()
     var login = LoginViewModel()
+    var tracker = TrackerViewModel()
 
     // MARK: - Private Infrastructure
     private let engineExecutionQueue = DispatchQueue(label: "source.runtime.engine.execution", qos: .userInitiated)
@@ -110,6 +111,7 @@ final class ReaderViewModel {
 
             try await sourceManager.prepare(sourceStore: store)
             try await library.prepare(core: core!, downloadManager: downloadManager!)
+            try await tracker.prepare(database: core!.database)
             sourceRuntime = SourceRuntime(
                 sourceManager: sourceManager,
                 library: library,

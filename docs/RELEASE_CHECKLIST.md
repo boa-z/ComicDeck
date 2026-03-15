@@ -87,6 +87,16 @@ If testing multiple sources, include:
 7. shelf filters show the expected subset
 8. shelf reorder persists after relaunch
 
+## Tracking
+
+1. AniList OAuth authorization code flow and Bangumi token connection both succeed from `Settings -> Tracking`
+2. comic detail can search each connected provider and create a binding
+3. manual sync from detail updates the linked AniList or Bangumi entry
+4. chapter completion queues a tracker sync and flushes it when the app is active
+5. unlink removes the local binding without breaking the comic detail flow
+6. tracker tokens are not exported in backup JSON files
+7. AniList OAuth callback returns to `comicdeck://anilist-auth`, code exchange succeeds, and the app returns to a usable state
+
 ## Downloads and Offline
 
 1. queued tasks appear in `Queue`

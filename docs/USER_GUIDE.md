@@ -97,6 +97,36 @@ Supported actions:
 - filter bookmarks by shelf
 - create, rename, delete, and reorder shelves
 
+### Tracking
+
+In `Settings -> Tracking` you can:
+
+- connect AniList by entering an AniList OAuth client ID and client secret, then authorizing in the system browser
+- connect Bangumi with a personal access token
+- verify the current connection
+- disconnect either provider
+
+AniList setup:
+
+1. Create an AniList OAuth app.
+2. Register `comicdeck://anilist-auth` as the redirect URI.
+3. Copy the AniList client ID and client secret into `Settings -> Tracking`.
+4. Tap `Authorize AniList` and finish the browser flow.
+
+In comic detail you can:
+
+- link the local comic to an AniList or Bangumi entry
+- manually sync current progress
+- unlink an existing tracker entry
+
+Reader behavior:
+
+- when you finish a linked chapter, ComicDeck queues a tracker sync
+- pending syncs are retried when the app becomes active again
+- tracker tokens stay on-device and are not included in backup exports
+- AniList OAuth uses the callback URL `comicdeck://anilist-auth`; register it in your AniList app before authorizing
+- AniList client secrets are stored locally in Keychain and are not included in backup exports
+
 ### Source Favorites
 
 Open `Library -> Favorites` when you need to work with source-owned favorites or folders.

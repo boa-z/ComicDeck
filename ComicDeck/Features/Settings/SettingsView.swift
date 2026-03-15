@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @Environment(LibraryViewModel.self) private var library
     @Environment(SourceManagerViewModel.self) private var sourceManager
+    @Environment(TrackerViewModel.self) private var tracker
     @AppStorage(RuntimeDebugConsole.enabledKey) private var debugEnabled = false
     @AppStorage("ui.appAppearance") private var appAppearanceRaw = AppAppearance.system.rawValue
     @AppStorage("ui.comicBrowseMode") private var browseModeRaw = ComicBrowseDisplayMode.list.rawValue
@@ -125,6 +126,24 @@ struct SettingsView: View {
                     Text(AppLocalization.text("settings.data.backup_hint", "Backups include favorites, reading history, source preferences, and reader/app settings. Offline files and active download queue are not included."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                Section("Tracking") {
+                    NavigationLink {
+                        TrackingSettingsView()
+                    } label: {
+                        Label("Tracking", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    ForEach(TrackerProvider.allCases) { provider in
+                        if let account = tracker.account(for: provider) {
+                            HStack {
+                                Text(provider.title)
+                                Spacer()
+                                Text(account.displayName)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
 
                 Section {

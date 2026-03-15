@@ -142,6 +142,55 @@ public actor SQLiteStore {
             );
             """
         )
+        try Self.exec(
+            db: handle,
+            """
+            CREATE TABLE IF NOT EXISTS tracker_accounts (
+                provider TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                remote_user_id TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            """
+        )
+        try Self.exec(
+            db: handle,
+            """
+            CREATE TABLE IF NOT EXISTS tracker_bindings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                source_key TEXT NOT NULL,
+                comic_id TEXT NOT NULL,
+                remote_media_id TEXT NOT NULL,
+                remote_title TEXT NOT NULL,
+                remote_cover_url TEXT,
+                last_synced_progress INTEGER NOT NULL DEFAULT 0,
+                last_synced_status TEXT,
+                updated_at INTEGER NOT NULL,
+                UNIQUE (provider, source_key, comic_id)
+            );
+            """
+        )
+        try Self.exec(
+            db: handle,
+            """
+            CREATE TABLE IF NOT EXISTS tracker_sync_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                source_key TEXT NOT NULL,
+                comic_id TEXT NOT NULL,
+                remote_media_id TEXT NOT NULL,
+                target_progress INTEGER NOT NULL,
+                target_status TEXT,
+                state TEXT NOT NULL,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                UNIQUE (provider, source_key, comic_id)
+            );
+            """
+        )
         try Self.ensureDownloadsSchema(db: handle)
         try Self.exec(db: handle, "CREATE INDEX IF NOT EXISTS idx_favorites_created_at ON favorites(created_at DESC);")
         try Self.exec(db: handle, "CREATE INDEX IF NOT EXISTS idx_favorite_categories_sort_order ON favorite_categories(sort_order ASC, created_at ASC);")
@@ -151,6 +200,8 @@ public actor SQLiteStore {
         try Self.exec(db: handle, "CREATE INDEX IF NOT EXISTS idx_history_lookup ON history(comic_id, source_key, chapter_id, updated_at DESC);")
         try Self.exec(db: handle, "CREATE INDEX IF NOT EXISTS idx_downloads_updated_at ON downloads(updated_at DESC);")
         try Self.exec(db: handle, "CREATE INDEX IF NOT EXISTS idx_offline_chapters_updated_at ON offline_chapters(updated_at DESC);")
+        try Self.exec(db: handle, "CREATE INDEX IF NOT EXISTS idx_tracker_bindings_lookup ON tracker_bindings(provider, source_key, comic_id);")
+        try Self.exec(db: handle, "CREATE INDEX IF NOT EXISTS idx_tracker_sync_events_state ON tracker_sync_events(state, updated_at DESC);")
     }
 
     deinit {
@@ -524,6 +575,338 @@ public actor SQLiteStore {
         try bind(int64: categoryID, at: 1, to: stmt)
         try bind(text: split.comicID, at: 2, to: stmt)
         try bind(text: split.sourceKey, at: 3, to: stmt)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw SQLiteStoreError.execute(Self.lastErrorMessage(db))
+        }
+    }
+
+    // MARK: - Tracking
+
+    public func upsertTrackerAccount(_ account: TrackerAccount) throws {
+        let sql = """
+        INSERT INTO tracker_accounts (provider, display_name, remote_user_id, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(provider)
+        DO UPDATE SET
+            display_name = excluded.display_name,
+            remote_user_id = excluded.remote_user_id,
+            updated_at = excluded.updated_at;
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        try bind(text: account.provider.rawValue, at: 1, to: stmt)
+        try bind(text: account.displayName, at: 2, to: stmt)
+        try bind(text: account.remoteUserID, at: 3, to: stmt)
+        try bind(int64: account.updatedAt, at: 4, to: stmt)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw SQLiteStoreError.execute(Self.lastErrorMessage(db))
+        }
+    }
+
+    public func listTrackerAccounts() throws -> [TrackerAccount] {
+        let sql = """
+        SELECT provider, display_name, remote_user_id, updated_at
+        FROM tracker_accounts
+        ORDER BY provider ASC;
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        var items: [TrackerAccount] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let provider = TrackerProvider(rawValue: String(cString: sqlite3_column_text(stmt, 0))) else { continue }
+            items.append(
+                TrackerAccount(
+                    provider: provider,
+                    displayName: String(cString: sqlite3_column_text(stmt, 1)),
+                    remoteUserID: String(cString: sqlite3_column_text(stmt, 2)),
+                    updatedAt: sqlite3_column_int64(stmt, 3)
+                )
+            )
+        }
+        return items
+    }
+
+    public func deleteTrackerAccount(provider: TrackerProvider) throws {
+        let stmt = try prepare("DELETE FROM tracker_accounts WHERE provider = ?;")
+        defer { sqlite3_finalize(stmt) }
+        try bind(text: provider.rawValue, at: 1, to: stmt)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw SQLiteStoreError.execute(Self.lastErrorMessage(db))
+        }
+    }
+
+    public func upsertTrackerBinding(
+        provider: TrackerProvider,
+        sourceKey: String,
+        comicID: String,
+        remoteMediaID: String,
+        remoteTitle: String,
+        remoteCoverURL: String?,
+        lastSyncedProgress: Int,
+        lastSyncedStatus: TrackerReadingStatus?
+    ) throws -> TrackerBinding {
+        let now = Int64(Date().timeIntervalSince1970)
+        let sql = """
+        INSERT INTO tracker_bindings (
+            provider, source_key, comic_id, remote_media_id, remote_title, remote_cover_url,
+            last_synced_progress, last_synced_status, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(provider, source_key, comic_id)
+        DO UPDATE SET
+            remote_media_id = excluded.remote_media_id,
+            remote_title = excluded.remote_title,
+            remote_cover_url = excluded.remote_cover_url,
+            last_synced_progress = excluded.last_synced_progress,
+            last_synced_status = excluded.last_synced_status,
+            updated_at = excluded.updated_at;
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        try bind(text: provider.rawValue, at: 1, to: stmt)
+        try bind(text: sourceKey, at: 2, to: stmt)
+        try bind(text: comicID, at: 3, to: stmt)
+        try bind(text: remoteMediaID, at: 4, to: stmt)
+        try bind(text: remoteTitle, at: 5, to: stmt)
+        if let remoteCoverURL, !remoteCoverURL.isEmpty {
+            try bind(text: remoteCoverURL, at: 6, to: stmt)
+        } else {
+            sqlite3_bind_null(stmt, 6)
+        }
+        try bind(int64: Int64(lastSyncedProgress), at: 7, to: stmt)
+        if let lastSyncedStatus {
+            try bind(text: lastSyncedStatus.rawValue, at: 8, to: stmt)
+        } else {
+            sqlite3_bind_null(stmt, 8)
+        }
+        try bind(int64: now, at: 9, to: stmt)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw SQLiteStoreError.execute(Self.lastErrorMessage(db))
+        }
+        guard let binding = try getTrackerBinding(provider: provider, sourceKey: sourceKey, comicID: comicID) else {
+            throw SQLiteStoreError.execute("tracker binding not found after upsert")
+        }
+        return binding
+    }
+
+    public func getTrackerBinding(
+        provider: TrackerProvider,
+        sourceKey: String,
+        comicID: String
+    ) throws -> TrackerBinding? {
+        let sql = """
+        SELECT id, provider, source_key, comic_id, remote_media_id, remote_title, remote_cover_url,
+               last_synced_progress, last_synced_status, updated_at
+        FROM tracker_bindings
+        WHERE provider = ? AND source_key = ? AND comic_id = ?
+        LIMIT 1;
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        try bind(text: provider.rawValue, at: 1, to: stmt)
+        try bind(text: sourceKey, at: 2, to: stmt)
+        try bind(text: comicID, at: 3, to: stmt)
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return TrackerBinding(
+            id: sqlite3_column_int64(stmt, 0),
+            provider: provider,
+            sourceKey: String(cString: sqlite3_column_text(stmt, 2)),
+            comicID: String(cString: sqlite3_column_text(stmt, 3)),
+            remoteMediaID: String(cString: sqlite3_column_text(stmt, 4)),
+            remoteTitle: String(cString: sqlite3_column_text(stmt, 5)),
+            remoteCoverURL: sqlite3_column_text(stmt, 6).map { String(cString: $0) },
+            lastSyncedProgress: Int(sqlite3_column_int(stmt, 7)),
+            lastSyncedStatus: sqlite3_column_text(stmt, 8).flatMap { TrackerReadingStatus(rawValue: String(cString: $0)) },
+            updatedAt: sqlite3_column_int64(stmt, 9)
+        )
+    }
+
+    public func listTrackerBindings() throws -> [TrackerBinding] {
+        let sql = """
+        SELECT id, provider, source_key, comic_id, remote_media_id, remote_title, remote_cover_url,
+               last_synced_progress, last_synced_status, updated_at
+        FROM tracker_bindings
+        ORDER BY updated_at DESC;
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        var items: [TrackerBinding] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let provider = TrackerProvider(rawValue: String(cString: sqlite3_column_text(stmt, 1))) else { continue }
+            items.append(
+                TrackerBinding(
+                    id: sqlite3_column_int64(stmt, 0),
+                    provider: provider,
+                    sourceKey: String(cString: sqlite3_column_text(stmt, 2)),
+                    comicID: String(cString: sqlite3_column_text(stmt, 3)),
+                    remoteMediaID: String(cString: sqlite3_column_text(stmt, 4)),
+                    remoteTitle: String(cString: sqlite3_column_text(stmt, 5)),
+                    remoteCoverURL: sqlite3_column_text(stmt, 6).map { String(cString: $0) },
+                    lastSyncedProgress: Int(sqlite3_column_int(stmt, 7)),
+                    lastSyncedStatus: sqlite3_column_text(stmt, 8).flatMap { TrackerReadingStatus(rawValue: String(cString: $0)) },
+                    updatedAt: sqlite3_column_int64(stmt, 9)
+                )
+            )
+        }
+        return items
+    }
+
+    public func deleteTrackerBinding(provider: TrackerProvider, sourceKey: String, comicID: String) throws {
+        try Self.exec(db: db, "BEGIN IMMEDIATE TRANSACTION;")
+        do {
+            let eventStmt = try prepare("DELETE FROM tracker_sync_events WHERE provider = ? AND source_key = ? AND comic_id = ?;")
+            defer { sqlite3_finalize(eventStmt) }
+            try bind(text: provider.rawValue, at: 1, to: eventStmt)
+            try bind(text: sourceKey, at: 2, to: eventStmt)
+            try bind(text: comicID, at: 3, to: eventStmt)
+            guard sqlite3_step(eventStmt) == SQLITE_DONE else {
+                throw SQLiteStoreError.execute(Self.lastErrorMessage(db))
+            }
+
+            let bindingStmt = try prepare("DELETE FROM tracker_bindings WHERE provider = ? AND source_key = ? AND comic_id = ?;")
+            defer { sqlite3_finalize(bindingStmt) }
+            try bind(text: provider.rawValue, at: 1, to: bindingStmt)
+            try bind(text: sourceKey, at: 2, to: bindingStmt)
+            try bind(text: comicID, at: 3, to: bindingStmt)
+            guard sqlite3_step(bindingStmt) == SQLITE_DONE else {
+                throw SQLiteStoreError.execute(Self.lastErrorMessage(db))
+            }
+            try Self.exec(db: db, "COMMIT;")
+        } catch {
+            try? Self.exec(db: db, "ROLLBACK;")
+            throw error
+        }
+    }
+
+    public func enqueueTrackerSyncEvent(
+        provider: TrackerProvider,
+        sourceKey: String,
+        comicID: String,
+        remoteMediaID: String,
+        targetProgress: Int,
+        targetStatus: TrackerReadingStatus?
+    ) throws -> TrackerSyncEvent {
+        let now = Int64(Date().timeIntervalSince1970)
+        let sql = """
+        INSERT INTO tracker_sync_events (
+            provider, source_key, comic_id, remote_media_id, target_progress, target_status,
+            state, retry_count, last_error, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)
+        ON CONFLICT(provider, source_key, comic_id)
+        DO UPDATE SET
+            remote_media_id = excluded.remote_media_id,
+            target_progress = excluded.target_progress,
+            target_status = excluded.target_status,
+            state = excluded.state,
+            last_error = NULL,
+            updated_at = excluded.updated_at;
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        try bind(text: provider.rawValue, at: 1, to: stmt)
+        try bind(text: sourceKey, at: 2, to: stmt)
+        try bind(text: comicID, at: 3, to: stmt)
+        try bind(text: remoteMediaID, at: 4, to: stmt)
+        try bind(int64: Int64(targetProgress), at: 5, to: stmt)
+        if let targetStatus {
+            try bind(text: targetStatus.rawValue, at: 6, to: stmt)
+        } else {
+            sqlite3_bind_null(stmt, 6)
+        }
+        try bind(text: TrackerSyncEventState.pending.rawValue, at: 7, to: stmt)
+        try bind(int64: now, at: 8, to: stmt)
+        try bind(int64: now, at: 9, to: stmt)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw SQLiteStoreError.execute(Self.lastErrorMessage(db))
+        }
+        guard let event = try listTrackerSyncEvents(limit: 1, provider: provider, sourceKey: sourceKey, comicID: comicID).first else {
+            throw SQLiteStoreError.execute("tracker sync event not found after enqueue")
+        }
+        return event
+    }
+
+    public func listTrackerSyncEvents(
+        limit: Int = 100,
+        provider: TrackerProvider? = nil,
+        sourceKey: String? = nil,
+        comicID: String? = nil
+    ) throws -> [TrackerSyncEvent] {
+        var sql = """
+        SELECT id, provider, source_key, comic_id, remote_media_id, target_progress, target_status,
+               state, retry_count, last_error, created_at, updated_at
+        FROM tracker_sync_events
+        WHERE 1 = 1
+        """
+        if provider != nil { sql += " AND provider = ?" }
+        if sourceKey != nil { sql += " AND source_key = ?" }
+        if comicID != nil { sql += " AND comic_id = ?" }
+        sql += " ORDER BY updated_at ASC LIMIT ?;"
+
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        var bindIndex: Int32 = 1
+        if let provider {
+            try bind(text: provider.rawValue, at: bindIndex, to: stmt)
+            bindIndex += 1
+        }
+        if let sourceKey {
+            try bind(text: sourceKey, at: bindIndex, to: stmt)
+            bindIndex += 1
+        }
+        if let comicID {
+            try bind(text: comicID, at: bindIndex, to: stmt)
+            bindIndex += 1
+        }
+        try bind(int64: Int64(limit), at: bindIndex, to: stmt)
+
+        var items: [TrackerSyncEvent] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            guard let provider = TrackerProvider(rawValue: String(cString: sqlite3_column_text(stmt, 1))),
+                  let state = TrackerSyncEventState(rawValue: String(cString: sqlite3_column_text(stmt, 7))) else {
+                continue
+            }
+            items.append(
+                TrackerSyncEvent(
+                    id: sqlite3_column_int64(stmt, 0),
+                    provider: provider,
+                    sourceKey: String(cString: sqlite3_column_text(stmt, 2)),
+                    comicID: String(cString: sqlite3_column_text(stmt, 3)),
+                    remoteMediaID: String(cString: sqlite3_column_text(stmt, 4)),
+                    targetProgress: Int(sqlite3_column_int(stmt, 5)),
+                    targetStatus: sqlite3_column_text(stmt, 6).flatMap { TrackerReadingStatus(rawValue: String(cString: $0)) },
+                    state: state,
+                    retryCount: Int(sqlite3_column_int(stmt, 8)),
+                    lastError: sqlite3_column_text(stmt, 9).map { String(cString: $0) },
+                    createdAt: sqlite3_column_int64(stmt, 10),
+                    updatedAt: sqlite3_column_int64(stmt, 11)
+                )
+            )
+        }
+        return items
+    }
+
+    public func markTrackerSyncEventFailed(id: Int64, errorMessage: String) throws {
+        let sql = """
+        UPDATE tracker_sync_events
+        SET state = ?, retry_count = retry_count + 1, last_error = ?, updated_at = ?
+        WHERE id = ?;
+        """
+        let stmt = try prepare(sql)
+        defer { sqlite3_finalize(stmt) }
+        try bind(text: TrackerSyncEventState.failed.rawValue, at: 1, to: stmt)
+        try bind(text: errorMessage, at: 2, to: stmt)
+        try bind(int64: Int64(Date().timeIntervalSince1970), at: 3, to: stmt)
+        try bind(int64: id, at: 4, to: stmt)
+        guard sqlite3_step(stmt) == SQLITE_DONE else {
+            throw SQLiteStoreError.execute(Self.lastErrorMessage(db))
+        }
+    }
+
+    public func deleteTrackerSyncEvent(id: Int64) throws {
+        let stmt = try prepare("DELETE FROM tracker_sync_events WHERE id = ?;")
+        defer { sqlite3_finalize(stmt) }
+        try bind(int64: id, at: 1, to: stmt)
         guard sqlite3_step(stmt) == SQLITE_DONE else {
             throw SQLiteStoreError.execute(Self.lastErrorMessage(db))
         }

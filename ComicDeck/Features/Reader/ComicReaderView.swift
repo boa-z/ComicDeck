@@ -408,6 +408,14 @@ struct ComicReaderView: View {
 
     private func persistHistoryNow() async {
         await session.persistHistory(using: library, readerMode: readerMode)
+        if let completion = session.completedChapterProgress(readerMode: readerMode) {
+            try? await vm.tracker.syncNow(
+                item,
+                progress: completion.progress,
+                status: completion.status,
+                provider: .aniList
+            )
+        }
     }
 
     private func handleTap(at location: CGPoint, in size: CGSize) {

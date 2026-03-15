@@ -370,6 +370,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				"INFOPLIST_KEY_CFBundleURLTypes[0].CFBundleTypeRole" = Editor;
+				"INFOPLIST_KEY_CFBundleURLTypes[0].CFBundleURLName" = "boa.ComicDeck.oauth";
+				"INFOPLIST_KEY_CFBundleURLTypes[0].CFBundleURLSchemes[0]" = comicdeck;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -413,6 +416,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				"INFOPLIST_KEY_CFBundleURLTypes[0].CFBundleTypeRole" = Editor;
+				"INFOPLIST_KEY_CFBundleURLTypes[0].CFBundleURLName" = "boa.ComicDeck.oauth";
+				"INFOPLIST_KEY_CFBundleURLTypes[0].CFBundleURLSchemes[0]" = comicdeck;
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

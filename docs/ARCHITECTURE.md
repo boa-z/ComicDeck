@@ -84,6 +84,7 @@ Current feature domains:
 - `Search`
 - `Settings`
 - `Source`
+- `Tracking`
 - `Login`
 
 Constraint:
@@ -103,6 +104,7 @@ Responsibilities:
 - run reader loading and image pipeline behavior
 - manage download queue execution and offline indexing
 - handle backup, restore, export, import, and WebDAV sync
+- handle tracker account state, remote binding, and queued sync events
 
 Important files:
 
@@ -115,6 +117,7 @@ Important files:
 - `ReaderViewModel.swift`
 - `AppBackupService.swift`
 - `WebDAVSyncService.swift`
+- `Runtime/Tracker`
 
 ### Core Layer
 
@@ -163,6 +166,13 @@ Examples:
 - library categories
 - favorite-to-category memberships
 - backup payload generation for library organization data
+
+`TrackerViewModel` owns:
+
+- connected tracker accounts
+- per-comic tracker bindings
+- pending sync queue state
+- one-way progress sync dispatch
 
 ## Reader Architecture
 
@@ -258,6 +268,31 @@ Storage tables:
 - Source compatibility is bounded by the embedded runtime bridge and supported script behavior
 - source favorites remain source-runtime specific
 - local bookmarks represent app-side saved comics
+
+## Tracking
+
+Phase 1 tracking is intentionally narrow:
+
+- provider support: `AniList`, `Bangumi`
+- auth model:
+  - `AniList`: OAuth authorization code flow with the `comicdeck://anilist-auth` callback
+  - `Bangumi`: personal access token entered in Settings
+- sync direction: local reader progress -> remote tracker
+- sync trigger: chapter completion and manual sync from detail
+
+Persistent tracker state is split into:
+
+- `tracker_accounts`
+- `tracker_bindings`
+- `tracker_sync_events`
+
+Design intent:
+
+- local reading remains the source of truth
+- remote tracker progress is updated asynchronously
+- failed sync attempts stay queued for the next flush while the app is active
+- tracker tokens stay in Keychain rather than SQLite backup payloads
+- AniList OAuth client IDs are stored in user defaults because they are public configuration, while AniList access tokens and client secrets stay in Keychain
 - local library shelves organize bookmarks at the app layer
 - category membership is many-to-many, so a comic can appear in multiple shelves
 - shelf order is persisted through `sort_order`

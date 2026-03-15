@@ -313,6 +313,15 @@ final class ReaderSession {
         library.addReadingDuration(Date().timeIntervalSince(readingSessionStartedAt))
     }
 
+    func completedChapterProgress(readerMode: ReaderMode) -> (progress: Int, status: TrackerReadingStatus)? {
+        guard !imageRequests.isEmpty else { return nil }
+        guard displayedPageIndex(readerMode: readerMode) >= imageRequests.count else { return nil }
+        guard let currentChapterIndex else { return nil }
+        let progress = currentChapterIndex + 1
+        let status: TrackerReadingStatus = progress >= chapterSequence.count ? .completed : .current
+        return (progress, status)
+    }
+
     private func syncCurrentChapterIndex() {
         currentChapterIndex = chapterSequence.firstIndex(where: { $0.id == chapterID })
     }

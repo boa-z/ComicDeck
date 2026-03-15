@@ -45,6 +45,7 @@ struct MainView: View {
     @State private var sourceSearchRoute: SourceSearchRoute?
     @State private var showGlobalSearch = false
     @State private var showSettings = false
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("ui.appAppearance") private var appAppearanceRaw = AppAppearance.system.rawValue
 
     private var appAppearance: AppAppearance {
@@ -73,6 +74,7 @@ struct MainView: View {
                 }
             )
             .environment(vm.library)
+            .environment(vm.tracker)
             .tabItem {
                 Label("Home", systemImage: "house")
             }
@@ -80,6 +82,7 @@ struct MainView: View {
 
             DiscoverView(vm: vm, onOpenSearch: { showGlobalSearch = true })
                 .environment(vm.library)
+                .environment(vm.tracker)
                 .tabItem {
                     Label("Discover", systemImage: "sparkles.rectangle.stack")
                 }
@@ -89,6 +92,7 @@ struct MainView: View {
                 sourceSearchRoute = SourceSearchRoute(sourceKey: sourceKey, keyword: tag)
             }
             .environment(vm.library)
+            .environment(vm.tracker)
             .tabItem {
                 Label("Library", systemImage: "books.vertical")
             }
@@ -98,6 +102,11 @@ struct MainView: View {
             await vm.prepareIfNeeded()
         }
         .environment(vm.library)
+        .environment(vm.tracker)
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { await vm.tracker.flushPendingSync() }
+        }
         .sheet(item: $sourceSearchRoute) { route in
             NavigationStack {
                 SourceScopedSearchView(
@@ -106,16 +115,19 @@ struct MainView: View {
                     initialKeyword: route.keyword
                 )
                 .environment(vm.library)
+                .environment(vm.tracker)
             }
         }
         .sheet(isPresented: $showGlobalSearch) {
             SearchView(vm: vm)
                 .environment(vm.library)
+                .environment(vm.tracker)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environment(vm.library)
                 .environment(vm.sourceManager)
+                .environment(vm.tracker)
         }
         .overlay {
             LoginSheetPresenter(login: vm.login, appDebugLog: appDebugLog)

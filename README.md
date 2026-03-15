@@ -53,9 +53,15 @@ xcodebuild -project ComicDeck.xcodeproj \
 ### Sources and Data
 
 - Manage source repositories, updates, settings, and login flows
+- Connect AniList with OAuth client credentials or Bangumi with a personal access token, then link local comics to remote tracking entries
+- Sync chapter completion progress from the reader to linked AniList or Bangumi titles
 - Back up and restore local library data
 - Upload, browse, restore, and delete remote backups through WebDAV
 - Localize app-owned UI with String Catalogs and Crowdin
+
+Tracker setup notes:
+- AniList requires an OAuth app with `comicdeck://anilist-auth` registered as the redirect URI
+- Bangumi currently uses a personal access token entered directly in Settings
 
 ## Project Layout
 
