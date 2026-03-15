@@ -1,13 +1,25 @@
 {
   "name": "ComicDeck",
   "identifier": "boa.ComicDeck",
-  "developer": "boa",
-  "versions": [],
+  "website": "https://github.com/boa-z/ComicDeck",
+  "subtitle": "ComicDeck official AltStore source.",
+  "description": "This is the official AltStore source for ComicDeck.\n\nRead comics from installed sources, manage offline downloads, and keep your library in sync.",
+  "tintColor": "#2F6FED",
   "apps": [
     {
+      "beta": false,
       "name": "ComicDeck",
       "bundleIdentifier": "boa.ComicDeck",
-      "developer": "boa",
+      "developerName": "boa",
+      "subtitle": "SwiftUI comic reader with source browsing, offline downloads, and tracking.",
+      "localizedDescription": "Read comics from installed sources, manage offline downloads, and keep your library in sync.",
+      "category": "entertainment",
+      "tintColor": "#2F6FED",
+      "screenshotURLs": [],
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {}
+      },
       "versions": [
         {
           "version": "0.0.1+1",
@@ -47,5 +59,6 @@
       "commit": "aac9a1f",
       "headline": "feat: add nightly IPA release link to apps.json and update workflows"
     }
-  ]
+  ],
+  "news": []
 }

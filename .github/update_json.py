@@ -76,7 +76,29 @@ def update_json_file(repo_url: str, json_file: str) -> None:
     with open(json_file, "r", encoding="utf-8") as file:
         data = json.load(file)
 
+    data.setdefault("name", "ComicDeck")
+    data.setdefault("identifier", "boa.ComicDeck")
+    data.setdefault("website", f"https://github.com/{repo_url}")
+    data.setdefault("subtitle", "ComicDeck official AltStore source.")
+    data.setdefault(
+        "description",
+        "This is the official AltStore source for ComicDeck.\n\nRead comics from installed sources, manage offline downloads, and keep your library in sync.",
+    )
+    data.setdefault("tintColor", "#2F6FED")
+    data.setdefault("news", [])
+
     app = data["apps"][0]
+    app.setdefault("beta", False)
+    app.setdefault("developerName", "boa")
+    app.setdefault("subtitle", "SwiftUI comic reader with source browsing, offline downloads, and tracking.")
+    app.setdefault(
+        "localizedDescription",
+        "Read comics from installed sources, manage offline downloads, and keep your library in sync.",
+    )
+    app.setdefault("category", "entertainment")
+    app.setdefault("tintColor", "#2F6FED")
+    app.setdefault("screenshotURLs", [])
+    app.setdefault("appPermissions", {"entitlements": [], "privacy": {}})
     release = fetch_release_by_tag(repo_url, "nightly")
 
     ipa_asset = next((asset for asset in release.get("assets", []) if asset["name"].endswith(".ipa")), None)

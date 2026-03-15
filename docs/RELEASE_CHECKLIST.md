@@ -9,6 +9,7 @@ Confirm:
 3. app launches cleanly on a fresh install
 4. GitHub Actions produces an unsigned `.ipa` artifact
 5. nightly `apps.json` update includes the direct GitHub release `.ipa` URL at the app top level and in the nightly release channel
+6. AltStore source parsing fields remain present, including `developerName`, `subtitle`, `localizedDescription`, `category`, and top-level source metadata
 
 Recommended command:
 

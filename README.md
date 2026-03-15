@@ -100,7 +100,7 @@ The About screen reads build metadata from the app bundle:
 The repository includes automated workflows in `.github/workflows/`.
 
 - `build.yml`: Builds unsigned IPA artifacts.
-- `update_source.yml`: Automatically generates an AltStore-compatible source manifest (`apps.json`) after nightly builds, including the direct nightly IPA release link.
+- `update_source.yml`: Automatically generates an AltStore-compatible source manifest (`apps.json`) after nightly builds, including direct nightly IPA release links and app metadata required by AltStore parsers.
 
 #### AltStore Installation
 You can add ComicDeck to AltStore using the following source URL:
