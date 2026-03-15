@@ -100,16 +100,45 @@ struct BangumiTrackerClient {
             body["type"] = bangumiCollectionType(status)
         }
 
-        let response: Response = try await perform(
-            path: "users/-/collections/\(mediaID)",
+        let path = "users/-/collections/\(mediaID.trimmingCharacters(in: .whitespacesAndNewlines))"
+        let (http, data) = try await request(
+            path: path,
             method: "PATCH",
             body: body,
             accessToken: accessToken
         )
-        return BangumiSaveResult(
-            progress: response.ep_status ?? progress,
-            status: response.type.flatMap(trackerStatus)
-        )
+        if (200...299).contains(http.statusCode) {
+            if let response: Response = try? decodeResponse(data) {
+                return BangumiSaveResult(
+                    progress: response.ep_status ?? progress,
+                    status: response.type.flatMap(trackerStatus)
+                )
+            }
+            return BangumiSaveResult(progress: progress, status: status)
+        }
+
+        let bodyText = String(data: data, encoding: .utf8) ?? ""
+        if http.statusCode == 404, bodyText.localizedCaseInsensitiveContains("subject not collected") {
+            let (postHTTP, postData) = try await request(
+                path: path,
+                method: "POST",
+                body: body,
+                accessToken: accessToken
+            )
+            guard (200...299).contains(postHTTP.statusCode) else {
+                let postBody = String(data: postData, encoding: .utf8) ?? ""
+                throw TrackerError.remoteFailure("Bangumi request failed (\(postHTTP.statusCode)): \(postBody)")
+            }
+            if let response: Response = try? decodeResponse(postData) {
+                return BangumiSaveResult(
+                    progress: response.ep_status ?? progress,
+                    status: response.type.flatMap(trackerStatus)
+                )
+            }
+            return BangumiSaveResult(progress: progress, status: status)
+        }
+
+        throw TrackerError.remoteFailure("Bangumi request failed (\(http.statusCode)): \(bodyText)")
     }
 
     private func perform<Response: Decodable>(
@@ -118,6 +147,25 @@ struct BangumiTrackerClient {
         body: Any?,
         accessToken: String
     ) async throws -> Response {
+        let (http, data) = try await request(
+            path: path,
+            method: method,
+            body: body,
+            accessToken: accessToken
+        )
+        guard (200...299).contains(http.statusCode) else {
+            let bodyText = String(data: data, encoding: .utf8) ?? ""
+            throw TrackerError.remoteFailure("Bangumi request failed (\(http.statusCode)): \(bodyText)")
+        }
+        return try decodeResponse(data)
+    }
+
+    private func request(
+        path: String,
+        method: String,
+        body: Any?,
+        accessToken: String
+    ) async throws -> (HTTPURLResponse, Data) {
         var request = URLRequest(url: endpoint.appendingPathComponent(path))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -132,11 +180,11 @@ struct BangumiTrackerClient {
         guard let http = response as? HTTPURLResponse else {
             throw TrackerError.remoteFailure("Bangumi did not return an HTTP response.")
         }
-        guard (200...299).contains(http.statusCode) else {
-            let bodyText = String(data: data, encoding: .utf8) ?? ""
-            throw TrackerError.remoteFailure("Bangumi request failed (\(http.statusCode)): \(bodyText)")
-        }
-        return try JSONDecoder().decode(Response.self, from: data)
+        return (http, data)
+    }
+
+    private func decodeResponse<Response: Decodable>(_ data: Data) throws -> Response {
+        try JSONDecoder().decode(Response.self, from: data)
     }
 
     private func bangumiCollectionType(_ status: TrackerReadingStatus) -> Int {

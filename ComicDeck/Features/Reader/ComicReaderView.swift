@@ -117,6 +117,7 @@ struct ComicReaderView: View {
     @State private var session: ReaderSession
     @State private var showSettings = false
     @State private var historySaveTask: Task<Void, Never>? = nil
+    @FocusState private var isReaderFocused: Bool
 
     private let prefetcher = ReaderImagePrefetcher.shared
 
@@ -288,6 +289,32 @@ struct ComicReaderView: View {
         .navigationBarBackButtonHidden(!session.loading)
         .toolbar(.hidden, for: .tabBar)
         .statusBarHidden(!session.showControls)
+        .focusable(true)
+        .focused($isReaderFocused)
+        #if targetEnvironment(macCatalyst)
+        .onKeyPress(.leftArrow) {
+            previousPage()
+            return .handled
+        }
+        .onKeyPress(.rightArrow) {
+            nextPage()
+            return .handled
+        }
+        .onKeyPress(.upArrow) {
+            if readerMode == .vertical {
+                previousPage()
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress(.downArrow) {
+            if readerMode == .vertical {
+                nextPage()
+                return .handled
+            }
+            return .ignored
+        }
+        #endif
         .sheet(isPresented: $showSettings) {
             ReaderSettingsSheet(
                 mode: Binding(
@@ -309,6 +336,11 @@ struct ComicReaderView: View {
             )
             .presentationDetents([.medium])
         }
+        .onChange(of: showSettings) { _, isPresented in
+            if !isPresented {
+                isReaderFocused = true
+            }
+        }
         .onChange(of: session.currentPage) { _, _ in
             preloadAroundCurrentPage()
             scheduleHistorySave()
@@ -319,6 +351,7 @@ struct ComicReaderView: View {
         }
         .onAppear {
             session.markVisible()
+            isReaderFocused = true
             UIApplication.shared.isIdleTimerDisabled = keepScreenOn
         }
         .onChange(of: keepScreenOn) { _, enabled in
