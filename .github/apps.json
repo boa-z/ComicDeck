@@ -26,11 +26,11 @@
         {
           "version": "0.0.1+1",
           "date": "2026-03-15T04:26:26Z",
-          "localizedDescription": "Commit: e49e31e\nMessage: fix: align AltStore source metadata and apply the new app icon assets\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23105998617/attempts/1",
+          "localizedDescription": "Commit: 1559dd6\nMessage: fix\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23108403983/attempts/1",
           "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-          "size": 5246561,
-          "commit": "e49e31e",
-          "headline": "fix: align AltStore source metadata and apply the new app icon assets"
+          "size": 5249540,
+          "commit": "1559dd6",
+          "headline": "fix"
         }
       ],
       "releaseChannels": [
@@ -44,22 +44,22 @@
             {
               "version": "0.0.1+1",
               "date": "2026-03-15T04:26:26Z",
-              "localizedDescription": "Commit: e49e31e\nMessage: fix: align AltStore source metadata and apply the new app icon assets\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23105998617/attempts/1",
+              "localizedDescription": "Commit: 1559dd6\nMessage: fix\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23108403983/attempts/1",
               "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-              "size": 5246561,
-              "commit": "e49e31e",
-              "headline": "fix: align AltStore source metadata and apply the new app icon assets"
+              "size": 5249540,
+              "commit": "1559dd6",
+              "headline": "fix"
             }
           ]
         }
       ],
       "version": "0.0.1+1",
       "versionDate": "2026-03-15T04:26:26Z",
-      "versionDescription": "Commit: e49e31e\nMessage: fix: align AltStore source metadata and apply the new app icon assets\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23105998617/attempts/1",
+      "versionDescription": "Commit: 1559dd6\nMessage: fix\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23108403983/attempts/1",
       "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-      "size": 5246561,
-      "commit": "e49e31e",
-      "headline": "fix: align AltStore source metadata and apply the new app icon assets"
+      "size": 5249540,
+      "commit": "1559dd6",
+      "headline": "fix"
     }
   ],
   "news": []
