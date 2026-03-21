@@ -41,6 +41,7 @@ actor ComicDownloadManager {
         self.database = database
         self.rootDirectory = rootDirectory
         let config = URLSessionConfiguration.ephemeral
+        config.httpCookieStorage = HTTPCookieStorage.shared
         config.httpCookieAcceptPolicy = .always
         config.httpShouldSetCookies = true
         config.urlCache = nil

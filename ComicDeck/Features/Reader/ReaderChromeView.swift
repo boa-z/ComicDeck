@@ -7,6 +7,8 @@ struct ReaderOverlayView: View {
     let offlineStatusText: String
     let displayedPageIndex: Int
     let totalPages: Int
+    let resolvedPageCount: Int
+    let isLoadingMore: Bool
     let readerMode: ReaderMode
     let animatePageTransitions: Bool
     @Binding var currentPage: Int
@@ -22,6 +24,41 @@ struct ReaderOverlayView: View {
 
     private var safePageUpperBound: Int {
         max(totalPages - 1, 0)
+    }
+
+    private var normalizedDisplayedPageIndex: Int {
+        guard totalPages > 0 else { return 0 }
+        return min(max(displayedPageIndex, 1), totalPages)
+    }
+
+    private var progressSummaryText: String {
+        AppLocalization.format(
+            "reader.pages",
+            "%lld/%lld pages",
+            Int64(normalizedDisplayedPageIndex),
+            Int64(totalPages)
+        )
+    }
+
+    private var readyStatusText: String? {
+        guard totalPages > 0, resolvedPageCount < totalPages else { return nil }
+        return AppLocalization.format(
+            "reader.status.ready",
+            "%1$lld/%2$lld ready",
+            Int64(resolvedPageCount),
+            Int64(totalPages)
+        )
+    }
+
+    private var pagesLeftText: String? {
+        guard totalPages > 0 else { return nil }
+        let pagesLeft = max(totalPages - normalizedDisplayedPageIndex, 0)
+        guard pagesLeft > 0 else { return nil }
+        return AppLocalization.format(
+            "reader.status.pages_left",
+            "%lld left",
+            Int64(pagesLeft)
+        )
     }
 
     private var sliderValue: Binding<Double> {
@@ -54,12 +91,12 @@ struct ReaderOverlayView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Button("Back", systemImage: "chevron.left", action: onDismiss)
+                Button(AppLocalization.text("common.back", "Back"), systemImage: "chevron.left", action: onDismiss)
                     .labelStyle(.iconOnly)
                     .font(.headline)
                     .padding(10)
                     .background(AppSurface.readerOverlay, in: Circle())
-                    .accessibilityLabel("Back")
+                    .accessibilityLabel(AppLocalization.text("common.back", "Back"))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(chapterTitle.isEmpty ? chapterID : chapterTitle)
@@ -87,22 +124,22 @@ struct ReaderOverlayView: View {
                         .padding(10)
                         .background(AppSurface.readerOverlay, in: Circle())
                 }
-                .accessibilityLabel("Reading mode")
+                .accessibilityLabel(AppLocalization.text("reader.chrome.mode", "Mode"))
                 .accessibilityValue(readerMode.title)
 
-                Button("Settings", systemImage: "slider.horizontal.3", action: onOpenSettings)
+                Button(AppLocalization.text("reader.settings.navigation_title", "Reader Settings"), systemImage: "slider.horizontal.3", action: onOpenSettings)
                     .labelStyle(.iconOnly)
                     .font(.headline)
                     .padding(10)
                     .background(AppSurface.readerOverlay, in: Circle())
-                    .accessibilityLabel("Reader settings")
+                    .accessibilityLabel(AppLocalization.text("reader.settings.navigation_title", "Reader Settings"))
 
-                Button("Reload", systemImage: "arrow.clockwise", action: onReload)
+                Button(AppLocalization.text("reader.action.reload_page", "Reload current page"), systemImage: "arrow.clockwise", action: onReload)
                     .labelStyle(.iconOnly)
                     .font(.headline)
                     .padding(10)
                     .background(AppSurface.readerOverlay, in: Circle())
-                    .accessibilityLabel("Reload current page")
+                    .accessibilityLabel(AppLocalization.text("reader.action.reload_page", "Reload current page"))
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
@@ -122,7 +159,7 @@ struct ReaderOverlayView: View {
                 HStack(spacing: AppSpacing.md) {
                     if previousChapterTitle != nil || nextChapterTitle != nil {
                         chapterButton(
-                            title: "Previous chapter",
+                            title: AppLocalization.text("reader.action.previous_chapter", "Previous chapter"),
                             systemImage: "backward.end.fill",
                             enabled: previousChapterTitle != nil,
                             action: onOpenPreviousChapter
@@ -138,8 +175,8 @@ struct ReaderOverlayView: View {
                         .id("reader-progress-\(totalPages)")
                         .tint(.white)
                         .animation(animatePageTransitions ? .easeInOut(duration: 0.18) : nil, value: currentPage)
-                        .accessibilityLabel("Reading progress")
-                        .accessibilityValue("Page \(displayedPageIndex) of \(totalPages)")
+                        .accessibilityLabel(AppLocalization.text("reader.progress.label", "Reading progress"))
+                        .accessibilityValue(progressSummaryText)
                     } else {
                         Capsule()
                             .fill(.white.opacity(0.18))
@@ -155,7 +192,7 @@ struct ReaderOverlayView: View {
 
                     if previousChapterTitle != nil || nextChapterTitle != nil {
                         chapterButton(
-                            title: "Next chapter",
+                            title: AppLocalization.text("reader.action.next_chapter", "Next chapter"),
                             systemImage: "forward.end.fill",
                             enabled: nextChapterTitle != nil,
                             action: onOpenNextChapter
@@ -163,8 +200,8 @@ struct ReaderOverlayView: View {
                     }
                 }
 
-                HStack {
-                    Text("\(displayedPageIndex) / \(totalPages)")
+                HStack(spacing: 6) {
+                    Text(progressSummaryText)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.white.opacity(0.85))
                     if !offlineStatusText.isEmpty {
@@ -172,15 +209,22 @@ struct ReaderOverlayView: View {
                             .font(.caption2)
                             .foregroundStyle(.green.opacity(0.9))
                     }
-                    if totalPages > 0 {
-                        let pagesLeft = max(totalPages - displayedPageIndex, 0)
-                        if pagesLeft > 0 {
-                            Text("• \(pagesLeft) left")
-                                .font(.caption2.monospacedDigit())
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
+                    if let readyStatusText {
+                        Text("• \(readyStatusText)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    if let pagesLeftText {
+                        Text("• \(pagesLeftText)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.white.opacity(0.7))
                     }
                     Spacer()
+                    if isLoadingMore {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white.opacity(0.75))
+                    }
                     Text(readerMode.title)
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.7))
@@ -222,7 +266,7 @@ struct DebugLogPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Debug Logs")
+            Text(AppLocalization.text("reader.debug.logs", "Debug Logs"))
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.9))
             ScrollView {
@@ -254,8 +298,8 @@ struct ReaderSettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Reading Direction") {
-                    Picker("Mode", selection: $mode) {
+                Section(AppLocalization.text("reader.settings.mode", "Reading Direction")) {
+                    Picker(AppLocalization.text("reader.chrome.mode", "Mode"), selection: $mode) {
                         ForEach(ReaderMode.allCases) { item in
                             Text(item.title).tag(item)
                         }
@@ -263,32 +307,32 @@ struct ReaderSettingsSheet: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section("Interaction") {
-                    Toggle("Invert left/right tap", isOn: $invertTapZones)
-                    Toggle("Animate page transitions", isOn: $animatePageTransitions)
-                    Toggle("Keep screen on", isOn: $keepScreenOn)
+                Section(AppLocalization.text("reader.settings.interaction", "Interaction")) {
+                    Toggle(AppLocalization.text("reader.settings.invert_tap", "Invert left/right tap"), isOn: $invertTapZones)
+                    Toggle(AppLocalization.text("reader.settings.animate", "Animate page transitions"), isOn: $animatePageTransitions)
+                    Toggle(AppLocalization.text("reader.settings.keep_screen_on", "Keep screen on"), isOn: $keepScreenOn)
                     Stepper(value: $preloadDistance, in: 1...8) {
-                        Text("Preload nearby pages: \(preloadDistance)")
+                        Text(AppLocalization.format("reader.preload_distance", "Preload nearby pages: %lld", Int64(preloadDistance)))
                     }
                 }
 
-                Section("Tap Zones") {
-                    Picker("Preset", selection: $tapZonePreset) {
+                Section(AppLocalization.text("reader.settings.preset", "Tap Zones")) {
+                    Picker(AppLocalization.text("reader.chrome.preset", "Preset"), selection: $tapZonePreset) {
                         ForEach(TapZonePreset.allCases) { item in
                             Text(item.title).tag(item)
                         }
                     }
                 }
 
-                Section("Appearance") {
-                    Picker("Background", selection: $readerBackgroundMode) {
+                Section(AppLocalization.text("reader.settings.appearance", "Appearance")) {
+                    Picker(AppLocalization.text("reader.background.mode", "Background"), selection: $readerBackgroundMode) {
                         ForEach(ReaderBackgroundMode.allCases) { item in
                             Text(item.title).tag(item)
                         }
                     }
                 }
             }
-            .navigationTitle("Reader Settings")
+            .navigationTitle(AppLocalization.text("reader.settings.navigation_title", "Reader Settings"))
         }
     }
 }

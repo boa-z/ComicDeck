@@ -14,6 +14,7 @@ final class ComicDetailScreenModel {
     var favoriteFolderWorkingIDs: Set<String> = []
     var favoriteStatus = ""
     var favoriteFolders: [FavoriteFolder] = []
+    var singleFavoriteFolderSelection = false
     var commentCapabilities = ComicCommentCapabilities(canLoad: false, canSend: false, canLike: false, canVote: false)
     var showCommentsPage = false
     var showQueueAllConfirm = false
@@ -44,6 +45,10 @@ final class ComicDetailScreenModel {
         return detail?.isFavorite ?? false
     }
 
+    var actionableFavoriteFolders: [FavoriteFolder] {
+        favoriteFolders.filter { !Self.isVirtualFavoriteFolderID($0.id) }
+    }
+
     var displayDetail: ComicDetail? {
         guard let detail else { return nil }
         if detail.title.isEmpty {
@@ -66,6 +71,11 @@ final class ComicDetailScreenModel {
 
     var isBookmarked: Bool = false
 
+    static func isVirtualFavoriteFolderID(_ id: String) -> Bool {
+        let normalized = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized == "-1" || normalized == "all"
+    }
+
     func load(using vm: ReaderViewModel, library: LibraryViewModel) async {
         loading = true
         errorText = ""
@@ -82,9 +92,12 @@ final class ComicDetailScreenModel {
                 commentCapabilities = ComicCommentCapabilities(canLoad: false, canSend: false, canLike: false, canVote: false)
             }
             do {
-                favoriteFolders = try await vm.loadSourceFavoriteFolders(item)
+                let favoriteListing = try await vm.loadSourceFavoriteFolders(item)
+                favoriteFolders = favoriteListing.folders
+                singleFavoriteFolderSelection = favoriteListing.singleFolderForSingleComic
             } catch {
                 favoriteFolders = []
+                singleFavoriteFolderSelection = false
                 favoriteStatus = "Source favorite unavailable offline"
             }
         } catch {
@@ -143,7 +156,9 @@ final class ComicDetailScreenModel {
                     isAdding: targetAdding
                 )
                 self.detail = updated
-                self.favoriteFolders = try await vm.loadSourceFavoriteFolders(item)
+                let favoriteListing = try await vm.loadSourceFavoriteFolders(item)
+                self.favoriteFolders = favoriteListing.folders
+                self.singleFavoriteFolderSelection = favoriteListing.singleFolderForSingleComic
                 self.favoriteStatus = targetAdding ? "Added to source favorites" : "Removed from source favorites"
             } catch {
                 self.favoriteStatus = "Favorite failed: \(error.localizedDescription)"

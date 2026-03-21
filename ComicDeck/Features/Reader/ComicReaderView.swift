@@ -120,6 +120,11 @@ struct ComicReaderView: View {
     @FocusState private var isReaderFocused: Bool
 
     private let prefetcher = ReaderImagePrefetcher.shared
+    @State private var readerLoadTask: Task<Void, Never>? = nil
+    @State private var chapterSequenceTask: Task<Void, Never>? = nil
+    @State private var chapterNavigationTask: Task<Void, Never>? = nil
+    @State private var prefetchGeneration = 0
+    @State private var lastPrefetchedPage = 0
 
     init(
         vm: ReaderViewModel,
@@ -187,7 +192,7 @@ struct ComicReaderView: View {
         ZStack {
             resolvedReaderBackground.ignoresSafeArea()
 
-            if session.loading {
+            if session.loading && !session.canRenderReader {
                 VStack(spacing: 10) {
                     ProgressView(value: session.loadingProgress, total: 1)
                         .progressViewStyle(.linear)
@@ -226,7 +231,7 @@ struct ComicReaderView: View {
                     }
                 }
                 .padding()
-            } else if session.imageRequests.isEmpty {
+            } else if session.totalPages == 0 {
                 Text(AppLocalization.text("reader.error.no_images", "No images"))
                     .foregroundStyle(.white.opacity(0.75))
             } else {
@@ -248,15 +253,28 @@ struct ComicReaderView: View {
                         )
                         .ignoresSafeArea()
 
+                        if session.loading && session.canRenderReader {
+                            VStack {
+                                ProgressView(value: session.loadingProgress, total: 1)
+                                    .progressViewStyle(.linear)
+                                    .tint(.white)
+                                    .padding(.horizontal, 24)
+                                    .padding(.top, 12)
+                                Spacer()
+                            }
+                        }
+
                         if session.showControls {
                             ReaderOverlayView(
                                 chapterTitle: session.chapterTitle,
-                            chapterID: session.chapterID,
-                            comicTitle: item.title,
-                            offlineStatusText: session.offlineStatusText,
-                            displayedPageIndex: displayedPageIndex,
-                            totalPages: session.imageRequests.count,
-                            readerMode: readerMode,
+                                chapterID: session.chapterID,
+                                comicTitle: item.title,
+                                offlineStatusText: session.offlineStatusText,
+                                displayedPageIndex: displayedPageIndex,
+                                totalPages: session.totalPages,
+                                resolvedPageCount: session.resolvedPageCount,
+                                isLoadingMore: session.isLoadingMore,
+                                readerMode: readerMode,
                                 animatePageTransitions: animatePageTransitions && !reduceMotion,
                                 currentPage: $session.currentPage,
                                 previousChapterTitle: session.previousChapter?.title.isEmpty == false ? session.previousChapter?.title : session.previousChapter?.id,
@@ -341,13 +359,32 @@ struct ComicReaderView: View {
                 isReaderFocused = true
             }
         }
+        .onChange(of: readerMode) { oldMode, mode in
+            guard session.totalPages > 0 else { return }
+            let displayed = session.displayedPageIndex(readerMode: oldMode)
+            let oneBased = max(1, min(session.totalPages, displayed))
+            let ltrIndex = min(session.totalPages - 1, oneBased - 1)
+            session.currentPage = mode == .rtl ? max(0, session.totalPages - 1 - ltrIndex) : ltrIndex
+            if mode == .vertical {
+                session.verticalScrollTarget = session.currentPage
+            }
+        }
         .onChange(of: session.currentPage) { _, _ in
+            session.resolvePagesAroundCurrentPage(using: vm, readerMode: readerMode)
             preloadAroundCurrentPage()
             scheduleHistorySave()
         }
         .task {
-            await load()
-            await session.loadChapterSequenceIfNeeded(using: vm)
+            prefetchGeneration = await ReaderImagePipeline.shared.beginPrefetchSession()
+            lastPrefetchedPage = session.currentPage
+            readerLoadTask?.cancel()
+            readerLoadTask = Task {
+                await load()
+            }
+            chapterSequenceTask?.cancel()
+            chapterSequenceTask = Task {
+                await session.loadChapterSequenceIfNeeded(using: vm)
+            }
         }
         .onAppear {
             session.markVisible()
@@ -360,7 +397,16 @@ struct ComicReaderView: View {
         .onDisappear {
             historySaveTask?.cancel()
             historySaveTask = nil
+            readerLoadTask?.cancel()
+            readerLoadTask = nil
+            chapterSequenceTask?.cancel()
+            chapterSequenceTask = nil
+            chapterNavigationTask?.cancel()
+            chapterNavigationTask = nil
+            prefetcher.cancel()
             Task {
+                await ReaderImagePipeline.shared.cancelPrefetchSession()
+                await session.close(using: vm)
                 await persistHistoryNow()
                 session.finishReadingSession(using: library)
             }
@@ -394,6 +440,7 @@ struct ComicReaderView: View {
 
     private func reloadCurrentPage() {
         session.reloadCurrentPage()
+        session.resolvePagesAroundCurrentPage(using: vm, readerMode: readerMode)
         preloadAroundCurrentPage()
     }
 
@@ -404,30 +451,57 @@ struct ComicReaderView: View {
     }
 
     private func openPreviousChapter() {
-        Task {
+        chapterNavigationTask?.cancel()
+        chapterNavigationTask = Task {
             await session.loadAdjacentChapter(step: -1, using: vm, library: library, readerMode: readerMode)
+            guard !Task.isCancelled else { return }
             preloadAroundCurrentPage()
             await persistHistoryNow()
         }
     }
 
     private func openNextChapter() {
-        Task {
+        chapterNavigationTask?.cancel()
+        chapterNavigationTask = Task {
             await session.loadAdjacentChapter(step: 1, using: vm, library: library, readerMode: readerMode)
+            guard !Task.isCancelled else { return }
             preloadAroundCurrentPage()
             await persistHistoryNow()
         }
     }
 
     private func preloadAroundCurrentPage() {
-        guard !session.imageRequests.isEmpty else { return }
-        let distance = max(1, min(preloadDistance, 2))
-        let start = max(0, session.currentPage - distance)
-        let end = min(session.imageRequests.count - 1, session.currentPage + distance)
-        let requests = (start...end).filter { $0 != session.currentPage }.compactMap { idx in
-            buildURLRequest(from: session.imageRequests[idx])
+        guard session.totalPages > 0 else { return }
+        let distance = max(1, min(preloadDistance, 4))
+        let direction = session.currentPage == lastPrefetchedPage ? 0 : (session.currentPage > lastPrefetchedPage ? 1 : -1)
+        lastPrefetchedPage = session.currentPage
+        let requests = preferredPrefetchIndexes(
+            current: session.currentPage,
+            total: session.totalPages,
+            distance: distance,
+            direction: direction
+        )
+            .compactMap { idx in session.imageRequests[idx] }
+            .compactMap(buildURLRequest(from:))
+        prefetcher.preload(requests: requests, generation: prefetchGeneration)
+    }
+
+    private func preferredPrefetchIndexes(current: Int, total: Int, distance: Int, direction: Int) -> [Int] {
+        guard total > 0 else { return [] }
+        var indexes: [Int] = []
+        let forwardFirst = direction >= 0
+        for step in 1...distance {
+            let forward = current + step
+            let backward = current - step
+            if forwardFirst {
+                if forward < total { indexes.append(forward) }
+                if backward >= 0 { indexes.append(backward) }
+            } else {
+                if backward >= 0 { indexes.append(backward) }
+                if forward < total { indexes.append(forward) }
+            }
         }
-        prefetcher.preload(requests: requests)
+        return indexes
     }
 
     private func scheduleHistorySave() {
@@ -531,12 +605,20 @@ struct ComicReaderView: View {
 private final class ReaderImagePrefetcher {
     static let shared = ReaderImagePrefetcher()
 
+    private var prefetchTask: Task<Void, Never>?
+
     private init() {}
 
-    func preload(requests: [URLRequest]) {
+    func preload(requests: [URLRequest], generation: Int) {
         guard !requests.isEmpty else { return }
-        Task(priority: .utility) {
-            await ReaderImagePipeline.shared.prefetch(requests: requests)
+        prefetchTask?.cancel()
+        prefetchTask = Task(priority: .utility) {
+            await ReaderImagePipeline.shared.prefetch(requests: requests, generation: generation)
         }
+    }
+
+    func cancel() {
+        prefetchTask?.cancel()
+        prefetchTask = nil
     }
 }

@@ -79,9 +79,6 @@
     "• %@" : {
 
     },
-    "• %lld left" : {
-
-    },
     "↩ %lld" : {
 
     },
@@ -313,6 +310,40 @@
     "Comments" : {
 
     },
+    "comments.action.load_more" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load More"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载更多"
+          }
+        }
+      }
+    },
+    "comments.action.refresh" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh comments"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新评论"
+          }
+        }
+      }
+    },
     "comments.cancel_reply" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -326,6 +357,244 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消回复"
+          }
+        }
+      }
+    },
+    "comments.empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No comments"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无评论"
+          }
+        }
+      }
+    },
+    "comments.error.latest" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading latest comments failed: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载最新评论失败：%@"
+          }
+        }
+      }
+    },
+    "comments.error.load" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading comments failed: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载评论失败：%@"
+          }
+        }
+      }
+    },
+    "comments.error.load_more" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading more comments failed: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载更多评论失败：%@"
+          }
+        }
+      }
+    },
+    "comments.error.refresh" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refreshing comments failed: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新评论失败：%@"
+          }
+        }
+      }
+    },
+    "comments.error.send" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sending comment failed: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送评论失败：%@"
+          }
+        }
+      }
+    },
+    "comments.error.unsupported" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This source does not support loading comments."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此图源不支持加载评论。"
+          }
+        }
+      }
+    },
+    "comments.loading.initial" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading comments…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加载评论…"
+          }
+        }
+      }
+    },
+    "comments.loading.latest" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading latest comments…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加载最新评论…"
+          }
+        }
+      }
+    },
+    "comments.loading.more" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加载…"
+          }
+        }
+      }
+    },
+    "comments.loading.preview_note" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing preview comments while latest comments load."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加载最新评论，先显示预览评论。"
+          }
+        }
+      }
+    },
+    "comments.loading.refresh" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refreshing comments…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在刷新评论…"
+          }
+        }
+      }
+    },
+    "comments.loading.replies" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading replies…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加载回复…"
+          }
+        }
+      }
+    },
+    "comments.loading.slow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Still working with source…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍在等待图源响应…"
           }
         }
       }
@@ -360,6 +629,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 条回复"
+          }
+        }
+      }
+    },
+    "comments.replies.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replies"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回复"
           }
         }
       }
@@ -411,6 +697,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "回复"
+          }
+        }
+      }
+    },
+    "comments.section.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comments"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "评论"
+          }
+        }
+      }
+    },
+    "comments.write_placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write a comment"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写下你的评论"
           }
         }
       }
@@ -479,6 +799,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "清除"
+          }
+        }
+      }
+    },
+    "common.close" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
           }
         }
       }
@@ -671,9 +1008,6 @@
 
     },
     "Debug Logs" : {
-
-    },
-    "Default" : {
 
     },
     "Delete" : {
@@ -2078,9 +2412,6 @@
 
     },
     "Filters" : {
-
-    },
-    "Folder (%@)" : {
 
     },
     "Go" : {
@@ -3620,9 +3951,6 @@
     "Loading category..." : {
 
     },
-    "Loading comments..." : {
-
-    },
     "Loading files…" : {
 
     },
@@ -3677,9 +4005,6 @@
 
     },
     "No files in this chapter" : {
-
-    },
-    "No folders" : {
 
     },
     "No offline chapters" : {
@@ -3771,16 +4096,6 @@
     "Page %lld" : {
 
     },
-    "Page %lld of %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Page %1$lld of %2$lld"
-          }
-        }
-      }
-    },
     "Page number" : {
 
     },
@@ -3843,11 +4158,59 @@
     "Read Offline" : {
 
     },
-    "Reader settings" : {
-
-    },
     "Reader Settings" : {
 
+    },
+    "reader.action.next_chapter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next chapter"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一章"
+          }
+        }
+      }
+    },
+    "reader.action.previous_chapter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous chapter"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一章"
+          }
+        }
+      }
+    },
+    "reader.action.reload_page" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload current page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新加载当前页"
+          }
+        }
+      }
     },
     "reader.background.auto" : {
       "extractionState" : "manual",
@@ -4002,6 +4365,23 @@
         }
       }
     },
+    "reader.debug.logs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debug Logs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调试日志"
+          }
+        }
+      }
+    },
     "reader.error.no_images" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4032,6 +4412,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仅限离线模式。已下载章节禁用网络回退。"
+          }
+        }
+      }
+    },
+    "reader.loading.page" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading page %lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加载第 %lld 页"
           }
         }
       }
@@ -4138,6 +4535,23 @@
         }
       }
     },
+    "reader.progress.label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading progress"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读进度"
+          }
+        }
+      }
+    },
     "reader.settings.animate" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4151,6 +4565,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "动画翻页"
+          }
+        }
+      }
+    },
+    "reader.settings.appearance" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外观"
+          }
+        }
+      }
+    },
+    "reader.settings.interaction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interaction"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "交互"
           }
         }
       }
@@ -4206,6 +4654,23 @@
         }
       }
     },
+    "reader.settings.navigation_title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reader Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读器设置"
+          }
+        }
+      }
+    },
     "reader.settings.preset" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4219,6 +4684,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "点击区域"
+          }
+        }
+      }
+    },
+    "reader.status.pages_left" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld left"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剩余 %lld 页"
+          }
+        }
+      }
+    },
+    "reader.status.ready" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld ready"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已就绪 %1$lld/%2$lld 页"
           }
         }
       }
@@ -4328,9 +4827,6 @@
     "Reading Direction" : {
 
     },
-    "Reading mode" : {
-
-    },
     "Reading progress" : {
 
     },
@@ -4365,9 +4861,6 @@
 
     },
     "Reinstall" : {
-
-    },
-    "Reload" : {
 
     },
     "Reload current page" : {
@@ -4739,7 +5232,13 @@
     "Select All" : {
 
     },
+    "Select Folder" : {
+
+    },
     "Select Page" : {
+
+    },
+    "Select Source" : {
 
     },
     "select.page" : {

@@ -231,14 +231,50 @@ final class SourceRuntime {
         }
     }
 
-    func loadSourceFavoriteFolders(_ item: ComicSummary) async throws -> [FavoriteFolder] {
+    func prepareReaderPageRequestSession(_ item: ComicSummary, chapterID: String) async throws -> ReaderPageRequestSessionPreparation {
+        let (source, engine) = try await sourceEngine(item: item)
+        vmDebugLog("prepareReaderPageRequestSession: key=\(source.key), comicID=\(item.id), chapter=\(chapterID)", level: .info)
+        return try await runEngine {
+            try engine.prepareReaderPageRequestSession(comicID: item.id, chapterID: chapterID)
+        }
+    }
+
+    func resolveReaderPageRequestSession(
+        _ handle: ReaderPageRequestSessionHandle,
+        item: ComicSummary,
+        chapterID: String,
+        pageIndexes: [Int]
+    ) async throws -> [IndexedImageRequest] {
+        let (source, engine) = try await sourceEngine(item: item)
+        vmDebugLog(
+            "resolveReaderPageRequestSession: key=\(source.key), comicID=\(item.id), chapter=\(chapterID), indexes=\(pageIndexes.count)",
+            level: .info
+        )
+        return try await runEngine {
+            try engine.resolveReaderPageRequestSession(handle, pageIndexes: pageIndexes)
+        }
+    }
+
+    func disposeReaderPageRequestSession(_ handle: ReaderPageRequestSessionHandle, item: ComicSummary) async {
+        guard let (source, engine) = try? await sourceEngine(item: item) else { return }
+        vmDebugLog("disposeReaderPageRequestSession: key=\(source.key), comicID=\(item.id), session=\(handle.id)", level: .info)
+        do {
+            try await runEngine {
+                engine.disposeReaderPageRequestSession(handle)
+            }
+        } catch {
+            vmDebugLog("disposeReaderPageRequestSession failed: \(error.localizedDescription)", level: .warn)
+        }
+    }
+
+    func loadSourceFavoriteFolders(_ item: ComicSummary) async throws -> FavoriteFolderListing {
         let (_, engine) = try await sourceEngine(item: item)
         return try await runEngine {
             try engine.loadFavoriteFolders(comicID: item.id)
         }
     }
 
-    func loadSourceFavoriteFolders(sourceKey: String) async throws -> [FavoriteFolder] {
+    func loadSourceFavoriteFolders(sourceKey: String) async throws -> FavoriteFolderListing {
         let (_, engine) = try await sourceEngine(sourceKey: sourceKey)
         return try await withTimeout(seconds: 40) {
             try await self.runEngine {

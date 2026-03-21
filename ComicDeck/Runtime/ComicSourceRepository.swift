@@ -30,7 +30,7 @@ enum ComicSourceRepositoryError: Error, LocalizedError {
     }
 }
 
-final class ComicSourceRepository {
+nonisolated final class ComicSourceRepository {
     public init() {}
 
     public func loadSource(fromFileURL url: URL) throws -> ComicSourceDefinition {

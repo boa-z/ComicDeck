@@ -69,6 +69,8 @@ struct FavoritesView: View {
     let onTagSearchRequested: (String, String) -> Void
     @State private var model = FavoritesScreenModel()
     @State private var selectedDetailItem: ComicSummary?
+    @State private var showSourcePicker = false
+    @State private var showFolderPicker = false
     @AppStorage("favorites.selectedSourceKey") private var persistedSourceKey: String = ""
     @AppStorage("ui.comicBrowseMode") private var browseModeRaw = ComicBrowseDisplayMode.list.rawValue
 
@@ -91,9 +93,13 @@ struct FavoritesView: View {
         sourceOptions.first(where: { $0.key == model.selectedSourceKey })?.name ?? "Source"
     }
     private var currentFolderLabel: String {
-        guard hasFolders else { return "Default" }
-        guard let id = model.selectedFolderID else { return "Default" }
-        return model.sourceFolders.first(where: { $0.id == id })?.title ?? "Default"
+        guard hasFolders else { return "All" }
+        guard let id = model.canonicalFolderID(model.selectedFolderID, availableFolders: model.sourceFolders) else { return defaultFolderTitle }
+        return model.sourceFolders.first(where: { $0.id == id })?.title ?? defaultFolderTitle
+    }
+
+    private var defaultFolderTitle: String {
+        model.sourceFolders.first(where: { $0.id == "-1" })?.title ?? "All"
     }
     private var shouldShowPager: Bool {
         !model.selectedSourceKey.isEmpty && model.sourceError.isEmpty && (model.currentPage > 1 || !model.sourceFavorites.isEmpty)
@@ -104,203 +110,197 @@ struct FavoritesView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if browseMode == .list {
-                    favoritesList
-                } else {
-                    favoritesGrid
-                }
+        Group {
+            if browseMode == .list {
+                favoritesList
+            } else {
+                favoritesGrid
             }
-            .background(AppSurface.grouped)
-            .navigationDestination(item: $selectedDetailItem) { item in
-                ComicDetailView(
-                    vm: vm,
-                    item: item,
-                    onTagSelected: { tag, sourceKey in
-                        onTagSearchRequested(tag, sourceKey)
+        }
+        .background(AppSurface.grouped)
+        .navigationDestination(item: $selectedDetailItem) { item in
+            ComicDetailView(
+                vm: vm,
+                item: item,
+                onTagSelected: { tag, sourceKey in
+                    onTagSearchRequested(tag, sourceKey)
+                },
+                onNavigateBack: { selectedDetailItem = nil }
+            )
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if model.isSelecting {
+                selectionBar
+                    .padding(.horizontal, 12)
+                    .padding(.top, 6)
+                    .padding(.bottom, 8)
+            } else if shouldShowPager {
+                pagerBar
+                    .padding(.horizontal, 12)
+                    .padding(.top, 6)
+                    .padding(.bottom, 8)
+                    .background(.clear)
+            }
+        }
+        .navigationTitle("Favorites")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    requestRefresh(forceNetwork: true)
+                } label: {
+                    if model.refreshing {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
                     }
-                )
+                }
+                .disabled(model.refreshing)
             }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if model.isSelecting {
-                    selectionBar
-                        .padding(.horizontal, 12)
-                        .padding(.top, 6)
-                        .padding(.bottom, 8)
-                } else if shouldShowPager {
-                    pagerBar
-                        .padding(.horizontal, 12)
-                        .padding(.top, 6)
-                        .padding(.bottom, 8)
-                        .background(.clear)
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(model.isSelecting ? "Done" : "Select") {
+                    model.toggleSelecting()
                 }
             }
-            .navigationTitle("Favorites")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        requestRefresh(forceNetwork: true)
-                    } label: {
-                        if model.refreshing {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Browse Mode", selection: Binding(
+                        get: { browseMode },
+                        set: { browseMode = $0 }
+                    )) {
+                        ForEach(ComicBrowseDisplayMode.allCases) { item in
+                            Label(item.title, systemImage: item.systemImage)
+                                .tag(item)
                         }
                     }
-                    .disabled(model.refreshing)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(model.isSelecting ? "Done" : "Select") {
-                        model.toggleSelecting()
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker("Browse Mode", selection: Binding(
-                            get: { browseMode },
-                            set: { browseMode = $0 }
-                        )) {
-                            ForEach(ComicBrowseDisplayMode.allCases) { item in
-                                Label(item.title, systemImage: item.systemImage)
-                                    .tag(item)
-                            }
-                        }
 
-                        Section("Source (\(currentSourceLabel))") {
-                            ForEach(sourceOptions, id: \.key) { option in
-                                Button {
-                                    model.selectedSourceKey = option.key
-                                } label: {
-                                    if option.key == model.selectedSourceKey {
-                                        Label(option.label, systemImage: "checkmark")
-                                    } else {
-                                        Text(option.label)
-                                    }
-                                }
-                            }
-                        }
-
-                        Section("Folder (\(currentFolderLabel))") {
+                    Section("Source (\(currentSourceLabel))") {
+                        ForEach(sourceOptions, id: \.key) { option in
                             Button {
-                                model.selectedFolderID = nil
-                                model.currentPage = 1
-                                requestRefresh()
+                                model.selectedSourceKey = option.key
                             } label: {
-                                if model.selectedFolderID == nil {
-                                    Label("Default", systemImage: "checkmark")
+                                if option.key == model.selectedSourceKey {
+                                    Label(option.label, systemImage: "checkmark")
                                 } else {
-                                    Text("Default")
+                                    Text(option.label)
                                 }
-                            }
-
-                            if hasFolders {
-                                ForEach(model.sourceFolders) { folder in
-                                    Button {
-                                        model.selectedFolderID = folder.id
-                                        model.currentPage = 1
-                                        requestRefresh()
-                                    } label: {
-                                        if folder.id == model.selectedFolderID {
-                                            Label(folder.title, systemImage: "checkmark")
-                                        } else {
-                                            Text(folder.title)
-                                        }
-                                    }
-                                }
-                            } else {
-                                Text("No folders")
                             }
                         }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
                     }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
             }
-            .refreshable {
-                await model.refreshNow(vm: vm, forceNetwork: true)
-            }
-            .alert("Remove selected favorites?", isPresented: Binding(
-                get: { model.showBatchRemoveConfirm },
-                set: { model.showBatchRemoveConfirm = $0 }
-            )) {
-                Button("Remove", role: .destructive) {
-                    Task { await model.removeSelected(using: vm) }
-                }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("Remove \(model.selectedCount) selected favorite\(model.selectedCount == 1 ? "" : "s") from this source folder?")
-            }
-            .onDisappear {
-                model.refreshTask?.cancel()
-                model.refreshTask = nil
-            }
-            .onChange(of: sourceOptions.map(\.key)) { _, optionKeys in
-                guard !optionKeys.isEmpty else { return }
-                if !optionKeys.contains(model.selectedSourceKey) {
-                    model.selectedSourceKey = restoredSourceKey(from: optionKeys)
+        }
+        .refreshable {
+            await model.refreshNow(vm: vm, forceNetwork: true)
+        }
+        .confirmationDialog("Select Source", isPresented: $showSourcePicker, titleVisibility: .visible) {
+            ForEach(sourceOptions, id: \.key) { option in
+                Button(option.label) {
+                    model.selectedSourceKey = option.key
                 }
             }
-            .onChange(of: model.selectedSourceKey) { _, key in
-                guard !key.isEmpty else { return }
-                if persistedSourceKey != key {
-                    persistedSourceKey = key
-                }
-                if sourceManager.selectedSourceKey != key {
-                    sourceManager.selectedSourceKey = key
-                }
+            Button("Cancel", role: .cancel) { }
+        }
+        .confirmationDialog("Select Folder", isPresented: $showFolderPicker, titleVisibility: .visible) {
+            Button(defaultFolderTitle) {
+                model.selectedFolderID = model.canonicalFolderID(nil, availableFolders: model.sourceFolders)
                 model.currentPage = 1
-                model.setSelecting(false)
                 requestRefresh()
             }
-            .task {
-                if model.selectedSourceKey.isEmpty {
-                    let keys = sourceOptions.map(\.key)
-                    guard !keys.isEmpty else { return }
-                    model.selectedSourceKey = restoredSourceKey(from: keys)
-                } else if persistedSourceKey != model.selectedSourceKey {
-                    persistedSourceKey = model.selectedSourceKey
-                } else if sourceManager.selectedSourceKey != model.selectedSourceKey {
-                    sourceManager.selectedSourceKey = model.selectedSourceKey
-                }
-                await model.refreshNow(vm: vm)
-            }
-            .sheet(isPresented: Binding(
-                get: { model.showPagePicker },
-                set: { model.showPagePicker = $0 }
-            )) {
-                NavigationStack {
-                    Form {
-                        Section("Jump to page") {
-                            TextField("Page number", value: Binding(
-                                get: { Int(model.pageInput) ?? model.currentPage },
-                                set: { model.pageInput = String($0) }
-                            ), format: .number)
-                            .keyboardType(.numberPad)
-                        }
-                    }
-                    .navigationTitle("Select Page")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") {
-                                model.showPagePicker = false
-                            }
-                        }
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Go") {
-                                guard let page = Int(model.pageInput), page > 0 else {
-                                    model.sourceError = "Invalid page number"
-                                    return
-                                }
-                                model.showPagePicker = false
-                                Task { await model.jumpToPage(page, vm: vm) }
-                            }
-                        }
+
+            if hasFolders {
+                ForEach(model.selectableFolders) { folder in
+                    Button(folder.title) {
+                        model.selectedFolderID = folder.id
+                        model.currentPage = 1
+                        requestRefresh()
                     }
                 }
-                .presentationDetents([.height(220)])
             }
+
+            Button("Cancel", role: .cancel) { }
+        }
+        .alert("Remove selected favorites?", isPresented: Binding(
+            get: { model.showBatchRemoveConfirm },
+            set: { model.showBatchRemoveConfirm = $0 }
+        )) {
+            Button("Remove", role: .destructive) {
+                Task { await model.removeSelected(using: vm) }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Remove \(model.selectedCount) selected favorite\(model.selectedCount == 1 ? "" : "s") from this source folder?")
+        }
+        .onDisappear {
+            model.refreshTask?.cancel()
+            model.refreshTask = nil
+        }
+        .onChange(of: sourceOptions.map(\.key)) { _, optionKeys in
+            guard !optionKeys.isEmpty else { return }
+            if !optionKeys.contains(model.selectedSourceKey) {
+                model.selectedSourceKey = restoredSourceKey(from: optionKeys)
+            }
+        }
+        .onChange(of: model.selectedSourceKey) { _, key in
+            guard !key.isEmpty else { return }
+            if persistedSourceKey != key {
+                persistedSourceKey = key
+            }
+            if sourceManager.selectedSourceKey != key {
+                sourceManager.selectedSourceKey = key
+            }
+            model.currentPage = 1
+            model.setSelecting(false)
+            requestRefresh()
+        }
+        .task {
+            if model.selectedSourceKey.isEmpty {
+                let keys = sourceOptions.map(\.key)
+                guard !keys.isEmpty else { return }
+                model.selectedSourceKey = restoredSourceKey(from: keys)
+            } else if persistedSourceKey != model.selectedSourceKey {
+                persistedSourceKey = model.selectedSourceKey
+            } else if sourceManager.selectedSourceKey != model.selectedSourceKey {
+                sourceManager.selectedSourceKey = model.selectedSourceKey
+            }
+            await model.refreshNow(vm: vm)
+        }
+        .sheet(isPresented: Binding(
+            get: { model.showPagePicker },
+            set: { model.showPagePicker = $0 }
+        )) {
+            NavigationStack {
+                Form {
+                    Section("Jump to page") {
+                        TextField("Page number", value: Binding(
+                            get: { Int(model.pageInput) ?? model.currentPage },
+                            set: { model.pageInput = String($0) }
+                        ), format: .number)
+                        .keyboardType(.numberPad)
+                    }
+                }
+                .navigationTitle("Select Page")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            model.showPagePicker = false
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Go") {
+                            guard let page = Int(model.pageInput), page > 0 else {
+                                model.sourceError = "Invalid page number"
+                                return
+                            }
+                            model.showPagePicker = false
+                            Task { await model.jumpToPage(page, vm: vm) }
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.height(220)])
         }
     }
 
@@ -367,6 +367,7 @@ struct FavoritesView: View {
 
     private var favoritesList: some View {
         List {
+            controlsSection
             favoriteContent
         }
         .listStyle(.plain)
@@ -374,6 +375,9 @@ struct FavoritesView: View {
 
     private var favoritesGrid: some View {
         ScrollView {
+            controlsSection
+                .padding(.horizontal, AppSpacing.md)
+                .padding(.top, AppSpacing.sm)
             if !model.sourceError.isEmpty {
                 Text(model.sourceError)
                     .foregroundStyle(.red)
@@ -406,6 +410,72 @@ struct FavoritesView: View {
                 .padding(AppSpacing.md)
             }
         }
+    }
+
+    @ViewBuilder
+    private var controlsSection: some View {
+        filterControlBar
+            .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 6, trailing: 12))
+            .listRowBackground(Color.clear)
+    }
+
+    private var filterControlBar: some View {
+        HStack(spacing: 10) {
+            Button {
+                showSourcePicker = true
+            } label: {
+                filterButtonLabel(
+                    title: "Source",
+                    value: currentSourceLabel,
+                    systemImage: "square.stack.3d.up"
+                )
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                showFolderPicker = true
+            } label: {
+                filterButtonLabel(
+                    title: "Folder",
+                    value: currentFolderLabel,
+                    systemImage: "folder"
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func filterButtonLabel(title: String, value: String, systemImage: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTint.accent)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: "chevron.down")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous)
+                .stroke(AppSurface.border, lineWidth: 1)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous))
     }
 
     @ViewBuilder
@@ -521,87 +591,86 @@ struct HistoryView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if browseMode == .list {
-                    historyList
-                } else {
-                    historyGrid
-                }
+        Group {
+            if browseMode == .list {
+                historyList
+            } else {
+                historyGrid
             }
-            .background(AppSurface.grouped)
-            .navigationDestination(item: $selectedDetailItem) { item in
-                ComicDetailView(
-                    vm: vm,
-                    item: item,
-                    onTagSelected: { tag, sourceKey in
-                        onTagSearchRequested(tag, sourceKey)
-                    },
-                    initialReadRoute: pendingDetailReadRoute,
-                    onConsumeInitialReadRoute: { pendingDetailReadRoute = nil }
-                )
-            }
-            .navigationTitle("History")
-            .toolbar {
-                if !model.items.isEmpty {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(model.isSelecting ? "Done" : "Select") {
-                            model.toggleSelecting()
-                        }
+        }
+        .background(AppSurface.grouped)
+        .navigationDestination(item: $selectedDetailItem) { item in
+            ComicDetailView(
+                vm: vm,
+                item: item,
+                onTagSelected: { tag, sourceKey in
+                    onTagSearchRequested(tag, sourceKey)
+                },
+                initialReadRoute: pendingDetailReadRoute,
+                onConsumeInitialReadRoute: { pendingDetailReadRoute = nil },
+                onNavigateBack: { selectedDetailItem = nil }
+            )
+        }
+        .navigationTitle("History")
+        .toolbar {
+            if !model.items.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(model.isSelecting ? "Done" : "Select") {
+                        model.toggleSelecting()
                     }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            Picker("Browse Mode", selection: Binding(
-                                get: { browseMode },
-                                set: { browseMode = $0 }
-                            )) {
-                                ForEach(ComicBrowseDisplayMode.allCases) { item in
-                                    Label(item.title, systemImage: item.systemImage)
-                                        .tag(item)
-                                }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Browse Mode", selection: Binding(
+                            get: { browseMode },
+                            set: { browseMode = $0 }
+                        )) {
+                            ForEach(ComicBrowseDisplayMode.allCases) { item in
+                                Label(item.title, systemImage: item.systemImage)
+                                    .tag(item)
                             }
+                        }
 
-                            Button("Clear History", role: .destructive) {
-                                model.showClearConfirm = true
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
+                        Button("Clear History", role: .destructive) {
+                            model.showClearConfirm = true
                         }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
                 }
             }
-            .alert("Clear all history?", isPresented: $model.showClearConfirm) {
-                Button("Clear", role: .destructive) {
-                    Task { await model.clear(using: library) }
-                }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("This action cannot be undone.")
+        }
+        .alert("Clear all history?", isPresented: $model.showClearConfirm) {
+            Button("Clear", role: .destructive) {
+                Task { await model.clear(using: library) }
             }
-            .alert("Delete selected history?", isPresented: Binding(
-                get: { model.showBatchDeleteConfirm },
-                set: { model.showBatchDeleteConfirm = $0 }
-            )) {
-                Button("Delete", role: .destructive) {
-                    Task { await model.deleteSelected(using: library) }
-                }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("Delete \(model.selectedCount) selected history item\(model.selectedCount == 1 ? "" : "s")? This action cannot be undone.")
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This action cannot be undone.")
+        }
+        .alert("Delete selected history?", isPresented: Binding(
+            get: { model.showBatchDeleteConfirm },
+            set: { model.showBatchDeleteConfirm = $0 }
+        )) {
+            Button("Delete", role: .destructive) {
+                Task { await model.deleteSelected(using: library) }
             }
-            .task {
-                model.sync(from: library)
-            }
-            .onChange(of: library.history) { _, items in
-                model.sync(from: library)
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if model.isSelecting {
-                    historySelectionBar
-                        .padding(.horizontal, 12)
-                        .padding(.top, 6)
-                        .padding(.bottom, 8)
-                }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Delete \(model.selectedCount) selected history item\(model.selectedCount == 1 ? "" : "s")? This action cannot be undone.")
+        }
+        .task {
+            model.sync(from: library)
+        }
+        .onChange(of: library.history) { _, items in
+            model.sync(from: library)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if model.isSelecting {
+                historySelectionBar
+                    .padding(.horizontal, 12)
+                    .padding(.top, 6)
+                    .padding(.bottom, 8)
             }
         }
     }

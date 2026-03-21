@@ -11,7 +11,7 @@ final class FavoritesScreenModel {
     var selectedFolderID: String?
     var currentPage = 1
     var sourceError = ""
-    var cachedFoldersBySource: [String: [FavoriteFolder]] = [:]
+    var cachedFoldersBySource: [String: FavoriteFolderListing] = [:]
     var cachedFavoritesByScope: [String: [ComicSummary]] = [:]
     var cachedNextTokenByPage: [String: String] = [:]
     var cursorModeByScope: [String: Bool] = [:]
@@ -27,6 +27,32 @@ final class FavoritesScreenModel {
 
     var hasFolders: Bool { !sourceFolders.isEmpty }
     var selectedCount: Int { selectedComicKeys.count }
+    var selectableFolders: [FavoriteFolder] {
+        sourceFolders.filter { normalizedFolderID($0.id) != "-1" }
+    }
+
+    private var mutationFolderID: String? {
+        let normalized = normalizedFolderID(selectedFolderID)
+        if normalized == "-1" || normalized == "all" {
+            return nil
+        }
+        return selectedFolderID
+    }
+
+    func normalizedFolderID(_ raw: String?) -> String? {
+        raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    func canonicalFolderID(_ raw: String?, availableFolders: [FavoriteFolder]) -> String? {
+        let normalized = normalizedFolderID(raw)
+        if normalized == nil || normalized == "-1" || normalized == "all" {
+            if availableFolders.contains(where: { normalizedFolderID($0.id) == "-1" }) {
+                return "-1"
+            }
+            return nil
+        }
+        return raw
+    }
 
     func selectionKey(for item: ComicSummary) -> String {
         "\(item.sourceKey)::\(item.id)"
@@ -138,8 +164,8 @@ final class FavoritesScreenModel {
         let generation = refreshGeneration
 
         if !forceNetwork {
-            if let cachedFolders = cachedFoldersBySource[sourceKey] {
-                sourceFolders = cachedFolders
+            if let cachedListing = cachedFoldersBySource[sourceKey] {
+                sourceFolders = cachedListing.folders
             }
             if let cachedFavorites = cachedFavoritesByScope[scopeKey] {
                 sourceFavorites = cachedFavorites
@@ -157,13 +183,15 @@ final class FavoritesScreenModel {
 
         do {
             sourceError = ""
-            let folders = try await vm.loadSourceFavoriteFolders(sourceKey: sourceKey)
+            let favoriteListing = try await vm.loadSourceFavoriteFolders(sourceKey: sourceKey)
+            let folders = favoriteListing.folders
             guard !Task.isCancelled, refreshGeneration == generation else { return }
 
-            var effectiveFolderID = folderID
+            var effectiveFolderID = canonicalFolderID(folderID, availableFolders: folders)
             if let selected = effectiveFolderID, !folders.contains(where: { $0.id == selected }) {
                 effectiveFolderID = nil
             }
+            effectiveFolderID = canonicalFolderID(effectiveFolderID, availableFolders: folders)
 
             let effectiveCursorScope = cursorScopeKey(sourceKey: sourceKey, folderID: effectiveFolderID)
             let previousPageToken: String? = {
@@ -186,7 +214,7 @@ final class FavoritesScreenModel {
             guard !Task.isCancelled, refreshGeneration == generation else { return }
 
             sourceFolders = folders
-            cachedFoldersBySource[sourceKey] = folders
+            cachedFoldersBySource[sourceKey] = favoriteListing
             if effectiveFolderID != selectedFolderID {
                 selectedFolderID = effectiveFolderID
                 if folderID != nil && effectiveFolderID == nil {
@@ -232,7 +260,7 @@ final class FavoritesScreenModel {
                 try await vm.setSourceFavorite(
                     item,
                     favoriteId: nil,
-                    folderID: selectedFolderID,
+                    folderID: mutationFolderID,
                     isAdding: false
                 )
                 removeFromVisibleFavorites(item)

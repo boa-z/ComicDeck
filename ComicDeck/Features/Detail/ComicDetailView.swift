@@ -14,6 +14,7 @@ struct ComicDetailView: View {
     var onTagSelected: ((String, String) -> Void)? = nil
     var initialReadRoute: ReaderLaunchContext? = nil
     var onConsumeInitialReadRoute: (() -> Void)? = nil
+    var onNavigateBack: (() -> Void)? = nil
 
     @State private var model: ComicDetailScreenModel
     @State private var readRoute: ReaderLaunchContext?
@@ -28,13 +29,15 @@ struct ComicDetailView: View {
         item: ComicSummary,
         onTagSelected: ((String, String) -> Void)? = nil,
         initialReadRoute: ReaderLaunchContext? = nil,
-        onConsumeInitialReadRoute: (() -> Void)? = nil
+        onConsumeInitialReadRoute: (() -> Void)? = nil,
+        onNavigateBack: (() -> Void)? = nil
     ) {
         self.vm = vm
         self.item = item
         self.onTagSelected = onTagSelected
         self.initialReadRoute = initialReadRoute
         self.onConsumeInitialReadRoute = onConsumeInitialReadRoute
+        self.onNavigateBack = onNavigateBack
         _model = State(initialValue: ComicDetailScreenModel(item: item))
     }
 
@@ -112,7 +115,8 @@ struct ComicDetailView: View {
                             item: item,
                             detail: detail,
                             capabilities: model.commentCapabilities,
-                            initialReplyComment: nil
+                            initialReplyComment: nil,
+                            seededComments: dedupedPreviewComments(detail.comments)
                         )
                     }
                 }
@@ -173,6 +177,14 @@ struct ComicDetailView: View {
         didConsumeInitialReadRoute = true
         onConsumeInitialReadRoute?()
         readRoute = initialReadRoute
+    }
+
+    private func navigateBack() {
+        if let onNavigateBack {
+            onNavigateBack()
+        } else {
+            dismiss()
+        }
     }
 
     private var content: some View {
@@ -346,7 +358,7 @@ struct ComicDetailView: View {
         .id(DetailAnchor.tags)
         ComicDetailFavoriteSection(
             effectiveIsFavorited: model.effectiveIsFavorited,
-            favoriteFolders: model.favoriteFolders,
+            favoriteFolders: model.actionableFavoriteFolders,
             isRootFavoriteWorking: model.rootFavoriteWorking,
             favoriteStatus: model.favoriteStatus,
             onToggleFavorite: {
@@ -579,7 +591,7 @@ struct ComicDetailView: View {
     private func onTagTap(namespace: String, tag: String) async {
         let fallback: () -> Void = {
             onTagSelected?(tag, item.sourceKey)
-            dismiss()
+            navigateBack()
         }
         do {
             let target = try await vm.resolveComicTagClick(item, namespace: namespace, tag: tag)
@@ -592,7 +604,7 @@ struct ComicDetailView: View {
                 }
                 if let onTagSelected {
                     onTagSelected(keyword, item.sourceKey)
-                    dismiss()
+                    navigateBack()
                 } else {
                     tagRoute = .search(sourceKey: item.sourceKey, keyword: keyword)
                 }
@@ -666,7 +678,8 @@ private struct CommentsPageView: View {
         item: ComicSummary,
         detail: ComicDetail,
         capabilities: ComicCommentCapabilities,
-        initialReplyComment: ComicComment?
+        initialReplyComment: ComicComment?,
+        seededComments: [ComicComment] = []
     ) {
         self.vm = vm
         self.item = item
@@ -678,7 +691,8 @@ private struct CommentsPageView: View {
                 item: item,
                 detail: detail,
                 capabilities: capabilities,
-                initialReplyComment: initialReplyComment
+                initialReplyComment: initialReplyComment,
+                seededComments: initialReplyComment == nil ? seededComments : []
             )
         )
     }
@@ -690,36 +704,55 @@ private struct CommentsPageView: View {
         )
 
         List {
+            if model.isLoadingCommentsPage {
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ProgressView()
+                            .progressViewStyle(.linear)
+                        Text(model.loadingStatusText)
+                            .font(.subheadline.weight(.semibold))
+                        if model.isShowingSeededComments {
+                            Text(AppLocalization.text(
+                                "comments.loading.preview_note",
+                                "Showing preview comments while latest comments load."
+                            ))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+            }
+
             if !model.errorText.isEmpty {
                 Section {
                     Text(model.errorText)
                         .foregroundStyle(.red)
-                    Button("Retry") {
-                        Task { await model.reload(using: vm, replyComment: model.initialReplyComment) }
+                    Button(AppLocalization.text("common.retry", "Retry")) {
+                        Task { await model.reload(using: vm, replyComment: initialReplyComment) }
                     }
                 }
             }
 
             if let replyTo = model.replyTo {
-                Section("Reply To") {
+                Section(AppLocalization.text("comments.reply_to", "Reply To")) {
                     CommentPreviewRow(comment: replyTo)
-                    Button("Cancel Reply", role: .destructive) {
+                    Button(AppLocalization.text("comments.cancel_reply", "Cancel Reply"), role: .destructive) {
                         model.replyTo = nil
                     }
                 }
             }
 
-            if model.loading {
-                Section {
-                    ProgressView("Loading comments...")
-                }
-            } else if model.comments.isEmpty {
-                Section {
-                    Text("No comments")
-                        .foregroundStyle(.secondary)
+            if model.comments.isEmpty {
+                if !model.isLoadingCommentsPage {
+                    Section {
+                        Text(AppLocalization.text("comments.empty", "No comments"))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } else {
-                Section("Comments") {
+                Section(AppLocalization.text("comments.section.title", "Comments")) {
                     ForEach(Array(model.comments.enumerated()), id: \.offset) { _, comment in
                         CommentItemRow(
                             vm: vm,
@@ -743,7 +776,11 @@ private struct CommentsPageView: View {
                                 if model.loadingMore {
                                     ProgressView().controlSize(.small)
                                 }
-                                Text(model.loadingMore ? "Loading..." : "Load More")
+                                Text(
+                                    model.loadingMore
+                                        ? AppLocalization.text("comments.loading.more", "Loading…")
+                                        : AppLocalization.text("comments.action.load_more", "Load More")
+                                )
                             }
                         }
                         .disabled(model.loadingMore)
@@ -751,30 +788,34 @@ private struct CommentsPageView: View {
                 }
             }
         }
-        .navigationTitle("Comments")
+        .navigationTitle(AppLocalization.text("comments.navigation.title", "Comments"))
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
-                Button("Close") { dismiss() }
+                Button(AppLocalization.text("common.close", "Close")) { dismiss() }
             }
             if initialReplyComment != nil {
                 ToolbarItem(placement: .principal) {
-                    Text("Replies")
+                    Text(AppLocalization.text("comments.replies.title", "Replies"))
                         .font(.headline)
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    Task { await model.reload(using: vm, replyComment: model.initialReplyComment) }
+                    Task { await model.reload(using: vm, replyComment: initialReplyComment) }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
+                .disabled(model.isLoadingCommentsPage || model.loadingMore)
+                .accessibilityLabel(AppLocalization.text("comments.action.refresh", "Refresh comments"))
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if capabilities.canSend {
                 HStack(spacing: 8) {
                     TextField(
-                        model.replyTo == nil ? "Write a comment" : "Reply...",
+                        model.replyTo == nil
+                            ? AppLocalization.text("comments.write_placeholder", "Write a comment")
+                            : AppLocalization.text("comments.reply_placeholder", "Reply..."),
                         text: Binding(
                             get: { model.inputText },
                             set: { model.inputText = $0 }
@@ -800,7 +841,7 @@ private struct CommentsPageView: View {
             }
         }
         .task {
-            await model.reload(using: vm, replyComment: model.initialReplyComment)
+            await model.reload(using: vm, replyComment: initialReplyComment)
         }
         .sheet(item: repliesTargetBinding) { target in
             NavigationStack {

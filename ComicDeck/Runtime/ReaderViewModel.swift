@@ -261,14 +261,39 @@ final class ReaderViewModel {
         return try await requireSourceRuntime().loadComicPageRequests(item, chapterID: chapterID)
     }
 
+    func prepareReaderPageRequestSession(_ item: ComicSummary, chapterID: String) async throws -> ReaderPageRequestSessionPreparation {
+        await prepareIfNeeded()
+        return try await requireSourceRuntime().prepareReaderPageRequestSession(item, chapterID: chapterID)
+    }
+
+    func resolveReaderPageRequestSession(
+        _ handle: ReaderPageRequestSessionHandle,
+        item: ComicSummary,
+        chapterID: String,
+        pageIndexes: [Int]
+    ) async throws -> [IndexedImageRequest] {
+        await prepareIfNeeded()
+        return try await requireSourceRuntime().resolveReaderPageRequestSession(
+            handle,
+            item: item,
+            chapterID: chapterID,
+            pageIndexes: pageIndexes
+        )
+    }
+
+    func disposeReaderPageRequestSession(_ handle: ReaderPageRequestSessionHandle, item: ComicSummary) async {
+        await prepareIfNeeded()
+        await requireSourceRuntime().disposeReaderPageRequestSession(handle, item: item)
+    }
+
     // MARK: - Source Favorites (delegated to engine, not local SQLite)
 
-    func loadSourceFavoriteFolders(_ item: ComicSummary) async throws -> [FavoriteFolder] {
+    func loadSourceFavoriteFolders(_ item: ComicSummary) async throws -> FavoriteFolderListing {
         await prepareIfNeeded()
         return try await requireSourceRuntime().loadSourceFavoriteFolders(item)
     }
 
-    func loadSourceFavoriteFolders(sourceKey: String) async throws -> [FavoriteFolder] {
+    func loadSourceFavoriteFolders(sourceKey: String) async throws -> FavoriteFolderListing {
         await prepareIfNeeded()
         return try await requireSourceRuntime().loadSourceFavoriteFolders(sourceKey: sourceKey)
     }

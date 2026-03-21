@@ -21,6 +21,11 @@
       "sourceType": "github",
       "computedHash": "b9ef2589649fc87145a4e48b34406faf6a0eafeac2d7a18905c6312bd7e82959"
     },
+    "health": {
+      "source": "tw93/claude-health",
+      "sourceType": "github",
+      "computedHash": "f80c5f39c1f2aba9274daab508b6ba16e05f19e67282ee7a1b13645460a34931"
+    },
     "swiftui-pro": {
       "source": "twostraws/swiftui-agent-skill",
       "sourceType": "github",

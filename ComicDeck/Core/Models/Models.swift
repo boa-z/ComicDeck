@@ -324,6 +324,11 @@ struct FavoriteFolder: Identifiable, Hashable {
     let isFavorited: Bool
 }
 
+struct FavoriteFolderListing: Hashable {
+    let folders: [FavoriteFolder]
+    let singleFolderForSingleComic: Bool
+}
+
 struct TagGroup: Identifiable, Hashable {
     let id: String
     let title: String

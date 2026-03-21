@@ -19,6 +19,11 @@ private func jsDebugLog(_ message: String, level: RuntimeLogLevel = .debug) {
     RuntimeDebugConsole.shared.append(line)
 }
 
+@inline(__always)
+private func bridgeBlock<T>(_ block: T) -> AnyObject {
+    block as AnyObject
+}
+
 enum ScriptEngineError: Error, LocalizedError {
     case buildContextFailed
     case missingFunction(String)
@@ -45,9 +50,31 @@ enum ScriptEngineError: Error, LocalizedError {
     }
 }
 
-final class ComicSourceScriptEngine {
+struct ReaderPageRequestSessionHandle: Hashable, Sendable {
+    let id: String
+}
+
+struct ReaderPageRequestSessionPreparation: Hashable, Sendable {
+    let handle: ReaderPageRequestSessionHandle
+    let totalPages: Int
+}
+
+struct IndexedImageRequest: Hashable, Sendable {
+    let index: Int
+    let request: ImageRequest
+}
+
+nonisolated final class ComicSourceScriptEngine {
+    private struct ReaderPageRequestSessionState {
+        let comicID: String
+        let chapterID: String
+        let tokens: [String]
+        let defaultReferer: String
+    }
+
     private let context: JSContext
     private var storageKey: String = "default"
+    private var readerPageRequestSessions: [String: ReaderPageRequestSessionState] = [:]
 
     init(script: String) throws {
         guard let ctx = JSContext() else {
@@ -1598,7 +1625,9 @@ final class ComicSourceScriptEngine {
                   isFavorite: (typeof info?.isFavorite === 'boolean') ? info.isFavorite : null,
                   favoriteId: (typeof info?.favoriteId === 'string' && info.favoriteId.length > 0)
                     ? info.favoriteId
-                    : ((typeof info?.subId === 'string' && info.subId.length > 0) ? info.subId : null),
+                    : ((typeof info?.folder === 'string' && info.folder.length > 0)
+                        ? info.folder
+                        : ((typeof info?.subId === 'string' && info.subId.length > 0) ? info.subId : null)),
                   chapters: chapters,
                   commentsCount,
                   comments
@@ -1662,7 +1691,7 @@ final class ComicSourceScriptEngine {
                 )
             }
 
-    func loadFavoriteFolders(comicID: String?) throws -> [FavoriteFolder] {
+    func loadFavoriteFolders(comicID: String?) throws -> FavoriteFolderListing {
         let result = try callExpression(
             """
             (() => {
@@ -1735,16 +1764,21 @@ final class ComicSourceScriptEngine {
                 if (folders.length === 0 && favorites.multiFolder !== true) {
                   folders = [{ id: "0", title: "Default", isFavorited: favorited.has("0") }];
                 }
-                return { folders };
+                return {
+                  folders,
+                  singleFolderForSingleComic: favorites.singleFolderForSingleComic === true
+                };
               })());
             })()
             """,
             arguments: [comicID ?? NSNull()]
         )
 
-        guard let object = result as? [String: Any] else { return [] }
+        guard let object = result as? [String: Any] else {
+            return FavoriteFolderListing(folders: [], singleFolderForSingleComic: false)
+        }
         let rows = object["folders"] as? [[String: Any]] ?? []
-        return rows.compactMap { row in
+        let folders = rows.compactMap { row -> FavoriteFolder? in
             guard let id = row["id"] as? String, !id.isEmpty else { return nil }
             let title = (row["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             return FavoriteFolder(
@@ -1753,6 +1787,10 @@ final class ComicSourceScriptEngine {
                 isFavorited: row["isFavorited"] as? Bool ?? false
             )
         }
+        return FavoriteFolderListing(
+            folders: folders,
+            singleFolderForSingleComic: object["singleFolderForSingleComic"] as? Bool ?? false
+        )
     }
 
     func loadFavoriteComics(sourceKey: String, page: Int = 1, folderID: String? = nil) throws -> [ComicSummary] {
@@ -2213,15 +2251,33 @@ final class ComicSourceScriptEngine {
                 const favorited = Array.isArray(favoritedRaw)
                   ? favoritedRaw.map((x) => String(x)).filter((x) => x.length > 0)
                   : [];
-                if (favorited.length > 0) return favorited[0];
-                if (folderKeys.length > 0) return folderKeys[0];
+                const normalizeFolderId = (value) => {
+                  if (typeof value !== 'string') return null;
+                  const text = value.trim().toLowerCase();
+                  if (!text || text === '-1' || text === 'all' || text === 'null' || text === 'undefined') {
+                    return null;
+                  }
+                  return value;
+                };
+                const firstFavorited = favorited.map(normalizeFolderId).find((x) => x != null);
+                if (firstFavorited) return firstFavorited;
+                const firstFolder = folderKeys.map(normalizeFolderId).find((x) => x != null);
+                if (firstFolder) return firstFolder;
                 return null;
               };
 
               return Promise.resolve((async () => {
-                let folderId = (typeof arguments[3] === 'string' && arguments[3].length > 0)
-                  ? arguments[3]
-                  : null;
+                const normalizeFolderId = (value) => {
+                  if (typeof value !== 'string') return null;
+                  const raw = value.trim();
+                  if (!raw) return null;
+                  const lowered = raw.toLowerCase();
+                  if (lowered === '-1' || lowered === 'all' || lowered === 'null' || lowered === 'undefined') {
+                    return null;
+                  }
+                  return value;
+                };
+                let folderId = normalizeFolderId(arguments[3]);
                 if (!folderId) {
                   folderId = await pickFolder();
                 }
@@ -2345,19 +2401,68 @@ final class ComicSourceScriptEngine {
                 if (Array.isArray(imagesRaw)) {
                   images = imagesRaw.map(normalizeImage).filter((x) => x.length > 0);
                 }
+                const defaultReferer = [arguments[1], arguments[0]]
+                  .map((value) => normalizeUrl(typeof value === 'string' ? value : ''))
+                  .find((value) => value.length > 0) || '';
+                const defaultHeaders = () => defaultReferer ? { Referer: defaultReferer } : {};
+                const installRequestGenerationMemoization = () => {
+                  const restorers = [];
+                  const stableValue = (value) => {
+                    if (value == null) return null;
+                    if (Array.isArray(value)) return value.map(stableValue);
+                    const type = typeof value;
+                    if (type === 'string' || type === 'number' || type === 'boolean') return value;
+                    if (type === 'object') {
+                      const keys = Object.keys(value).sort();
+                      const out = {};
+                      for (const key of keys) {
+                        out[key] = stableValue(value[key]);
+                      }
+                      return out;
+                    }
+                    return String(value);
+                  };
+                  const memoizeAsyncMethod = (owner, name) => {
+                    if (!owner || typeof owner[name] !== 'function') return;
+                    const original = owner[name];
+                    const cache = new Map();
+                    owner[name] = function(...args) {
+                      const key = JSON.stringify(args.map(stableValue));
+                      if (cache.has(key)) return cache.get(key);
+                      const pending = Promise.resolve(original.apply(this, args)).catch((error) => {
+                        cache.delete(key);
+                        throw error;
+                      });
+                      cache.set(key, pending);
+                      return pending;
+                    };
+                    restorers.push(() => {
+                      owner[name] = original;
+                    });
+                  };
+                  memoizeAsyncMethod(comic, 'loadThumbnails');
+                  memoizeAsyncMethod(comic, 'getKey');
+                  return () => {
+                    while (restorers.length > 0) {
+                      try {
+                        const restore = restorers.pop();
+                        restore && restore();
+                      } catch (_) {}
+                    }
+                  };
+                };
+                const restoreMemoizedMethods = installRequestGenerationMemoization();
                 if (typeof comic.onImageLoad !== 'function') {
+                  restoreMemoizedMethods();
                   return images
                     .map((token) => {
                       const url = normalizeUrl(token);
                       if (!url) return null;
-                      return { url, method: 'GET', headers: {}, data: null };
+                      return { url, method: 'GET', headers: defaultHeaders(), data: null };
                     })
                     .filter((x) => x != null);
                 }
                 return Promise.all(images.map(async (token) => {
-                  const defaultReferer = (typeof arguments[0] === 'string' && arguments[0].startsWith('http'))
-                    ? arguments[0]
-                    : '';
                   let cfg = null;
                   try {
                     cfg = await Promise.resolve(comic.onImageLoad.call(this.__source_temp, token, arguments[0], arguments[1], null));
@@ -2367,7 +2472,7 @@ final class ComicSourceScriptEngine {
                   if (!cfg || typeof cfg !== 'object') {
                     const fallback = normalizeUrl(token);
                     if (!fallback) return null;
-                    return { url: fallback, method: 'GET', headers: {}, data: null };
+                    return { url: fallback, method: 'GET', headers: defaultHeaders(), data: null };
                   }
                   const outUrl = normalizeUrl(typeof cfg.url === 'string' ? cfg.url : '') || normalizeUrl(token);
                   if (!outUrl) return null;
@@ -2389,7 +2494,9 @@ final class ComicSourceScriptEngine {
                     data: Array.isArray(x.data) ? x.data : null
                   }))
                   .filter((x) => x.url.length > 0)
-                );
+                ).finally(() => {
+                  restoreMemoizedMethods();
+                });
               });
             })()
             """,
@@ -2429,6 +2536,315 @@ final class ComicSourceScriptEngine {
             jsDebugLog("loadComicEpRequests empty after parse, firstItem=\(sample)", level: .warn)
         }
         return requests
+    }
+
+    func prepareReaderPageRequestSession(comicID: String, chapterID: String) throws -> ReaderPageRequestSessionPreparation {
+        let sessionID = UUID().uuidString
+        let result = try callExpression(
+            """
+            (() => {
+              const comic = this.__source_temp && this.__source_temp.comic;
+              if (!comic || typeof comic.loadEp !== 'function') {
+                throw new Error("comic.loadEp is not supported by this source");
+              }
+              const normalizeToken = (u) => {
+                if (typeof u !== 'string') return '';
+                const text = u.trim();
+                return text.length > 0 ? text : '';
+              };
+              const normalizeUrl = (u) => {
+                const text = normalizeToken(u);
+                if (!text) return '';
+                if (text.startsWith('//')) return `https:${text}`;
+                if (text.startsWith('http://') || text.startsWith('https://')) return text;
+                return '';
+              };
+              const normalizeImage = (it) => {
+                if (typeof it === 'string') return normalizeToken(it);
+                if (it && typeof it === 'object') {
+                  const candidate = it.url ?? it.src ?? it.image ?? it.link ?? it.href ?? it.origin ?? '';
+                  return normalizeToken(candidate);
+                }
+                return '';
+              };
+
+              return Promise.resolve(comic.loadEp.apply(this.__source_temp, [arguments[0], arguments[1]])).then((ep) => {
+                const imagesRaw = ep && ep.images;
+                let images = [];
+                if (Array.isArray(imagesRaw)) {
+                  images = imagesRaw.map(normalizeImage).filter((x) => x.length > 0);
+                }
+                const defaultReferer = [arguments[1], arguments[0]]
+                  .map((value) => normalizeUrl(typeof value === 'string' ? value : ''))
+                  .find((value) => value.length > 0) || '';
+                this.__reader_request_sessions = this.__reader_request_sessions || {};
+                this.__reader_request_sessions[arguments[2]] = { helperCaches: {} };
+                return {
+                  tokens: images,
+                  defaultReferer
+                };
+              });
+            })()
+            """,
+            arguments: [comicID, chapterID, sessionID]
+        )
+
+        guard let object = result as? [String: Any] ?? (result as? NSDictionary as? [String: Any]) else {
+            throw ScriptEngineError.invalidResult("reader page request session invalid")
+        }
+        let tokens = sanitizeImageTokens(object["tokens"] as? [Any] ?? [])
+        let defaultReferer = sanitizeDefaultReferer(object["defaultReferer"] as? String)
+        readerPageRequestSessions[sessionID] = ReaderPageRequestSessionState(
+            comicID: comicID,
+            chapterID: chapterID,
+            tokens: tokens,
+            defaultReferer: defaultReferer
+        )
+        jsDebugLog("prepareReaderPageRequestSession session=\(sessionID), totalPages=\(tokens.count), comicID=\(comicID)", level: .info)
+        return ReaderPageRequestSessionPreparation(
+            handle: ReaderPageRequestSessionHandle(id: sessionID),
+            totalPages: tokens.count
+        )
+    }
+
+    func resolveReaderPageRequestSession(
+        _ handle: ReaderPageRequestSessionHandle,
+        pageIndexes: [Int]
+    ) throws -> [IndexedImageRequest] {
+        guard let state = readerPageRequestSessions[handle.id] else {
+            throw ScriptEngineError.invalidResult("reader page request session missing")
+        }
+
+        let deduplicatedIndexes = Array(Set(pageIndexes))
+            .filter { state.tokens.indices.contains($0) }
+            .sorted()
+        guard !deduplicatedIndexes.isEmpty else { return [] }
+
+        let tokens = deduplicatedIndexes.map { state.tokens[$0] }
+        let result = try callExpression(
+            """
+            (() => {
+              const comic = this.__source_temp && this.__source_temp.comic;
+              if (!comic || typeof comic.loadEp !== 'function') {
+                throw new Error("comic.loadEp is not supported by this source");
+              }
+              const sessionID = typeof arguments[2] === 'string' ? arguments[2] : '';
+              if (!sessionID) {
+                throw new Error('reader page request session id is missing');
+              }
+              this.__reader_request_sessions = this.__reader_request_sessions || {};
+              const session = this.__reader_request_sessions[sessionID];
+              if (!session || typeof session !== 'object') {
+                throw new Error('reader page request session not found');
+              }
+              session.helperCaches = session.helperCaches && typeof session.helperCaches === 'object'
+                ? session.helperCaches
+                : {};
+              const defaultReferer = typeof arguments[3] === 'string' ? arguments[3] : '';
+              const tokens = Array.isArray(arguments[4]) ? arguments[4] : [];
+              const indexes = Array.isArray(arguments[5]) ? arguments[5] : [];
+              const normalizeToken = (u) => {
+                if (typeof u !== 'string') return '';
+                const text = u.trim();
+                return text.length > 0 ? text : '';
+              };
+              const normalizeUrl = (u) => {
+                const text = normalizeToken(u);
+                if (!text) return '';
+                if (text.startsWith('//')) return `https:${text}`;
+                if (text.startsWith('http://') || text.startsWith('https://')) return text;
+                return '';
+              };
+              const defaultHeaders = () => defaultReferer ? { Referer: defaultReferer } : {};
+              const stableValue = (value) => {
+                if (value == null) return null;
+                if (Array.isArray(value)) return value.map(stableValue);
+                const type = typeof value;
+                if (type === 'string' || type === 'number' || type === 'boolean') return value;
+                if (type === 'object') {
+                  const keys = Object.keys(value).sort();
+                  const out = {};
+                  for (const key of keys) {
+                    out[key] = stableValue(value[key]);
+                  }
+                  return out;
+                }
+                return String(value);
+              };
+              const installRequestGenerationMemoization = () => {
+                const restorers = [];
+                const memoizeAsyncMethod = (owner, name) => {
+                  if (!owner || typeof owner[name] !== 'function') return;
+                  const original = owner[name];
+                  const cache = session.helperCaches[name] instanceof Map
+                    ? session.helperCaches[name]
+                    : new Map();
+                  session.helperCaches[name] = cache;
+                  owner[name] = function(...args) {
+                    const key = JSON.stringify(args.map(stableValue));
+                    if (cache.has(key)) return cache.get(key);
+                    const pending = Promise.resolve(original.apply(this, args)).catch((error) => {
+                      cache.delete(key);
+                      throw error;
+                    });
+                    cache.set(key, pending);
+                    return pending;
+                  };
+                  restorers.push(() => {
+                    owner[name] = original;
+                  });
+                };
+                memoizeAsyncMethod(comic, 'loadThumbnails');
+                memoizeAsyncMethod(comic, 'getKey');
+                return () => {
+                  while (restorers.length > 0) {
+                    try {
+                      const restore = restorers.pop();
+                      restore && restore();
+                    } catch (_) {}
+                  }
+                };
+              };
+
+              const rows = tokens.map((token, idx) => ({
+                token: normalizeToken(token),
+                index: Number(indexes[idx])
+              })).filter((item) => item.token.length > 0 && Number.isFinite(item.index));
+
+              if (typeof comic.onImageLoad !== 'function') {
+                return rows.map((item) => {
+                  const url = normalizeUrl(item.token);
+                  if (!url) return null;
+                  return {
+                    index: item.index,
+                    url,
+                    method: 'GET',
+                    headers: defaultHeaders(),
+                    data: null
+                  };
+                }).filter((item) => item != null);
+              }
+
+              const restoreMemoizedMethods = installRequestGenerationMemoization();
+              return Promise.all(rows.map(async (item) => {
+                let cfg = null;
+                try {
+                  cfg = await Promise.resolve(comic.onImageLoad.call(this.__source_temp, item.token, arguments[0], arguments[1], null));
+                } catch (_) {
+                  cfg = null;
+                }
+                if (!cfg || typeof cfg !== 'object') {
+                  const fallback = normalizeUrl(item.token);
+                  if (!fallback) return null;
+                  return {
+                    index: item.index,
+                    url: fallback,
+                    method: 'GET',
+                    headers: defaultHeaders(),
+                    data: null
+                  };
+                }
+                const outUrl = normalizeUrl(typeof cfg.url === 'string' ? cfg.url : '') || normalizeUrl(item.token);
+                if (!outUrl) return null;
+                const method = (typeof cfg.method === 'string' && cfg.method.trim().length > 0)
+                  ? cfg.method.trim().toUpperCase()
+                  : 'GET';
+                const headers = (cfg.headers && typeof cfg.headers === 'object') ? { ...cfg.headers } : {};
+                if (!headers.Referer && !headers.referer && defaultReferer) {
+                  headers.Referer = defaultReferer;
+                }
+                let data = cfg.data ?? null;
+                if (typeof data === 'string') data = Convert.encodeUtf8(data);
+                if (!Array.isArray(data)) data = null;
+                return {
+                  index: item.index,
+                  url: outUrl,
+                  method,
+                  headers,
+                  data
+                };
+              })).then((items) => items
+                .filter((item) => item != null && typeof item === 'object')
+                .map((item) => ({
+                  index: Number(item.index),
+                  url: (typeof item.url === 'string' ? item.url : '').trim(),
+                  method: (typeof item.method === 'string' ? item.method : 'GET'),
+                  headers: (item.headers && typeof item.headers === 'object') ? item.headers : {},
+                  data: Array.isArray(item.data) ? item.data : null
+                }))
+                .filter((item) => Number.isFinite(item.index) && item.url.length > 0)
+              ).finally(() => {
+                restoreMemoizedMethods();
+              });
+            })()
+            """,
+            arguments: [state.comicID, state.chapterID, handle.id, state.defaultReferer, tokens, deduplicatedIndexes]
+        )
+
+        guard let list = result as? [Any] else {
+            throw ScriptEngineError.invalidResult("reader page request batch invalid")
+        }
+        var requests: [IndexedImageRequest] = []
+        requests.reserveCapacity(list.count)
+        for item in list {
+            let object: [String: Any]?
+            if let obj = item as? [String: Any] {
+                object = obj
+            } else if let ns = item as? NSDictionary {
+                object = ns as? [String: Any]
+            } else {
+                object = nil
+            }
+            guard let object else { continue }
+            let indexValue = object["index"]
+            let index = (indexValue as? Int) ?? (indexValue as? NSNumber)?.intValue
+            guard let index, deduplicatedIndexes.contains(index) else { continue }
+            guard let parsed = parseImageRequest(object) else { continue }
+            requests.append(IndexedImageRequest(index: index, request: parsed))
+        }
+        jsDebugLog("resolveReaderPageRequestSession session=\(handle.id), resolved=\(requests.count), requested=\(deduplicatedIndexes.count)", level: .info)
+        return requests.sorted { $0.index < $1.index }
+    }
+
+    func disposeReaderPageRequestSession(_ handle: ReaderPageRequestSessionHandle) {
+        readerPageRequestSessions.removeValue(forKey: handle.id)
+        _ = try? callExpression(
+            """
+            (() => {
+              this.__reader_request_sessions = this.__reader_request_sessions || {};
+              delete this.__reader_request_sessions[arguments[0]];
+              return true;
+            })()
+            """,
+            arguments: [handle.id]
+        )
+    }
+
+    private func sanitizeImageTokens(_ value: Any?) -> [String] {
+        guard let value else { return [] }
+        if let items = value as? [String] {
+            return items.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        }
+        if let items = value as? [Any] {
+            return items.compactMap { item in
+                guard let token = item as? String else { return nil }
+                let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+        }
+        return []
+    }
+
+    private func sanitizeDefaultReferer(_ value: String?) -> String {
+        guard let value else { return "" }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            return ""
+        }
+        return trimmed
     }
 
     private func parseImageRequest(_ object: [String: Any]) -> ImageRequest? {
@@ -2512,8 +2928,8 @@ final class ComicSourceScriptEngine {
             done = true
         }
 
-        let resolveObj: AnyObject = unsafeBitCast(resolve, to: AnyObject.self)
-        let rejectObj: AnyObject = unsafeBitCast(reject, to: AnyObject.self)
+        let resolveObj: AnyObject = bridgeBlock(resolve)
+        let rejectObj: AnyObject = bridgeBlock(reject)
 
         promise.invokeMethod("then", withArguments: [resolveObj])
         promise.invokeMethod("catch", withArguments: [rejectObj])
@@ -2746,14 +3162,56 @@ final class ComicSourceScriptEngine {
           get children() {
             return Html.children(this.key).map((k) => new HtmlElement(k, this.docKey));
           }
+          get previousElementSibling() {
+            const k = Html.previousElementSibling(this.key);
+            return k ? new HtmlElement(k, this.docKey) : null;
+          }
+          get nextElementSibling() {
+            const k = Html.nextElementSibling(this.key);
+            return k ? new HtmlElement(k, this.docKey) : null;
+          }
+          get parentElement() {
+            const k = Html.parentElement(this.key);
+            return k ? new HtmlElement(k, this.docKey) : null;
+          }
           get text() {
+            return Html.text(this.key);
+          }
+          get textContent() {
+            return Html.text(this.key);
+          }
+          get innerText() {
             return Html.text(this.key);
           }
           get innerHTML() {
             return Html.innerHTML(this.key);
           }
+          get outerHTML() {
+            return Html.outerHTML(this.key);
+          }
           get attributes() {
             return Html.attributes(this.key);
+          }
+          get tagName() {
+            return Html.tagName(this.key);
+          }
+          get nodeName() {
+            return Html.tagName(this.key);
+          }
+          get id() {
+            return Html.attributes(this.key).id || '';
+          }
+          get className() {
+            return Html.attributes(this.key).class || '';
+          }
+          getAttribute(name) {
+            const attrs = Html.attributes(this.key);
+            const key = String(name ?? '');
+            return Object.prototype.hasOwnProperty.call(attrs, key) ? attrs[key] : null;
+          }
+          hasAttribute(name) {
+            const attrs = Html.attributes(this.key);
+            return Object.prototype.hasOwnProperty.call(attrs, String(name ?? ''));
           }
         }
 
@@ -2873,11 +3331,11 @@ final class ComicSourceScriptEngine {
             return data[key]
         }
 
-        bridgeStorage.setObject(unsafeBitCast(saveData, to: AnyObject.self), forKeyedSubscript: "saveData" as NSString)
-        bridgeStorage.setObject(unsafeBitCast(loadData, to: AnyObject.self), forKeyedSubscript: "loadData" as NSString)
-        bridgeStorage.setObject(unsafeBitCast(deleteData, to: AnyObject.self), forKeyedSubscript: "deleteData" as NSString)
-        bridgeStorage.setObject(unsafeBitCast(saveSetting, to: AnyObject.self), forKeyedSubscript: "saveSetting" as NSString)
-        bridgeStorage.setObject(unsafeBitCast(loadSetting, to: AnyObject.self), forKeyedSubscript: "loadSetting" as NSString)
+        bridgeStorage.setObject(bridgeBlock(saveData), forKeyedSubscript: "saveData" as NSString)
+        bridgeStorage.setObject(bridgeBlock(loadData), forKeyedSubscript: "loadData" as NSString)
+        bridgeStorage.setObject(bridgeBlock(deleteData), forKeyedSubscript: "deleteData" as NSString)
+        bridgeStorage.setObject(bridgeBlock(saveSetting), forKeyedSubscript: "saveSetting" as NSString)
+        bridgeStorage.setObject(bridgeBlock(loadSetting), forKeyedSubscript: "loadSetting" as NSString)
         ctx.setObject(bridgeStorage, forKeyedSubscript: "BridgeStorage" as NSString)
 
         let network = JSValue(newObjectIn: ctx)!
@@ -2946,16 +3404,16 @@ final class ComicSourceScriptEngine {
             }
         }
 
-        network.setObject(unsafeBitCast(sendRequest, to: AnyObject.self), forKeyedSubscript: "sendRequest" as NSString)
-        network.setObject(unsafeBitCast(fetchBytes, to: AnyObject.self), forKeyedSubscript: "fetchBytes" as NSString)
-        network.setObject(unsafeBitCast(get, to: AnyObject.self), forKeyedSubscript: "get" as NSString)
-        network.setObject(unsafeBitCast(post, to: AnyObject.self), forKeyedSubscript: "post" as NSString)
-        network.setObject(unsafeBitCast(put, to: AnyObject.self), forKeyedSubscript: "put" as NSString)
-        network.setObject(unsafeBitCast(patch, to: AnyObject.self), forKeyedSubscript: "patch" as NSString)
-        network.setObject(unsafeBitCast(del, to: AnyObject.self), forKeyedSubscript: "delete" as NSString)
-        network.setObject(unsafeBitCast(getCookies, to: AnyObject.self), forKeyedSubscript: "getCookies" as NSString)
-        network.setObject(unsafeBitCast(setCookies, to: AnyObject.self), forKeyedSubscript: "setCookies" as NSString)
-        network.setObject(unsafeBitCast(deleteCookies, to: AnyObject.self), forKeyedSubscript: "deleteCookies" as NSString)
+        network.setObject(bridgeBlock(sendRequest), forKeyedSubscript: "sendRequest" as NSString)
+        network.setObject(bridgeBlock(fetchBytes), forKeyedSubscript: "fetchBytes" as NSString)
+        network.setObject(bridgeBlock(get), forKeyedSubscript: "get" as NSString)
+        network.setObject(bridgeBlock(post), forKeyedSubscript: "post" as NSString)
+        network.setObject(bridgeBlock(put), forKeyedSubscript: "put" as NSString)
+        network.setObject(bridgeBlock(patch), forKeyedSubscript: "patch" as NSString)
+        network.setObject(bridgeBlock(del), forKeyedSubscript: "delete" as NSString)
+        network.setObject(bridgeBlock(getCookies), forKeyedSubscript: "getCookies" as NSString)
+        network.setObject(bridgeBlock(setCookies), forKeyedSubscript: "setCookies" as NSString)
+        network.setObject(bridgeBlock(deleteCookies), forKeyedSubscript: "deleteCookies" as NSString)
 
         ctx.setObject(network, forKeyedSubscript: "Network" as NSString)
 
@@ -3036,21 +3494,21 @@ final class ComicSourceScriptEngine {
             return out.map(Int.init)
         }
 
-        convert.setObject(unsafeBitCast(encodeUtf8, to: AnyObject.self), forKeyedSubscript: "encodeUtf8" as NSString)
-        convert.setObject(unsafeBitCast(decodeUtf8, to: AnyObject.self), forKeyedSubscript: "decodeUtf8" as NSString)
-        convert.setObject(unsafeBitCast(encodeBase64, to: AnyObject.self), forKeyedSubscript: "encodeBase64" as NSString)
-        convert.setObject(unsafeBitCast(decodeBase64, to: AnyObject.self), forKeyedSubscript: "decodeBase64" as NSString)
-        convert.setObject(unsafeBitCast(hexEncode, to: AnyObject.self), forKeyedSubscript: "hexEncode" as NSString)
-        convert.setObject(unsafeBitCast(md5, to: AnyObject.self), forKeyedSubscript: "md5" as NSString)
-        convert.setObject(unsafeBitCast(sha1, to: AnyObject.self), forKeyedSubscript: "sha1" as NSString)
-        convert.setObject(unsafeBitCast(sha256, to: AnyObject.self), forKeyedSubscript: "sha256" as NSString)
-        convert.setObject(unsafeBitCast(sha512, to: AnyObject.self), forKeyedSubscript: "sha512" as NSString)
-        convert.setObject(unsafeBitCast(hmacString, to: AnyObject.self), forKeyedSubscript: "hmacString" as NSString)
-        convert.setObject(unsafeBitCast(randomInt, to: AnyObject.self), forKeyedSubscript: "randomInt" as NSString)
-        convert.setObject(unsafeBitCast(decryptAesEcb, to: AnyObject.self), forKeyedSubscript: "decryptAesEcb" as NSString)
-        convert.setObject(unsafeBitCast(encryptAesEcb, to: AnyObject.self), forKeyedSubscript: "encryptAesEcb" as NSString)
-        convert.setObject(unsafeBitCast(decryptAesCbc, to: AnyObject.self), forKeyedSubscript: "decryptAesCbc" as NSString)
-        convert.setObject(unsafeBitCast(encryptAesCbc, to: AnyObject.self), forKeyedSubscript: "encryptAesCbc" as NSString)
+        convert.setObject(bridgeBlock(encodeUtf8), forKeyedSubscript: "encodeUtf8" as NSString)
+        convert.setObject(bridgeBlock(decodeUtf8), forKeyedSubscript: "decodeUtf8" as NSString)
+        convert.setObject(bridgeBlock(encodeBase64), forKeyedSubscript: "encodeBase64" as NSString)
+        convert.setObject(bridgeBlock(decodeBase64), forKeyedSubscript: "decodeBase64" as NSString)
+        convert.setObject(bridgeBlock(hexEncode), forKeyedSubscript: "hexEncode" as NSString)
+        convert.setObject(bridgeBlock(md5), forKeyedSubscript: "md5" as NSString)
+        convert.setObject(bridgeBlock(sha1), forKeyedSubscript: "sha1" as NSString)
+        convert.setObject(bridgeBlock(sha256), forKeyedSubscript: "sha256" as NSString)
+        convert.setObject(bridgeBlock(sha512), forKeyedSubscript: "sha512" as NSString)
+        convert.setObject(bridgeBlock(hmacString), forKeyedSubscript: "hmacString" as NSString)
+        convert.setObject(bridgeBlock(randomInt), forKeyedSubscript: "randomInt" as NSString)
+        convert.setObject(bridgeBlock(decryptAesEcb), forKeyedSubscript: "decryptAesEcb" as NSString)
+        convert.setObject(bridgeBlock(encryptAesEcb), forKeyedSubscript: "encryptAesEcb" as NSString)
+        convert.setObject(bridgeBlock(decryptAesCbc), forKeyedSubscript: "decryptAesCbc" as NSString)
+        convert.setObject(bridgeBlock(encryptAesCbc), forKeyedSubscript: "encryptAesCbc" as NSString)
 
         ctx.setObject(convert, forKeyedSubscript: "Convert" as NSString)
 
@@ -3083,11 +3541,11 @@ final class ComicSourceScriptEngine {
                 UIPasteboard.general.string = text
             }
         }
-        bridgeUI.setObject(unsafeBitCast(showMessage, to: AnyObject.self), forKeyedSubscript: "showMessage" as NSString)
-        bridgeUI.setObject(unsafeBitCast(showDialog, to: AnyObject.self), forKeyedSubscript: "showDialog" as NSString)
-        bridgeUI.setObject(unsafeBitCast(showInputDialog, to: AnyObject.self), forKeyedSubscript: "showInputDialog" as NSString)
-        bridgeUI.setObject(unsafeBitCast(launchUrl, to: AnyObject.self), forKeyedSubscript: "launchUrl" as NSString)
-        bridgeUI.setObject(unsafeBitCast(copyToClipboard, to: AnyObject.self), forKeyedSubscript: "copyToClipboard" as NSString)
+        bridgeUI.setObject(bridgeBlock(showMessage), forKeyedSubscript: "showMessage" as NSString)
+        bridgeUI.setObject(bridgeBlock(showDialog), forKeyedSubscript: "showDialog" as NSString)
+        bridgeUI.setObject(bridgeBlock(showInputDialog), forKeyedSubscript: "showInputDialog" as NSString)
+        bridgeUI.setObject(bridgeBlock(launchUrl), forKeyedSubscript: "launchUrl" as NSString)
+        bridgeUI.setObject(bridgeBlock(copyToClipboard), forKeyedSubscript: "copyToClipboard" as NSString)
         ctx.setObject(bridgeUI, forKeyedSubscript: "BridgeUI" as NSString)
 
         let html = JSValue(newObjectIn: ctx)!
@@ -3112,11 +3570,26 @@ final class ComicSourceScriptEngine {
         let children: @convention(block) (Int) -> [Int] = { key in
             HtmlRuntimeBridge.shared.children(elementKey: key)
         }
+        let previousElementSibling: @convention(block) (Int) -> Int = { key in
+            HtmlRuntimeBridge.shared.previousElementSibling(elementKey: key) ?? 0
+        }
+        let nextElementSibling: @convention(block) (Int) -> Int = { key in
+            HtmlRuntimeBridge.shared.nextElementSibling(elementKey: key) ?? 0
+        }
+        let parentElement: @convention(block) (Int) -> Int = { key in
+            HtmlRuntimeBridge.shared.parentElement(elementKey: key) ?? 0
+        }
         let text: @convention(block) (Int) -> String = { key in
             HtmlRuntimeBridge.shared.text(elementKey: key)
         }
         let innerHTML: @convention(block) (Int) -> String = { key in
             HtmlRuntimeBridge.shared.innerHTML(elementKey: key)
+        }
+        let outerHTML: @convention(block) (Int) -> String = { key in
+            HtmlRuntimeBridge.shared.outerHTML(elementKey: key)
+        }
+        let tagName: @convention(block) (Int) -> String = { key in
+            HtmlRuntimeBridge.shared.tagName(elementKey: key)
         }
         let attributes: @convention(block) (Int) -> [String: String] = { key in
             HtmlRuntimeBridge.shared.attributes(elementKey: key)
@@ -3125,17 +3598,22 @@ final class ComicSourceScriptEngine {
             HtmlRuntimeBridge.shared.dispose(documentKey: key)
         }
 
-        html.setObject(unsafeBitCast(parse, to: AnyObject.self), forKeyedSubscript: "parse" as NSString)
-        html.setObject(unsafeBitCast(querySelector, to: AnyObject.self), forKeyedSubscript: "querySelector" as NSString)
-        html.setObject(unsafeBitCast(querySelectorAll, to: AnyObject.self), forKeyedSubscript: "querySelectorAll" as NSString)
-        html.setObject(unsafeBitCast(getElementById, to: AnyObject.self), forKeyedSubscript: "getElementById" as NSString)
-        html.setObject(unsafeBitCast(elementQuerySelector, to: AnyObject.self), forKeyedSubscript: "elementQuerySelector" as NSString)
-        html.setObject(unsafeBitCast(elementQuerySelectorAll, to: AnyObject.self), forKeyedSubscript: "elementQuerySelectorAll" as NSString)
-        html.setObject(unsafeBitCast(children, to: AnyObject.self), forKeyedSubscript: "children" as NSString)
-        html.setObject(unsafeBitCast(text, to: AnyObject.self), forKeyedSubscript: "text" as NSString)
-        html.setObject(unsafeBitCast(innerHTML, to: AnyObject.self), forKeyedSubscript: "innerHTML" as NSString)
-        html.setObject(unsafeBitCast(attributes, to: AnyObject.self), forKeyedSubscript: "attributes" as NSString)
-        html.setObject(unsafeBitCast(dispose, to: AnyObject.self), forKeyedSubscript: "dispose" as NSString)
+        html.setObject(bridgeBlock(parse), forKeyedSubscript: "parse" as NSString)
+        html.setObject(bridgeBlock(querySelector), forKeyedSubscript: "querySelector" as NSString)
+        html.setObject(bridgeBlock(querySelectorAll), forKeyedSubscript: "querySelectorAll" as NSString)
+        html.setObject(bridgeBlock(getElementById), forKeyedSubscript: "getElementById" as NSString)
+        html.setObject(bridgeBlock(elementQuerySelector), forKeyedSubscript: "elementQuerySelector" as NSString)
+        html.setObject(bridgeBlock(elementQuerySelectorAll), forKeyedSubscript: "elementQuerySelectorAll" as NSString)
+        html.setObject(bridgeBlock(children), forKeyedSubscript: "children" as NSString)
+        html.setObject(bridgeBlock(previousElementSibling), forKeyedSubscript: "previousElementSibling" as NSString)
+        html.setObject(bridgeBlock(nextElementSibling), forKeyedSubscript: "nextElementSibling" as NSString)
+        html.setObject(bridgeBlock(parentElement), forKeyedSubscript: "parentElement" as NSString)
+        html.setObject(bridgeBlock(text), forKeyedSubscript: "text" as NSString)
+        html.setObject(bridgeBlock(innerHTML), forKeyedSubscript: "innerHTML" as NSString)
+        html.setObject(bridgeBlock(outerHTML), forKeyedSubscript: "outerHTML" as NSString)
+        html.setObject(bridgeBlock(tagName), forKeyedSubscript: "tagName" as NSString)
+        html.setObject(bridgeBlock(attributes), forKeyedSubscript: "attributes" as NSString)
+        html.setObject(bridgeBlock(dispose), forKeyedSubscript: "dispose" as NSString)
         ctx.setObject(html, forKeyedSubscript: "Html" as NSString)
     }
 

@@ -117,6 +117,8 @@ Important files:
 - `ReaderViewModel.swift`
 - `AppBackupService.swift`
 - `WebDAVSyncService.swift`
+- `Runtime/HtmlRuntimeBridge.swift`
+- `Runtime/HtmlDOM`
 - `Runtime/Tracker`
 
 ### Core Layer
@@ -174,6 +176,45 @@ Examples:
 - pending sync queue state
 - one-way progress sync dispatch
 
+## Source Script HTML Runtime
+
+Source scripts keep using the same JS-facing DOM contract exposed by `ComicSourceScriptEngine`:
+
+- `Html.parse`
+- `Html.querySelector`
+- `Html.querySelectorAll`
+- `Html.getElementById`
+- `Html.elementQuerySelector`
+- `Html.elementQuerySelectorAll`
+- `Html.children`
+- `Html.text`
+- `Html.innerHTML`
+- `Html.attributes`
+- `Html.dispose`
+- JS wrappers `HtmlDocument` and `HtmlElement`
+
+Implementation details now live fully inside the Runtime layer.
+
+Key files:
+
+- `Runtime/HtmlRuntimeBridge.swift`
+- `Runtime/HtmlDOM/HtmlRuntimeEngine.swift`
+- `Runtime/HtmlDOM/HtmlDocumentStore.swift`
+- `Runtime/HtmlDOM/HtmlDOM.swift`
+- `Runtime/HtmlDOM/HtmlParser.swift`
+- `Runtime/HtmlDOM/HtmlSelectorEngine.swift`
+- `Runtime/HtmlDOM/HtmlSerializer.swift`
+
+Design intent:
+
+- source-script HTML parsing is fully in-process
+- runtime HTML parsing does not depend on a hidden `WKWebView`
+- DOM queries stay synchronous from the JS bridge point of view
+- parsing runs on the existing runtime engine queue rather than the main thread
+- document and element handles preserve the compatibility behavior expected by installed scripts
+
+The visible login sheet web view remains a separate feature-layer concern for interactive login and cookie capture.
+
 ## Reader Architecture
 
 Reader is split across composition, session state, rendering, and pipeline concerns.
@@ -190,7 +231,10 @@ Design intent:
 
 - UI does not load chapter content directly
 - reader session owns chapter loading, resume, and offline validation
-- image caching and page loading stay outside the view tree
+- remote reader loading now prepares a chapter request session once, allocates fixed absolute page slots, resolves the initial visible page first, and fills nearby pages in background batches
+- installed source scripts keep the same `comic.loadEp(...)` and optional `comic.onImageLoad(...)` contract for both eager and progressive paths
+- downloads and offline flows still use the existing eager full-request resolution path, while the reader uses the additive progressive request-session path
+- image caching and page-byte loading stay outside the view tree in `ReaderImagePipeline`; progressive loading only changes how `ImageRequest` values are generated
 
 ## Downloads and Offline
 

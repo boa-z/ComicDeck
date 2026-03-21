@@ -59,6 +59,7 @@ actor ReaderImagePipeline {
     private var writesSinceLastPrune = 0
     private var memoryCacheBytes: Int64 = 0
     private var metrics = ReaderImageCacheMetrics()
+    private var prefetchGeneration = 0
 
     init() {
         let root = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
@@ -67,6 +68,7 @@ actor ReaderImagePipeline {
         let config = URLSessionConfiguration.ephemeral
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.httpCookieStorage = HTTPCookieStorage.shared
         config.httpCookieAcceptPolicy = .always
         config.httpShouldSetCookies = true
         config.waitsForConnectivity = true
@@ -127,10 +129,11 @@ actor ReaderImagePipeline {
         }
     }
 
-    func prefetch(requests: [URLRequest]) async {
+    func prefetch(requests: [URLRequest], generation: Int) async {
         await withTaskGroup(of: Void.self) { group in
             for request in requests {
                 group.addTask {
+                    guard await self.prefetchGeneration == generation else { return }
                     do {
                         _ = try await self.loadData(for: request)
                     } catch {
@@ -139,6 +142,15 @@ actor ReaderImagePipeline {
                 }
             }
         }
+    }
+
+    func beginPrefetchSession() -> Int {
+        prefetchGeneration += 1
+        return prefetchGeneration
+    }
+
+    func cancelPrefetchSession() {
+        prefetchGeneration += 1
     }
 
     func clearAllCache() {

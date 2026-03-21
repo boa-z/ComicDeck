@@ -18,6 +18,13 @@
 			remoteGlobalIDString = C1A0000D1111111100000001;
 			remoteInfo = ComicDeckWidgets;
 		};
+		C2B0000C1111111100000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C0E56FBF2F5B32F900702D5B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C0E56FC62F5B32F900702D5B;
+			remoteInfo = ComicDeck;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -37,6 +44,7 @@
 /* Begin PBXFileReference section */
 		C0E56FC72F5B32F900702D5B /* ComicDeck.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ComicDeck.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1A000011111111100000001 /* ComicDeckWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ComicDeckWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C2B000011111111100000001 /* ComicDeckTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ComicDeckTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -48,6 +56,11 @@
 		C1A000021111111100000001 /* ComicDeckWidgets */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ComicDeckWidgets;
+			sourceTree = "<group>";
+		};
+		C2B000021111111100000001 /* ComicDeckTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ComicDeckTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -67,6 +80,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C2B000031111111100000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -75,6 +95,7 @@
 			children = (
 				C0E56FC92F5B32F900702D5B /* ComicDeck */,
 				C1A000021111111100000001 /* ComicDeckWidgets */,
+				C2B000021111111100000001 /* ComicDeckTests */,
 				C0E56FC82F5B32F900702D5B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -84,6 +105,7 @@
 			children = (
 				C0E56FC72F5B32F900702D5B /* ComicDeck.app */,
 				C1A000011111111100000001 /* ComicDeckWidgets.appex */,
+				C2B000011111111100000001 /* ComicDeckTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -138,6 +160,29 @@
 			productReference = C1A000011111111100000001 /* ComicDeckWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		C2B000041111111100000001 /* ComicDeckTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C2B0000A1111111100000001 /* Build configuration list for PBXNativeTarget "ComicDeckTests" */;
+			buildPhases = (
+				C2B000051111111100000001 /* Sources */,
+				C2B000031111111100000001 /* Frameworks */,
+				C2B000061111111100000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C2B0000D1111111100000001 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C2B000021111111100000001 /* ComicDeckTests */,
+			);
+			name = ComicDeckTests;
+			packageProductDependencies = (
+			);
+			productName = ComicDeckTests;
+			productReference = C2B000011111111100000001 /* ComicDeckTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -153,6 +198,10 @@
 					};
 					C1A0000D1111111100000001 = {
 						CreatedOnToolsVersion = 26.3;
+					};
+					C2B000041111111100000001 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = C0E56FC62F5B32F900702D5B;
 					};
 				};
 			};
@@ -172,6 +221,7 @@
 			targets = (
 				C0E56FC62F5B32F900702D5B /* ComicDeck */,
 				C1A0000D1111111100000001 /* ComicDeckWidgets */,
+				C2B000041111111100000001 /* ComicDeckTests */,
 			);
 		};
 /* End PBXProject section */
@@ -185,6 +235,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C1A000101111111100000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C2B000061111111100000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -230,6 +287,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C2B000051111111100000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -237,6 +301,11 @@
 			isa = PBXTargetDependency;
 			target = C1A0000D1111111100000001 /* ComicDeckWidgets */;
 			targetProxy = C1A0001D1111111100000001 /* PBXContainerItemProxy */;
+		};
+		C2B0000D1111111100000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C0E56FC62F5B32F900702D5B /* ComicDeck */;
+			targetProxy = C2B0000C1111111100000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -404,12 +473,12 @@
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				"SWIFT_ENABLE_EXPLICIT_MODULES[sdk=macosx*]" = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				"SWIFT_ENABLE_EXPLICIT_MODULES[sdk=macosx*]" = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -463,12 +532,12 @@
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				"SWIFT_ENABLE_EXPLICIT_MODULES[sdk=macosx*]" = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				"SWIFT_ENABLE_EXPLICIT_MODULES[sdk=macosx*]" = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -567,6 +636,59 @@
 			};
 			name = Release;
 		};
+		C2B000091111111100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ABCDEFGHIJ;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = boa.ComicDeckTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ComicDeck.app/ComicDeck";
+			};
+			name = Debug;
+		};
+		C2B0000B1111111100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ABCDEFGHIJ;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = boa.ComicDeckTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ComicDeck.app/ComicDeck";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -593,6 +715,15 @@
 			buildConfigurations = (
 				C1A000151111111100000001 /* Debug */,
 				C1A000161111111100000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C2B0000A1111111100000001 /* Build configuration list for PBXNativeTarget "ComicDeckTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C2B000091111111100000001 /* Debug */,
+				C2B0000B1111111100000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

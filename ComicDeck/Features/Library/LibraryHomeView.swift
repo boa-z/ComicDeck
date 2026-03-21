@@ -89,7 +89,8 @@ struct LibraryHomeView: View {
                     item: item,
                     onTagSelected: onTagSearchRequested,
                     initialReadRoute: pendingDetailReadRoute,
-                    onConsumeInitialReadRoute: { pendingDetailReadRoute = nil }
+                    onConsumeInitialReadRoute: { pendingDetailReadRoute = nil },
+                    onNavigateBack: { selectedDetailItem = nil }
                 )
             }
         }
