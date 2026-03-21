@@ -26,11 +26,11 @@
         {
           "version": "0.0.1+1",
           "date": "2026-03-15T04:26:26Z",
-          "localizedDescription": "Commit: 1559dd6\nMessage: fix\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23108403983/attempts/1",
+          "localizedDescription": "Commit: 812ead4\nMessage: refactor(reader): improve image loading pipeline and restore source script DOM compatibility\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23378499024/attempts/1",
           "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-          "size": 5249540,
-          "commit": "1559dd6",
-          "headline": "fix"
+          "size": 6537429,
+          "commit": "812ead4",
+          "headline": "refactor(reader): improve image loading pipeline and restore source script DOM compatibility"
         }
       ],
       "releaseChannels": [
@@ -44,22 +44,22 @@
             {
               "version": "0.0.1+1",
               "date": "2026-03-15T04:26:26Z",
-              "localizedDescription": "Commit: 1559dd6\nMessage: fix\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23108403983/attempts/1",
+              "localizedDescription": "Commit: 812ead4\nMessage: refactor(reader): improve image loading pipeline and restore source script DOM compatibility\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23378499024/attempts/1",
               "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-              "size": 5249540,
-              "commit": "1559dd6",
-              "headline": "fix"
+              "size": 6537429,
+              "commit": "812ead4",
+              "headline": "refactor(reader): improve image loading pipeline and restore source script DOM compatibility"
             }
           ]
         }
       ],
       "version": "0.0.1+1",
       "versionDate": "2026-03-15T04:26:26Z",
-      "versionDescription": "Commit: 1559dd6\nMessage: fix\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23108403983/attempts/1",
+      "versionDescription": "Commit: 812ead4\nMessage: refactor(reader): improve image loading pipeline and restore source script DOM compatibility\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23378499024/attempts/1",
       "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-      "size": 5249540,
-      "commit": "1559dd6",
-      "headline": "fix"
+      "size": 6537429,
+      "commit": "812ead4",
+      "headline": "refactor(reader): improve image loading pipeline and restore source script DOM compatibility"
     }
   ],
   "news": []
