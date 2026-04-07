@@ -68,8 +68,8 @@ Verify:
 
 Verify a representative set of sources:
 
-1. install from repository
-2. refresh repository
+1. install from a user-provided source index
+2. refresh the configured source index
 3. account login where supported
 4. web login where supported
 5. cookie login where supported

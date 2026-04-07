@@ -24,9 +24,10 @@ ComicDeck is organized around three primary areas and several supporting flows.
 1. Open `Home`.
 2. Open `Settings`.
 3. Open `Sources`.
-4. Enter `Repository`.
-5. Refresh or load available source definitions.
-6. Install the sources you want to use.
+4. Open `Source Index`.
+5. Enter your own `index.json` URL.
+6. Refresh or load available source definitions.
+7. Install the sources you want to use.
 
 Installed sources can then be:
 

@@ -26,8 +26,6 @@ final class SourceManagerViewModel {
         static let lastRemoteRefreshTimestamp = "source.runtime.remote.lastRefreshTimestamp"
     }
 
-    private static let defaultIndexURL = "https://cdn.jsdelivr.net/gh/venera-app/venera-configs@main/index.json"
-
     var indexURL = "" {
         didSet {
             guard oldValue != indexURL else { return }
@@ -91,7 +89,7 @@ final class SourceManagerViewModel {
     func prepare(sourceStore: SourceStore) async throws {
         self.sourceStore = sourceStore
         if indexURL.isEmpty {
-            indexURL = UserDefaults.standard.string(forKey: PersistKey.indexURL) ?? Self.defaultIndexURL
+            indexURL = UserDefaults.standard.string(forKey: PersistKey.indexURL) ?? ""
         }
         autoLoadRemoteSources = UserDefaults.standard.object(forKey: PersistKey.autoLoadRemoteSources) as? Bool ?? false
         if let timestamp = UserDefaults.standard.object(forKey: PersistKey.lastRemoteRefreshTimestamp) as? TimeInterval {
@@ -113,7 +111,9 @@ final class SourceManagerViewModel {
         } else {
             remoteSources = []
             availableSourceUpdates = [:]
-            status = "Repository auto-load is off. Tap Load Sources to fetch the index."
+            status = indexURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "Provide your own source index URL to load sources."
+                : "Source index auto-load is off. Tap Load Sources to fetch your sources."
         }
     }
 
@@ -125,7 +125,7 @@ final class SourceManagerViewModel {
         guard !indexURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             remoteSources = []
             availableSourceUpdates = [:]
-            status = "Please input source index URL"
+            status = "Provide a source index URL first"
             return
         }
         do {
@@ -140,10 +140,6 @@ final class SourceManagerViewModel {
             smDebugLog("refreshRemoteSources failed: \(error.localizedDescription)", level: .error)
             status = "Index refresh failed: \(error.localizedDescription)"
         }
-    }
-
-    func resetIndexURLToOfficial() {
-        indexURL = Self.defaultIndexURL
     }
 
     // MARK: - Install / Uninstall / Update

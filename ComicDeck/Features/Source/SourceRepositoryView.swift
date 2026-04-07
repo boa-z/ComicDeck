@@ -39,9 +39,9 @@ struct SourceRepositoryView: View {
             .padding(.bottom, AppSpacing.xl)
         }
         .background(AppSurface.grouped.ignoresSafeArea())
-        .navigationTitle("Repository")
+        .navigationTitle("Source Index")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search repository sources")
+        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search source index")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -54,7 +54,7 @@ struct SourceRepositoryView: View {
                     }
                 }
                 .disabled(sourceManager.refreshingIndex)
-                .accessibilityLabel("Refresh source repository")
+                .accessibilityLabel("Refresh source index")
             }
         }
         .refreshable {
@@ -63,7 +63,7 @@ struct SourceRepositoryView: View {
     }
 
     private var configurationCard: some View {
-        ComicDetailSectionCard(title: "Repository", subtitle: "Configure the source index and manage update checks") {
+        ComicDetailSectionCard(title: "Source Index", subtitle: "Provide your own source index URL and manage update checks") {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 TextField("index.json URL", text: $sourceManager.indexURL)
                     .textInputAutocapitalization(.never)
@@ -73,11 +73,6 @@ struct SourceRepositoryView: View {
                     .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
 
                 HStack(spacing: 10) {
-                    Button("Use Official Index") {
-                        sourceManager.resetIndexURLToOfficial()
-                    }
-                    .buttonStyle(.bordered)
-
                     Button {
                         Task { await sourceManager.refreshRemoteSources(forceRefresh: true) }
                     } label: {
@@ -93,12 +88,12 @@ struct SourceRepositoryView: View {
                     .disabled(sourceManager.refreshingIndex)
                 }
 
-                Toggle("Auto-load repository on open", isOn: $sourceManager.autoLoadRemoteSources)
+                Toggle("Auto-load source index on open", isOn: $sourceManager.autoLoadRemoteSources)
                     .toggleStyle(.switch)
 
                 Text(sourceManager.autoLoadRemoteSources
-                     ? "The repository index refreshes automatically when you open Sources."
-                     : "Remote sources stay idle until you explicitly load them.")
+                     ? "The configured source index refreshes automatically when you open Sources."
+                     : "Remote sources stay idle until you explicitly load your source index.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -144,9 +139,9 @@ struct SourceRepositoryView: View {
 
     private var sourceListCard: some View {
         ComicDetailSectionCard(
-            title: "Repository Sources",
+            title: "Indexed Sources",
             subtitle: sourceManager.remoteSources.isEmpty
-                ? "Load the repository to browse available sources."
+                ? "Load your source index to browse available sources."
                 : "\(discoveredSources.count) sources in the current filter"
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
@@ -155,10 +150,10 @@ struct SourceRepositoryView: View {
 
                 if sourceManager.remoteSources.isEmpty {
                     emptyState(
-                        title: "Repository not loaded",
+                        title: "Source index not loaded",
                         subtitle: sourceManager.autoLoadRemoteSources
-                            ? "Pull to refresh if the repository did not load."
-                            : "Tap Load Sources to fetch available sources."
+                            ? "Pull to refresh if your source index did not load."
+                            : "Enter your source index URL, then tap Load Sources."
                     )
                 } else if discoveredSources.isEmpty {
                     emptyState(

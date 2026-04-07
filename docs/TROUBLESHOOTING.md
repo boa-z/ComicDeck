@@ -17,7 +17,7 @@ For network-related problems, do not rely on system `nw_connection...` messages 
 Check:
 
 1. the source is selected as active
-2. repository refresh succeeded
+2. your source index refresh succeeded
 3. the source is not outdated and has no pending update
 
 If the problem remains:

@@ -110,9 +110,9 @@ struct SourceManagementView: View {
             SourceRepositoryView(vm: vm, sourceManager: sourceManager)
         } label: {
             ComicDetailSectionCard(
-                title: AppLocalization.text("source.management.repository", "Repository"),
+                title: AppLocalization.text("source.management.repository", "Source Index"),
                 subtitle: sourceManager.remoteSources.isEmpty
-                    ? AppLocalization.text("source.management.repository_hint", "Index settings, update checks, and remote source discovery")
+                    ? AppLocalization.text("source.management.repository_hint", "Provide your own source index, then install and update sources from it")
                     : "\(sourceManager.remoteSources.count) remote sources cached"
             ) {
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
@@ -166,7 +166,7 @@ struct SourceManagementView: View {
                 if sourceManager.installedSources.isEmpty {
                     emptyState(
                         title: AppLocalization.text("source.management.empty", "No installed sources"),
-                        subtitle: AppLocalization.text("source.management.empty_hint", "Refresh the repository and install a source to start browsing.")
+                        subtitle: AppLocalization.text("source.management.empty_hint", "Add your own source index and install a source to start browsing.")
                     )
                 } else {
                     ForEach(installedSources) { source in
