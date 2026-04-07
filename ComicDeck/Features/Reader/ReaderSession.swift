@@ -70,6 +70,7 @@ final class ReaderSession {
     var verticalTrackingSuspendedUntil: Date = .distantPast
 
     var translationEnabled = false
+    var translationSourceLanguage: ReaderTranslationLanguage?
     var translationTargetLanguage: ReaderTranslationLanguage = .chineseSimplified
     var translationPageStates: [Int: ReaderTranslationStatus] = [:]
     var translationPageOverlays: [Int: [ReaderTranslationOverlay]] = [:]
@@ -271,9 +272,14 @@ final class ReaderSession {
         queueBackgroundResolution(using: vm, readerMode: readerMode)
     }
 
-    func applyTranslationPreferences(enabled: Bool, targetLanguage: ReaderTranslationLanguage) {
-        let languageChanged = translationTargetLanguage != targetLanguage
+    func applyTranslationPreferences(
+        enabled: Bool,
+        sourceLanguage: ReaderTranslationLanguage?,
+        targetLanguage: ReaderTranslationLanguage
+    ) {
+        let languageChanged = translationSourceLanguage != sourceLanguage || translationTargetLanguage != targetLanguage
         translationEnabled = enabled
+        translationSourceLanguage = sourceLanguage
         translationTargetLanguage = targetLanguage
         if languageChanged {
             translationPageStates.removeAll()
@@ -294,33 +300,27 @@ final class ReaderSession {
         translationErrorText[pageIndex]
     }
 
-    func translatePagesAroundCurrentPage(using vm: ReaderViewModel, readerMode: ReaderMode) {
+    func translateCurrentPage(using vm: ReaderViewModel) {
         guard translationEnabled else { return }
-        guard readerMode == .vertical else {
-            translationUnsupportedReason = AppLocalization.text(
-                "reader.translation.unsupported.horizontal",
-                "Page translation overlay is currently available only in vertical mode."
-            )
-            return
-        }
+        guard imageRequests.indices.contains(currentPage), let request = imageRequests[currentPage] else { return }
+        let pageIndex = currentPage
+        let sourceLanguage = translationSourceLanguage
+        let targetLanguage = translationTargetLanguage
         translationUnsupportedReason = ""
         translationGeneration += 1
         let generation = translationGeneration
-        let indexes = prioritizedIndexes(around: currentPage, radius: ReaderLoadConstants.translationBatchRadius)
-        for index in indexes {
-            guard imageRequests.indices.contains(index), let request = imageRequests[index] else { continue }
-            guard translationStatus(for: index) != .processing else { continue }
-            translationTasks[index]?.cancel()
-            translationPageStates[index] = .processing
-            translationTasks[index] = Task { [weak self] in
-                await self?.translatePage(
-                    at: index,
-                    request: request,
-                    using: vm,
-                    targetLanguage: translationTargetLanguage,
-                    generation: generation
-                )
-            }
+        translationTasks[pageIndex]?.cancel()
+        translationPageStates[pageIndex] = .processing
+        translationErrorText[pageIndex] = nil
+        translationTasks[pageIndex] = Task { [weak self] in
+            await self?.translatePage(
+                at: pageIndex,
+                request: request,
+                using: vm,
+                sourceLanguage: sourceLanguage,
+                targetLanguage: targetLanguage,
+                generation: generation
+            )
         }
     }
 
@@ -560,6 +560,7 @@ final class ReaderSession {
         at pageIndex: Int,
         request: ImageRequest,
         using vm: ReaderViewModel,
+        sourceLanguage: ReaderTranslationLanguage?,
         targetLanguage: ReaderTranslationLanguage,
         generation: Int
     ) async {
@@ -581,12 +582,17 @@ final class ReaderSession {
                 chapterID: chapterID,
                 pageIndex: pageIndex,
                 request: request,
+                sourceLanguage: sourceLanguage,
                 targetLanguage: targetLanguage
             )
             guard generation == translationGeneration, !Task.isCancelled else { return }
             translationPageStates[pageIndex] = record.status
             translationPageOverlays[pageIndex] = record.overlays
             translationErrorText[pageIndex] = record.errorText
+            readerDebugLog(
+                "translation ready: page=\(pageIndex), status=\(record.status.rawValue), overlays=\(record.overlays.count), source=\(sourceLanguage?.rawValue ?? "auto"), target=\(targetLanguage.rawValue)",
+                level: .info
+            )
         } catch {
             guard generation == translationGeneration, !Task.isCancelled else { return }
             let message = error.localizedDescription
@@ -598,6 +604,7 @@ final class ReaderSession {
                 chapterID: chapterID,
                 pageIndex: pageIndex,
                 request: request,
+                sourceLanguage: sourceLanguage,
                 targetLanguage: targetLanguage,
                 errorText: message
             )

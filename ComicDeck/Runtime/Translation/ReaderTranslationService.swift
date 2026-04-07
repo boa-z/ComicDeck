@@ -22,9 +22,10 @@ actor ReaderTranslationService {
         chapterID: String,
         pageIndex: Int,
         request: ImageRequest,
+        sourceLanguage: ReaderTranslationLanguage?,
         targetLanguage: ReaderTranslationLanguage
     ) async throws -> ReaderPageTranslationRecord? {
-        let requestKey = Self.imageRequestKey(request)
+        let requestKey = Self.imageRequestKey(request, sourceLanguage: sourceLanguage)
         return try await database.getReaderPageTranslation(
             sourceKey: item.sourceKey,
             comicID: item.id,
@@ -40,6 +41,7 @@ actor ReaderTranslationService {
         chapterID: String,
         pageIndex: Int,
         request: ImageRequest,
+        sourceLanguage: ReaderTranslationLanguage?,
         targetLanguage: ReaderTranslationLanguage
     ) async throws -> ReaderPageTranslationRecord {
         guard let urlRequest = Self.buildURLRequest(from: request) else {
@@ -47,7 +49,7 @@ actor ReaderTranslationService {
         }
 
         let imageData = try await ReaderImagePipeline.shared.loadData(for: urlRequest)
-        let requestKey = Self.imageRequestKey(request)
+        let requestKey = Self.imageRequestKey(request, sourceLanguage: sourceLanguage)
         let fingerprint = Self.imageFingerprint(for: imageData)
 
         if let cached = try await database.getReaderPageTranslation(
@@ -64,6 +66,7 @@ actor ReaderTranslationService {
         let regions = try await ocrProvider.recognizeTextRegions(from: imageData)
         let translated = try await translationProvider.translate(
             texts: regions.map(\.text),
+            sourceLanguage: sourceLanguage,
             targetLanguage: targetLanguage
         )
 
@@ -100,6 +103,7 @@ actor ReaderTranslationService {
         chapterID: String,
         pageIndex: Int,
         request: ImageRequest,
+        sourceLanguage: ReaderTranslationLanguage?,
         targetLanguage: ReaderTranslationLanguage,
         errorText: String
     ) async {
@@ -112,7 +116,7 @@ actor ReaderTranslationService {
                 targetLanguage: targetLanguage,
                 provider: "\(ocrProvider.name)+\(translationProvider.name)",
                 status: .failed,
-                imageRequestKey: Self.imageRequestKey(request),
+                imageRequestKey: Self.imageRequestKey(request, sourceLanguage: sourceLanguage),
                 imageFingerprint: "",
                 overlays: [],
                 errorText: errorText
@@ -163,7 +167,7 @@ actor ReaderTranslationService {
         return urlRequest
     }
 
-    private static func imageRequestKey(_ request: ImageRequest) -> String {
+    private static func imageRequestKey(_ request: ImageRequest, sourceLanguage: ReaderTranslationLanguage?) -> String {
         let bodyData = request.body.map { Data($0) }
         let headers = request.headers
             .map { ($0.key.lowercased(), $0.value) }
@@ -178,7 +182,7 @@ actor ReaderTranslationService {
         let bodyDigest = bodyData.map { Self.digest($0.base64EncodedString()) } ?? "no-body"
         let normalizedMethod = request.method.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let method = normalizedMethod.isEmpty ? "GET" : normalizedMethod
-        return [method, request.url, headers, bodyDigest].joined(separator: "|")
+        return [method, request.url, sourceLanguage?.rawValue ?? "auto", headers, bodyDigest].joined(separator: "|")
     }
 
     private static func digest(_ string: String) -> String {

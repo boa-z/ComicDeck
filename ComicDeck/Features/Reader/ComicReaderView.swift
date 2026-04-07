@@ -111,6 +111,7 @@ struct ComicReaderView: View {
     @AppStorage("Reader.backgroundColor") private var readerBackgroundRaw = ReaderBackgroundMode.system.rawValue
     @AppStorage("Reader.keepScreenOn") private var keepScreenOn = true
     @AppStorage("Reader.translationEnabled") private var translationEnabled = false
+    @AppStorage("Reader.translationSourceLanguage") private var translationSourceLanguageRaw = ""
     @AppStorage("Reader.translationTargetLanguage") private var translationTargetLanguageRaw = ReaderTranslationLanguage.chineseSimplified.rawValue
 
     @State private var debugConsole = RuntimeDebugConsole.shared
@@ -169,6 +170,11 @@ struct ComicReaderView: View {
         nonmutating set { readerBackgroundRaw = newValue.rawValue }
     }
 
+    private var translationSourceLanguage: ReaderTranslationLanguage? {
+        get { ReaderTranslationLanguage(rawValue: translationSourceLanguageRaw) }
+        nonmutating set { translationSourceLanguageRaw = newValue?.rawValue ?? "" }
+    }
+
     private var translationTargetLanguage: ReaderTranslationLanguage {
         get { ReaderTranslationLanguage(rawValue: translationTargetLanguageRaw) ?? .chineseSimplified }
         nonmutating set { translationTargetLanguageRaw = newValue.rawValue }
@@ -225,6 +231,10 @@ struct ComicReaderView: View {
                     ),
                     keepScreenOn: $keepScreenOn,
                     translationEnabled: $translationEnabled,
+                    translationSourceLanguage: Binding(
+                        get: { translationSourceLanguage },
+                        set: { translationSourceLanguage = $0 }
+                    ),
                     translationTargetLanguage: Binding(
                         get: { translationTargetLanguage },
                         set: { translationTargetLanguage = $0 }
@@ -249,7 +259,6 @@ struct ComicReaderView: View {
             }
             .onChange(of: session.currentPage) { _, _ in
                 session.resolvePagesAroundCurrentPage(using: vm, readerMode: readerMode)
-                session.translatePagesAroundCurrentPage(using: vm, readerMode: readerMode)
                 preloadAroundCurrentPage()
                 scheduleHistorySave()
             }
@@ -267,7 +276,11 @@ struct ComicReaderView: View {
             }
             .onAppear {
                 session.markVisible()
-                session.applyTranslationPreferences(enabled: translationEnabled, targetLanguage: translationTargetLanguage)
+                session.applyTranslationPreferences(
+                    enabled: translationEnabled,
+                    sourceLanguage: translationSourceLanguage,
+                    targetLanguage: translationTargetLanguage
+                )
                 isReaderFocused = true
                 UIApplication.shared.isIdleTimerDisabled = keepScreenOn
                 installKeyboardMonitoring()
@@ -276,12 +289,25 @@ struct ComicReaderView: View {
                 UIApplication.shared.isIdleTimerDisabled = enabled
             }
             .onChange(of: translationEnabled) { _, enabled in
-                session.applyTranslationPreferences(enabled: enabled, targetLanguage: translationTargetLanguage)
-                session.translatePagesAroundCurrentPage(using: vm, readerMode: readerMode)
+                session.applyTranslationPreferences(
+                    enabled: enabled,
+                    sourceLanguage: translationSourceLanguage,
+                    targetLanguage: translationTargetLanguage
+                )
+            }
+            .onChange(of: translationSourceLanguageRaw) { _, _ in
+                session.applyTranslationPreferences(
+                    enabled: translationEnabled,
+                    sourceLanguage: translationSourceLanguage,
+                    targetLanguage: translationTargetLanguage
+                )
             }
             .onChange(of: translationTargetLanguage) { _, language in
-                session.applyTranslationPreferences(enabled: translationEnabled, targetLanguage: language)
-                session.translatePagesAroundCurrentPage(using: vm, readerMode: readerMode)
+                session.applyTranslationPreferences(
+                    enabled: translationEnabled,
+                    sourceLanguage: translationSourceLanguage,
+                    targetLanguage: language
+                )
             }
             .onDisappear {
                 historySaveTask?.cancel()
@@ -397,10 +423,11 @@ struct ComicReaderView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(SwiftUI.Color(red: 0, green: 0, blue: 0))
             .contentShape(Rectangle())
-            .simultaneousGesture(
+            .gesture(
                 SpatialTapGesture().onEnded { value in
                     handleTap(at: value.location, in: geo.size)
-                }
+                },
+                including: .gesture
             )
             .animation(reduceMotion ? .none : .easeInOut(duration: 0.18), value: session.showControls)
         }
@@ -412,7 +439,7 @@ struct ComicReaderView: View {
             readerMode: readerMode,
             reloadNonce: session.reloadNonce,
             animatePageTransitions: animatePageTransitions && !reduceMotion,
-            translationEnabled: translationEnabled && readerMode == .vertical,
+            translationEnabled: translationEnabled,
             translationOverlays: session.translationPageOverlays,
             currentPage: $session.currentPage,
             verticalPageFrames: $session.verticalPageFrames,
@@ -539,6 +566,8 @@ struct ComicReaderView: View {
             isLoadingMore: session.isLoadingMore,
             translationEnabled: translationEnabled,
             translationStatusText: translationStatusText,
+            isTranslatingCurrentPage: session.translationStatus(for: session.currentPage) == .processing,
+            onTranslateCurrentPage: translationEnabled ? { session.translateCurrentPage(using: vm) } : nil,
             readerMode: readerMode,
             animatePageTransitions: animatePageTransitions && !reduceMotion,
             currentPage: $session.currentPage,
@@ -562,7 +591,12 @@ struct ComicReaderView: View {
         if !session.translationUnsupportedReason.isEmpty {
             return session.translationUnsupportedReason
         }
-        switch session.translationStatus(for: session.currentPage) {
+        let currentPage = session.currentPage
+        let status = session.translationStatus(for: currentPage)
+        if status == .ready, session.translationOverlays(for: currentPage).isEmpty {
+            return AppLocalization.text("reader.translation.status.ready_empty", "Translation ready, but no text regions were found")
+        }
+        switch status {
         case .idle:
             return AppLocalization.text("reader.translation.status.idle", "Translation idle")
         case .processing:
@@ -608,8 +642,11 @@ struct ComicReaderView: View {
 
     private func load() async {
         await session.load(using: vm, readerMode: readerMode)
-        session.applyTranslationPreferences(enabled: translationEnabled, targetLanguage: translationTargetLanguage)
-        session.translatePagesAroundCurrentPage(using: vm, readerMode: readerMode)
+        session.applyTranslationPreferences(
+            enabled: translationEnabled,
+            sourceLanguage: translationSourceLanguage,
+            targetLanguage: translationTargetLanguage
+        )
         preloadAroundCurrentPage()
         await persistHistoryNow()
     }

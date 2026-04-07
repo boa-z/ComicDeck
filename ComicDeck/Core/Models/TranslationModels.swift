@@ -10,6 +10,7 @@ public enum ReaderTranslationStatus: String, Codable, Sendable, Hashable {
 }
 
 public enum ReaderTranslationLanguage: String, CaseIterable, Codable, Sendable, Hashable, Identifiable {
+    case japanese = "ja"
     case english = "en"
     case chineseSimplified = "zh-Hans"
     case chineseTraditional = "zh-Hant"
@@ -23,6 +24,8 @@ public enum ReaderTranslationLanguage: String, CaseIterable, Codable, Sendable, 
 
     public var title: String {
         switch self {
+        case .japanese:
+            return "Japanese"
         case .english:
             return "English"
         case .chineseSimplified:

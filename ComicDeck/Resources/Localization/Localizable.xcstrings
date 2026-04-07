@@ -4892,6 +4892,23 @@
         }
       }
     },
+    "reader.translation.action.current_page" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Translate current page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻译当前页"
+          }
+        }
+      }
+    },
     "reader.translation.settings.enabled" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4922,6 +4939,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目标语言"
+          }
+        }
+      }
+    },
+    "reader.translation.settings.source_language" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comic language"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "漫画语言"
+          }
+        }
+      }
+    },
+    "reader.translation.settings.source_language.auto" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto detect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动检测"
           }
         }
       }
@@ -5007,6 +5058,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "翻译已就绪"
+          }
+        }
+      }
+    },
+    "reader.translation.status.ready_empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Translation ready, but no text regions were found"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻译已完成，但未识别到文本区域"
           }
         }
       }

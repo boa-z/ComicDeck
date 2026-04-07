@@ -43,8 +43,8 @@ struct ReaderCanvasView: View {
                     request: shouldLoadPage(at: idx) ? request : nil,
                     nonce: reloadNonce,
                     supportsZoom: true,
-                    translationEnabled: false,
-                    overlays: []
+                    translationEnabled: translationEnabled,
+                    overlays: translationOverlays[idx] ?? []
                 )
                     .tag(idx)
             }
@@ -137,21 +137,37 @@ struct ReaderPageView: View {
     var body: some View {
         ZStack {
             if let request {
+                let overlayCount = overlays.count
+                let canRenderOverlays = translationEnabled && overlayCount > 0
                 if let urlRequest = buildURLRequest(from: request) {
                     Group {
                         if supportsZoom {
-                            ZoomableRemoteImage(request: urlRequest, displayScale: displayScale)
+                            ZoomableRemoteImage(
+                                request: urlRequest,
+                                overlays: canRenderOverlays ? overlays : [],
+                                displayScale: displayScale
+                            )
                         } else {
-                            ZStack {
-                                PlainRemoteImage(request: urlRequest)
-                                if translationEnabled {
-                                    ReaderTranslationOverlayLayer(overlays: overlays)
-                                }
-                            }
+                            PlainRemoteImage(
+                                request: urlRequest,
+                                overlays: canRenderOverlays ? overlays : []
+                            )
                         }
                     }
                     .id("\(pageIndex)-\(nonce)-\(imageRequestKey(request))")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear {
+                        readerDebugLog(
+                            "page render appear: page=\(pageIndex), zoom=\(supportsZoom), translationEnabled=\(translationEnabled), overlays=\(overlayCount), url=\(request.url)",
+                            level: .debug
+                        )
+                    }
+                    .onChange(of: overlayCount) { _, count in
+                        readerDebugLog(
+                            "page overlays updated: page=\(pageIndex), zoom=\(supportsZoom), translationEnabled=\(translationEnabled), overlays=\(count)",
+                            level: .info
+                        )
+                    }
                 } else {
                     VStack(spacing: 6) {
                         Image(systemName: "xmark.octagon")
@@ -176,36 +192,6 @@ struct ReaderPageView: View {
     }
 }
 
-private struct ReaderTranslationOverlayLayer: View {
-    let overlays: [ReaderTranslationOverlay]
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .topLeading) {
-                ForEach(overlays) { overlay in
-                    Text(overlay.text)
-                        .font(.caption2)
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 3)
-                        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .frame(
-                            width: max(overlay.width * geo.size.width, 44),
-                            height: max(overlay.height * geo.size.height, 24),
-                            alignment: .topLeading
-                        )
-                        .position(
-                            x: overlay.x * geo.size.width + max(overlay.width * geo.size.width, 44) * 0.5,
-                            y: overlay.y * geo.size.height + max(overlay.height * geo.size.height, 24) * 0.5
-                        )
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-        .allowsHitTesting(false)
-    }
-}
-
 private struct ReaderPagePlaceholderView: View {
     let pageIndex: Int
 
@@ -224,6 +210,7 @@ private struct ReaderPagePlaceholderView: View {
 
 struct PlainRemoteImage: View {
     let request: URLRequest
+    let overlays: [ReaderTranslationOverlay]
     @State private var uiImage: UIImage?
     @State private var errorText: String?
     @State private var loading = false
@@ -256,7 +243,7 @@ struct PlainRemoteImage: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .task(id: "\(urlRequestKey(request))|\(Int(proxy.size.width.rounded()))x\(Int(proxy.size.height.rounded()))") {
+            .task(id: "\(urlRequestKey(request))|\(Int(proxy.size.width.rounded()))x\(Int(proxy.size.height.rounded()))|\(overlays.count)") {
                 await load(targetSize: proxy.size)
             }
         }
@@ -270,7 +257,7 @@ struct PlainRemoteImage: View {
         uiImage = nil
         do {
             let data = try await ReaderImagePipeline.shared.loadData(for: request)
-            guard let image = ReaderDecodedImageStore.shared.image(
+            guard let baseImage = ReaderDecodedImageStore.shared.image(
                 for: request,
                 data: data,
                 targetSize: targetSize,
@@ -279,7 +266,12 @@ struct PlainRemoteImage: View {
             ) else {
                 throw ReaderImagePipelineError.invalidResponse
             }
+            let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
             uiImage = image
+            readerDebugLog(
+                "plain translated image ready: overlays=\(overlays.count), size=\(Int(image.size.width.rounded()))x\(Int(image.size.height.rounded()))",
+                level: .info
+            )
         } catch {
             errorText = error.localizedDescription
             readerDebugLog("plain image request error: \(error.localizedDescription), url=\(request.url?.absoluteString ?? "")", level: .error)
@@ -289,6 +281,7 @@ struct PlainRemoteImage: View {
 
 struct ZoomableRemoteImage: UIViewRepresentable {
     let request: URLRequest
+    let overlays: [ReaderTranslationOverlay]
     var displayScale: CGFloat = 2.0
 
     func makeCoordinator() -> Coordinator {
@@ -298,12 +291,15 @@ struct ZoomableRemoteImage: UIViewRepresentable {
     func makeUIView(context: Context) -> ZoomingImageScrollView {
         let view = ZoomingImageScrollView()
         context.coordinator.attach(view)
+        view.setOverlays(overlays)
         context.coordinator.load(request)
         return view
     }
 
     func updateUIView(_ uiView: ZoomingImageScrollView, context: Context) {
         context.coordinator.attach(uiView)
+        uiView.setOverlays(overlays)
+        context.coordinator.updateRenderedImageIfNeeded()
         context.coordinator.load(request)
     }
 
@@ -315,6 +311,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
         private weak var view: ZoomingImageScrollView?
         private var loadTask: Task<Void, Never>?
         private var currentKey = ""
+        private var currentRequest: URLRequest?
         private let displayScale: CGFloat
 
         init(displayScale: CGFloat) {
@@ -330,6 +327,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
 
         func load(_ request: URLRequest) {
             let key = urlRequestKey(request)
+            currentRequest = request
             guard key != currentKey else { return }
             currentKey = key
             cancel()
@@ -341,7 +339,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
                     let targetSize = await MainActor.run {
                         self?.view?.bounds.size ?? .zero
                     }
-                    guard let image = ReaderDecodedImageStore.shared.image(
+                    guard let baseImage = ReaderDecodedImageStore.shared.image(
                         for: request,
                         data: data,
                         targetSize: targetSize,
@@ -350,8 +348,13 @@ struct ZoomableRemoteImage: UIViewRepresentable {
                     ) else {
                         throw ReaderImagePipelineError.invalidResponse
                     }
+                    let overlays = await MainActor.run {
+                        self?.view?.currentOverlays ?? []
+                    }
+                    let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
                     await MainActor.run {
-                        self?.view?.setImage(image)
+                        self?.view?.setBaseImage(baseImage)
+                        self?.updateRenderedImageIfNeeded()
                     }
                 } catch {
                     guard !Task.isCancelled else { return }
@@ -369,6 +372,18 @@ struct ZoomableRemoteImage: UIViewRepresentable {
         func cancel() {
             loadTask?.cancel()
             loadTask = nil
+        }
+
+        @MainActor
+        func updateRenderedImageIfNeeded() {
+            guard let view, let baseImage = view.baseImage else { return }
+            let overlays = view.currentOverlays
+            let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
+            view.setImage(image)
+            readerDebugLog(
+                "zoom translated image ready: overlays=\(overlays.count), size=\(Int(image.size.width.rounded()))x\(Int(image.size.height.rounded()))",
+                level: .info
+            )
         }
 
         @objc private func handleDoubleTap(_ recognizer: UITapGestureRecognizer) {
@@ -397,6 +412,8 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     let doubleTapRecognizer = UITapGestureRecognizer()
     private let loadingIndicator = UIActivityIndicatorView(style: .medium)
     private let errorLabel = UILabel()
+    var currentOverlays: [ReaderTranslationOverlay] = []
+    var baseImage: UIImage?
     private var lastBoundsSize: CGSize = .zero
 
     override init(frame: CGRect) {
@@ -468,6 +485,10 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
         contentOffset = .zero
         contentInset = .zero
         recalculateZoomScales(resetToMinimum: true)
+    }
+
+    func setBaseImage(_ image: UIImage) {
+        baseImage = image
     }
 
     func setError(_ text: String) {
@@ -545,6 +566,155 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
         isScrollEnabled = zoomScale > minimumZoomScale + 0.01
         centerImageIfNeeded()
+    }
+
+    func setOverlays(_ overlays: [ReaderTranslationOverlay]) {
+        currentOverlays = overlays
+        readerDebugLog(
+            "zoom translated image payload updated: overlays=\(overlays.count)",
+            level: .info
+        )
+    }
+}
+
+enum ReaderTranslatedImageRenderer {
+    private struct TranslationBlock {
+        let rect: CGRect
+        let text: String
+        let sourceTexts: [String]
+    }
+
+    static func render(_ image: UIImage, overlays: [ReaderTranslationOverlay]) -> UIImage {
+        guard !overlays.isEmpty else { return image }
+        let blocks = mergeOverlaysIntoBlocks(overlays, imageSize: image.size)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = image.scale
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+        let rendered = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+            for block in blocks {
+                let layout = layoutRect(for: block.text, in: block.rect, imageSize: image.size)
+                UIColor.white.withAlphaComponent(0.94).setFill()
+                UIBezierPath(roundedRect: layout.rect, cornerRadius: 8).fill()
+                NSString(string: block.text).draw(in: layout.rect.insetBy(dx: 6, dy: 4), withAttributes: layout.attributes)
+                readerDebugLog(
+                    "translated block layout: sourceRect=\(block.rect), drawnRect=\(layout.rect), font=\(layout.font.pointSize), merged=\(block.sourceTexts.count)",
+                    level: .debug
+                )
+            }
+        }
+        readerDebugLog(
+            "translated image rendered: overlays=\(overlays.count), blocks=\(blocks.count), size=\(Int(rendered.size.width.rounded()))x\(Int(rendered.size.height.rounded()))",
+            level: .info
+        )
+        return rendered
+    }
+
+    private static func mergeOverlaysIntoBlocks(_ overlays: [ReaderTranslationOverlay], imageSize: CGSize) -> [TranslationBlock] {
+        let rects = overlays.map { overlay in
+            (
+                overlay: overlay,
+                rect: CGRect(
+                    x: overlay.x * imageSize.width,
+                    y: overlay.y * imageSize.height,
+                    width: max(overlay.width * imageSize.width, 44),
+                    height: max(overlay.height * imageSize.height, 24)
+                ).integral
+            )
+        }.sorted { lhs, rhs in
+            if abs(lhs.rect.minY - rhs.rect.minY) < 18 {
+                return lhs.rect.minX < rhs.rect.minX
+            }
+            return lhs.rect.minY < rhs.rect.minY
+        }
+
+        var blocks: [TranslationBlock] = []
+        for item in rects {
+            if let last = blocks.last, shouldMerge(item.rect, into: last.rect) {
+                let mergedRect = last.rect.union(item.rect).insetBy(dx: -6, dy: -4)
+                let mergedText = [last.text, item.overlay.text]
+                    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .joined(separator: "\n")
+                let mergedSources = last.sourceTexts + [item.overlay.sourceText]
+                blocks[blocks.count - 1] = TranslationBlock(
+                    rect: clamp(mergedRect.integral, imageSize: imageSize),
+                    text: mergedText,
+                    sourceTexts: mergedSources
+                )
+            } else {
+                blocks.append(
+                    TranslationBlock(
+                        rect: clamp(item.rect.insetBy(dx: -4, dy: -2).integral, imageSize: imageSize),
+                        text: item.overlay.text,
+                        sourceTexts: [item.overlay.sourceText]
+                    )
+                )
+            }
+        }
+        readerDebugLog(
+            "translation blocks merged: overlays=\(overlays.count), blocks=\(blocks.count)",
+            level: .info
+        )
+        return blocks
+    }
+
+    private static func shouldMerge(_ lhs: CGRect, into rhs: CGRect) -> Bool {
+        let verticalGap = max(lhs.minY - rhs.maxY, rhs.minY - lhs.maxY, 0)
+        let horizontalGap = max(lhs.minX - rhs.maxX, rhs.minX - lhs.maxX, 0)
+        let sameRow = abs(lhs.midY - rhs.midY) <= max(lhs.height, rhs.height) * 0.7
+        let overlapsHorizontally = lhs.maxX >= rhs.minX - 16 && rhs.maxX >= lhs.minX - 16
+        let overlapsVertically = lhs.maxY >= rhs.minY - 12 && rhs.maxY >= lhs.minY - 12
+        return (sameRow && horizontalGap <= 36) || (overlapsHorizontally && verticalGap <= 28) || (overlapsVertically && horizontalGap <= 24)
+    }
+
+    private static func layoutRect(for text: String, in originRect: CGRect, imageSize: CGSize) -> (rect: CGRect, attributes: [NSAttributedString.Key: Any], font: UIFont) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .left
+        paragraph.lineBreakMode = .byWordWrapping
+        let maxWidth = min(max(originRect.width * 1.8, 72), max(imageSize.width - originRect.minX - 4, 72))
+        let fontSizes: [CGFloat] = [16, 15, 14, 13, 12, 11, 10]
+
+        for fontSize in fontSizes {
+            let font = UIFont.systemFont(ofSize: fontSize, weight: .medium)
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: UIColor.black,
+                .paragraphStyle: paragraph
+            ]
+            let textRect = NSString(string: text).boundingRect(
+                with: CGSize(width: maxWidth - 12, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: attributes,
+                context: nil
+            )
+            let candidate = CGRect(
+                x: originRect.minX,
+                y: originRect.minY,
+                width: max(originRect.width, ceil(textRect.width) + 12),
+                height: max(originRect.height, ceil(textRect.height) + 8)
+            )
+            let clamped = clamp(candidate.integral, imageSize: imageSize)
+            if clamped.height >= ceil(textRect.height) + 8 {
+                return (clamped, attributes, font)
+            }
+        }
+
+        let font = UIFont.systemFont(ofSize: 10, weight: .medium)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor.black,
+            .paragraphStyle: paragraph
+        ]
+        return (clamp(originRect.integral, imageSize: imageSize), attributes, font)
+    }
+
+    private static func clamp(_ rect: CGRect, imageSize: CGSize) -> CGRect {
+        let width = min(rect.width, imageSize.width)
+        let height = min(rect.height, imageSize.height)
+        let x = min(max(0, rect.minX), max(imageSize.width - width, 0))
+        let y = min(max(0, rect.minY), max(imageSize.height - height, 0))
+        return CGRect(x: x, y: y, width: width, height: height)
     }
 }
 
