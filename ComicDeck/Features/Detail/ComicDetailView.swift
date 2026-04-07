@@ -141,6 +141,7 @@ struct ComicDetailView: View {
                     initialPage: route.initialPage,
                     chapterSequence: route.chapterSequence
                 )
+                .environment(library)
             }
             .navigationDestination(item: $tagRoute) { target in
                 switch target {

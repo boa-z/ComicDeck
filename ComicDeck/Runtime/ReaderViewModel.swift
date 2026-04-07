@@ -39,6 +39,7 @@ final class ReaderViewModel {
     private var sourceStore: SourceStore?
     private var downloadManager: ComicDownloadManager?
     private var sourceRuntime: SourceRuntime?
+    private var readerTranslationService: ReaderTranslationService?
     private let notificationCenter: NotificationCenter
     private var downloadUpdateObserver: NSObjectProtocol?
 
@@ -100,6 +101,9 @@ final class ReaderViewModel {
                     database: core!.database,
                     rootDirectory: baseDir.appendingPathComponent("downloads", isDirectory: true)
                 )
+            }
+            if readerTranslationService == nil {
+                readerTranslationService = ReaderTranslationService(database: core!.database)
             }
             WebLoginCookieStore.restoreCookies()
 
@@ -282,6 +286,11 @@ final class ReaderViewModel {
     func disposeReaderPageRequestSession(_ handle: ReaderPageRequestSessionHandle, item: ComicSummary) async {
         await prepareIfNeeded()
         await requireSourceRuntime().disposeReaderPageRequestSession(handle, item: item)
+    }
+
+    func getReaderTranslationService() async -> ReaderTranslationService? {
+        await prepareIfNeeded()
+        return readerTranslationService
     }
 
     // MARK: - Source Favorites (delegated to engine, not local SQLite)

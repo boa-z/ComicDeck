@@ -460,6 +460,7 @@ struct HomeView: View {
                         .sorted { $0.downloadedAt < $1.downloadedAt }
                         .map { ComicChapter(id: $0.chapterID, title: $0.chapterTitle) }
                 )
+                .environment(library)
             } label: {
                 HStack(spacing: AppSpacing.md) {
                     CoverArtworkView(urlString: item.coverURL, width: 72, height: 102)

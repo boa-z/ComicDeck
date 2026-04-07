@@ -39,6 +39,7 @@ final class ReaderSession {
     private enum ReaderLoadConstants {
         static let initialBatchRadius = 1
         static let nearbyBatchRadius = 4
+        static let translationBatchRadius = 1
     }
 
     let item: ComicSummary
@@ -68,11 +69,20 @@ final class ReaderSession {
     var verticalScrollTarget: Int? = nil
     var verticalTrackingSuspendedUntil: Date = .distantPast
 
+    var translationEnabled = false
+    var translationTargetLanguage: ReaderTranslationLanguage = .chineseSimplified
+    var translationPageStates: [Int: ReaderTranslationStatus] = [:]
+    var translationPageOverlays: [Int: [ReaderTranslationOverlay]] = [:]
+    var translationErrorText: [Int: String] = [:]
+    var translationUnsupportedReason = ""
+
     private var readingSessionStartedAt: Date?
     private var loadGeneration = 0
     private var pendingPageIndexes: Set<Int> = []
     private var readerPageRequestSessionHandle: ReaderPageRequestSessionHandle?
     private var backgroundLoadTask: Task<Void, Never>?
+    private var translationGeneration = 0
+    private var translationTasks: [Int: Task<Void, Never>] = [:]
 
     init(
         item: ComicSummary,
@@ -261,6 +271,59 @@ final class ReaderSession {
         queueBackgroundResolution(using: vm, readerMode: readerMode)
     }
 
+    func applyTranslationPreferences(enabled: Bool, targetLanguage: ReaderTranslationLanguage) {
+        let languageChanged = translationTargetLanguage != targetLanguage
+        translationEnabled = enabled
+        translationTargetLanguage = targetLanguage
+        if languageChanged {
+            translationPageStates.removeAll()
+            translationPageOverlays.removeAll()
+            translationErrorText.removeAll()
+        }
+    }
+
+    func translationStatus(for pageIndex: Int) -> ReaderTranslationStatus {
+        translationPageStates[pageIndex] ?? .idle
+    }
+
+    func translationOverlays(for pageIndex: Int) -> [ReaderTranslationOverlay] {
+        translationPageOverlays[pageIndex] ?? []
+    }
+
+    func translationError(for pageIndex: Int) -> String? {
+        translationErrorText[pageIndex]
+    }
+
+    func translatePagesAroundCurrentPage(using vm: ReaderViewModel, readerMode: ReaderMode) {
+        guard translationEnabled else { return }
+        guard readerMode == .vertical else {
+            translationUnsupportedReason = AppLocalization.text(
+                "reader.translation.unsupported.horizontal",
+                "Page translation overlay is currently available only in vertical mode."
+            )
+            return
+        }
+        translationUnsupportedReason = ""
+        translationGeneration += 1
+        let generation = translationGeneration
+        let indexes = prioritizedIndexes(around: currentPage, radius: ReaderLoadConstants.translationBatchRadius)
+        for index in indexes {
+            guard imageRequests.indices.contains(index), let request = imageRequests[index] else { continue }
+            guard translationStatus(for: index) != .processing else { continue }
+            translationTasks[index]?.cancel()
+            translationPageStates[index] = .processing
+            translationTasks[index] = Task { [weak self] in
+                await self?.translatePage(
+                    at: index,
+                    request: request,
+                    using: vm,
+                    targetLanguage: translationTargetLanguage,
+                    generation: generation
+                )
+            }
+        }
+    }
+
     func nextPage(readerMode: ReaderMode, animatePageTransitions: Bool, reduceMotion: Bool) {
         guard totalPages > 0 else { return }
         if readerMode == .vertical {
@@ -305,6 +368,9 @@ final class ReaderSession {
 
     func reloadCurrentPage() {
         reloadNonce += 1
+        translationPageStates[currentPage] = .idle
+        translationPageOverlays[currentPage] = []
+        translationErrorText[currentPage] = nil
     }
 
     func jumpToVerticalPage(_ target: Int, readerMode: ReaderMode) {
@@ -373,8 +439,11 @@ final class ReaderSession {
 
     func close(using vm: ReaderViewModel) async {
         loadGeneration += 1
+        translationGeneration += 1
         backgroundLoadTask?.cancel()
         backgroundLoadTask = nil
+        translationTasks.values.forEach { $0.cancel() }
+        translationTasks.removeAll()
         await disposeReaderPageRequestSession(using: vm)
         pendingPageIndexes.removeAll()
         isLoadingMore = false
@@ -394,6 +463,12 @@ final class ReaderSession {
         verticalPageFrames = [:]
         verticalScrollTarget = nil
         currentPage = 0
+        translationTasks.values.forEach { $0.cancel() }
+        translationTasks.removeAll()
+        translationPageStates.removeAll()
+        translationPageOverlays.removeAll()
+        translationErrorText.removeAll()
+        translationUnsupportedReason = ""
     }
 
     private func applyLoadedRequests(_ requests: [ImageRequest]) {
@@ -478,6 +553,55 @@ final class ReaderSession {
                 resolvedPageCount += 1
             }
             imageRequests[entry.index] = entry.request
+        }
+    }
+
+    private func translatePage(
+        at pageIndex: Int,
+        request: ImageRequest,
+        using vm: ReaderViewModel,
+        targetLanguage: ReaderTranslationLanguage,
+        generation: Int
+    ) async {
+        guard generation == translationGeneration, !Task.isCancelled else { return }
+        guard let service = await vm.getReaderTranslationService() else {
+            if generation == translationGeneration {
+                translationPageStates[pageIndex] = .unsupported
+                translationErrorText[pageIndex] = AppLocalization.text(
+                    "reader.translation.error.service_unavailable",
+                    "Translation service is unavailable."
+                )
+            }
+            return
+        }
+
+        do {
+            let record = try await service.translatePage(
+                item: item,
+                chapterID: chapterID,
+                pageIndex: pageIndex,
+                request: request,
+                targetLanguage: targetLanguage
+            )
+            guard generation == translationGeneration, !Task.isCancelled else { return }
+            translationPageStates[pageIndex] = record.status
+            translationPageOverlays[pageIndex] = record.overlays
+            translationErrorText[pageIndex] = record.errorText
+        } catch {
+            guard generation == translationGeneration, !Task.isCancelled else { return }
+            let message = error.localizedDescription
+            translationPageStates[pageIndex] = .failed
+            translationPageOverlays[pageIndex] = []
+            translationErrorText[pageIndex] = message
+            await service.saveFailure(
+                item: item,
+                chapterID: chapterID,
+                pageIndex: pageIndex,
+                request: request,
+                targetLanguage: targetLanguage,
+                errorText: message
+            )
+            readerDebugLog("translation failed: page=\(pageIndex), error=\(message)", level: .warn)
         }
     }
 

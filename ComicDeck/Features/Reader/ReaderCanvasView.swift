@@ -7,6 +7,8 @@ struct ReaderCanvasView: View {
     let readerMode: ReaderMode
     let reloadNonce: Int
     let animatePageTransitions: Bool
+    let translationEnabled: Bool
+    let translationOverlays: [Int: [ReaderTranslationOverlay]]
     @Binding var currentPage: Int
     @Binding var verticalPageFrames: [Int: CGRect]
     @Binding var verticalViewportHeight: CGFloat
@@ -40,7 +42,9 @@ struct ReaderCanvasView: View {
                     pageIndex: idx,
                     request: shouldLoadPage(at: idx) ? request : nil,
                     nonce: reloadNonce,
-                    supportsZoom: true
+                    supportsZoom: true,
+                    translationEnabled: false,
+                    overlays: []
                 )
                     .tag(idx)
             }
@@ -60,7 +64,9 @@ struct ReaderCanvasView: View {
                             pageIndex: idx,
                             request: shouldLoadPage(at: idx) ? request : nil,
                             nonce: reloadNonce,
-                            supportsZoom: false
+                            supportsZoom: false,
+                            translationEnabled: translationEnabled,
+                            overlays: translationOverlays[idx] ?? []
                         )
                             .id(idx)
                             .background(
@@ -124,6 +130,8 @@ struct ReaderPageView: View {
     let request: ImageRequest?
     let nonce: Int
     let supportsZoom: Bool
+    let translationEnabled: Bool
+    let overlays: [ReaderTranslationOverlay]
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
@@ -134,7 +142,12 @@ struct ReaderPageView: View {
                         if supportsZoom {
                             ZoomableRemoteImage(request: urlRequest, displayScale: displayScale)
                         } else {
-                            PlainRemoteImage(request: urlRequest)
+                            ZStack {
+                                PlainRemoteImage(request: urlRequest)
+                                if translationEnabled {
+                                    ReaderTranslationOverlayLayer(overlays: overlays)
+                                }
+                            }
                         }
                     }
                     .id("\(pageIndex)-\(nonce)-\(imageRequestKey(request))")
@@ -160,6 +173,36 @@ struct ReaderPageView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
+    }
+}
+
+private struct ReaderTranslationOverlayLayer: View {
+    let overlays: [ReaderTranslationOverlay]
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .topLeading) {
+                ForEach(overlays) { overlay in
+                    Text(overlay.text)
+                        .font(.caption2)
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 3)
+                        .background(Color.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .frame(
+                            width: max(overlay.width * geo.size.width, 44),
+                            height: max(overlay.height * geo.size.height, 24),
+                            alignment: .topLeading
+                        )
+                        .position(
+                            x: overlay.x * geo.size.width + max(overlay.width * geo.size.width, 44) * 0.5,
+                            y: overlay.y * geo.size.height + max(overlay.height * geo.size.height, 24) * 0.5
+                        )
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .allowsHitTesting(false)
     }
 }
 

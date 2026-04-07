@@ -733,6 +733,7 @@ private final class DownloadedChapterFilesScreenModel {
 @MainActor
 struct DownloadedChapterFilesView: View {
     @Bindable var vm: ReaderViewModel
+    @Environment(LibraryViewModel.self) private var library
     private let item: DownloadedChapterDescriptor
     @State private var model = DownloadedChapterFilesScreenModel()
     @State private var sharedExportURL: ShareFile?
@@ -806,6 +807,7 @@ struct DownloadedChapterFilesView: View {
                             localChapterDirectory: item.directoryPath,
                             chapterSequence: item.chapterSequence
                         )
+                        .environment(library)
                     }
                 }
 

@@ -228,6 +228,7 @@ struct LibraryHomeView: View {
                                 localChapterDirectory: item.directoryPath,
                                 chapterSequence: offlineChapterSequence(for: item)
                             )
+                            .environment(library)
                         } label: {
                             libraryPreviewCard(
                                 title: item.comicTitle,

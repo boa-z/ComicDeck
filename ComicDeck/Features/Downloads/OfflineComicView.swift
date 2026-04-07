@@ -148,6 +148,7 @@ struct OfflineComicView: View {
                             localChapterDirectory: latestReadableChapter.directoryPath,
                             chapterSequence: chapterSequence
                         )
+                        .environment(library)
                     } label: {
                         Label("Resume Offline", systemImage: "play.fill")
                             .frame(maxWidth: .infinity)
@@ -237,6 +238,7 @@ struct OfflineComicView: View {
                             localChapterDirectory: item.directoryPath,
                             chapterSequence: chapterSequence
                         )
+                        .environment(library)
                     } label: {
                         OfflineReadableChapterRow(
                             item: item,

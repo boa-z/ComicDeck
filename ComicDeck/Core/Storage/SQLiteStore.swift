@@ -613,6 +613,99 @@ public actor SQLiteStore {
         }
     }
 
+    // MARK: - Reader Translation
+
+    public func getReaderPageTranslation(
+        sourceKey: String,
+        comicID: String,
+        chapterID: String,
+        pageIndex: Int,
+        targetLanguage: ReaderTranslationLanguage,
+        imageRequestKey: String
+    ) throws -> ReaderPageTranslationRecord? {
+        try read { db in
+            guard let row = try Row.fetchOne(
+                db,
+                sql: """
+                SELECT id, source_key, comic_id, chapter_id, page_index, target_language, provider, status,
+                       image_request_key, image_fingerprint, overlays_json, error_text, updated_at
+                FROM reader_page_translations
+                WHERE source_key = ? AND comic_id = ? AND chapter_id = ? AND page_index = ?
+                  AND target_language = ? AND image_request_key = ?
+                LIMIT 1;
+                """,
+                arguments: [sourceKey, comicID, chapterID, pageIndex, targetLanguage.rawValue, imageRequestKey]
+            ) else {
+                return nil
+            }
+            return try Self.readerPageTranslationRecord(from: row)
+        }
+    }
+
+    public func upsertReaderPageTranslation(
+        sourceKey: String,
+        comicID: String,
+        chapterID: String,
+        pageIndex: Int,
+        targetLanguage: ReaderTranslationLanguage,
+        provider: String,
+        status: ReaderTranslationStatus,
+        imageRequestKey: String,
+        imageFingerprint: String,
+        overlays: [ReaderTranslationOverlay],
+        errorText: String?
+    ) throws -> ReaderPageTranslationRecord {
+        try write { db in
+            let now = Int64(Date().timeIntervalSince1970)
+            try db.execute(
+                sql: """
+                INSERT INTO reader_page_translations (
+                    source_key, comic_id, chapter_id, page_index, target_language, provider, status,
+                    image_request_key, image_fingerprint, overlays_json, error_text, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(source_key, comic_id, chapter_id, page_index, target_language, image_request_key)
+                DO UPDATE SET
+                    provider = excluded.provider,
+                    status = excluded.status,
+                    image_fingerprint = excluded.image_fingerprint,
+                    overlays_json = excluded.overlays_json,
+                    error_text = excluded.error_text,
+                    updated_at = excluded.updated_at;
+                """,
+                arguments: [
+                    sourceKey,
+                    comicID,
+                    chapterID,
+                    pageIndex,
+                    targetLanguage.rawValue,
+                    provider,
+                    status.rawValue,
+                    imageRequestKey,
+                    imageFingerprint,
+                    Self.encodeReaderTranslationOverlaysJSON(overlays),
+                    Self.normalizedOptionalString(errorText),
+                    now,
+                ]
+            )
+            guard let row = try Row.fetchOne(
+                db,
+                sql: """
+                SELECT id, source_key, comic_id, chapter_id, page_index, target_language, provider, status,
+                       image_request_key, image_fingerprint, overlays_json, error_text, updated_at
+                FROM reader_page_translations
+                WHERE source_key = ? AND comic_id = ? AND chapter_id = ? AND page_index = ?
+                  AND target_language = ? AND image_request_key = ?
+                LIMIT 1;
+                """,
+                arguments: [sourceKey, comicID, chapterID, pageIndex, targetLanguage.rawValue, imageRequestKey]
+            ) else {
+                throw SQLiteStoreError.execute("reader page translation not found after upsert")
+            }
+            return try Self.readerPageTranslationRecord(from: row)
+        }
+    }
+
     // MARK: - Downloads
 
     public func upsertDownloadChapter(
@@ -1146,6 +1239,32 @@ public actor SQLiteStore {
             try db.execute(sql: "CREATE INDEX IF NOT EXISTS idx_offline_chapters_updated_at ON offline_chapters(updated_at DESC);")
             try db.execute(sql: "CREATE INDEX IF NOT EXISTS idx_tracker_bindings_lookup ON tracker_bindings(provider, source_key, comic_id);")
             try db.execute(sql: "CREATE INDEX IF NOT EXISTS idx_tracker_sync_events_state ON tracker_sync_events(state, updated_at DESC);")
+        }
+
+        migrator.registerMigration("v5_reader_page_translations") { db in
+            try db.execute(
+                sql: """
+                CREATE TABLE IF NOT EXISTS reader_page_translations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source_key TEXT NOT NULL,
+                    comic_id TEXT NOT NULL,
+                    chapter_id TEXT NOT NULL,
+                    page_index INTEGER NOT NULL,
+                    target_language TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    image_request_key TEXT NOT NULL,
+                    image_fingerprint TEXT NOT NULL,
+                    overlays_json TEXT,
+                    error_text TEXT,
+                    updated_at INTEGER NOT NULL,
+                    UNIQUE (source_key, comic_id, chapter_id, page_index, target_language, image_request_key)
+                );
+                """
+            )
+            try db.execute(
+                sql: "CREATE INDEX IF NOT EXISTS idx_reader_page_translations_lookup ON reader_page_translations(source_key, comic_id, chapter_id, target_language, updated_at DESC);"
+            )
         }
 
         return migrator
@@ -1689,6 +1808,52 @@ public actor SQLiteStore {
             lastVerifiedAt: row["last_verified_at"],
             updatedAt: row["updated_at"]
         )
+    }
+
+    private static func readerPageTranslationRecord(from row: Row) throws -> ReaderPageTranslationRecord {
+        let targetLanguageRaw: String = row["target_language"]
+        let statusRaw: String = row["status"]
+        guard let targetLanguage = ReaderTranslationLanguage(rawValue: targetLanguageRaw),
+              let status = ReaderTranslationStatus(rawValue: statusRaw)
+        else {
+            throw SQLiteStoreError.execute("invalid reader translation row")
+        }
+        let overlaysJSON: String? = row["overlays_json"]
+        return ReaderPageTranslationRecord(
+            id: row["id"],
+            sourceKey: row["source_key"],
+            comicID: row["comic_id"],
+            chapterID: row["chapter_id"],
+            pageIndex: row["page_index"],
+            targetLanguage: targetLanguage,
+            provider: row["provider"],
+            status: status,
+            imageRequestKey: row["image_request_key"],
+            imageFingerprint: row["image_fingerprint"],
+            overlays: decodeReaderTranslationOverlaysJSON(overlaysJSON),
+            errorText: row["error_text"],
+            updatedAt: row["updated_at"]
+        )
+    }
+
+    private static func encodeReaderTranslationOverlaysJSON(_ overlays: [ReaderTranslationOverlay]) -> String? {
+        guard !overlays.isEmpty,
+              let data = try? JSONEncoder().encode(overlays),
+              let text = String(data: data, encoding: .utf8)
+        else {
+            return nil
+        }
+        return text
+    }
+
+    private static func decodeReaderTranslationOverlaysJSON(_ text: String?) -> [ReaderTranslationOverlay] {
+        guard let text,
+              let data = text.data(using: .utf8),
+              let overlays = try? JSONDecoder().decode([ReaderTranslationOverlay].self, from: data)
+        else {
+            return []
+        }
+        return overlays
     }
 
     private static func encodeTagsJSON(_ tags: [String]) -> String? {

@@ -9,6 +9,8 @@ struct ReaderOverlayView: View {
     let totalPages: Int
     let resolvedPageCount: Int
     let isLoadingMore: Bool
+    let translationEnabled: Bool
+    let translationStatusText: String?
     let readerMode: ReaderMode
     let animatePageTransitions: Bool
     @Binding var currentPage: Int
@@ -234,6 +236,12 @@ struct ReaderOverlayView: View {
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(.white.opacity(0.7))
                     }
+                    if translationEnabled, let translationStatusText, !translationStatusText.isEmpty {
+                        Text("• \(translationStatusText)")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.72))
+                            .lineLimit(1)
+                    }
                     Spacer()
                     if isLoadingMore {
                         ProgressView()
@@ -309,6 +317,8 @@ struct ReaderSettingsSheet: View {
     @Binding var animatePageTransitions: Bool
     @Binding var readerBackgroundMode: ReaderBackgroundMode
     @Binding var keepScreenOn: Bool
+    @Binding var translationEnabled: Bool
+    @Binding var translationTargetLanguage: ReaderTranslationLanguage
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -346,6 +356,16 @@ struct ReaderSettingsSheet: View {
                             Text(item.title).tag(item)
                         }
                     }
+                }
+
+                Section(AppLocalization.text("reader.translation.settings.section", "Page Translation")) {
+                    Toggle(AppLocalization.text("reader.translation.settings.enabled", "Enable page translation"), isOn: $translationEnabled)
+                    Picker(AppLocalization.text("reader.translation.settings.language", "Target language"), selection: $translationTargetLanguage) {
+                        ForEach(ReaderTranslationLanguage.allCases) { item in
+                            Text(item.title).tag(item)
+                        }
+                    }
+                    .disabled(!translationEnabled)
                 }
             }
             .navigationTitle(AppLocalization.text("reader.settings.navigation_title", "Reader Settings"))
