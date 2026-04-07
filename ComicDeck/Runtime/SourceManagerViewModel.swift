@@ -9,11 +9,9 @@ private enum SMVMLogLevel: String {
 }
 
 @inline(__always)
-private func smDebugLog(_ message: String, level: SMVMLogLevel = .debug) {
-    guard RuntimeDebugConsole.isEnabled else { return }
+private nonisolated func smDebugLog(_ message: String, level: SMVMLogLevel = .debug) {
     let line = "[SourceRuntime][\(level.rawValue)][SourceMgr] \(message)"
-    NSLog("%@", line)
-    RuntimeDebugConsole.shared.append(line)
+    RuntimeDebugConsole.appendRuntimeLine(line)
 }
 
 /// Manages source installation, uninstallation, updates, and the remote source index.
@@ -85,6 +83,8 @@ final class SourceManagerViewModel {
     private let configService = SourceConfigService()
     private(set) var sourceStore: SourceStore?
     private(set) var sourceEngines: [String: ComicSourceScriptEngine] = [:]
+    private var sourceEngineOrder: [String] = []
+    private let maxCachedSourceEngines = 4
 
     // MARK: - Init
 
@@ -119,7 +119,7 @@ final class SourceManagerViewModel {
 
     // MARK: - Remote Index
 
-    func refreshRemoteSources() async {
+    func refreshRemoteSources(forceRefresh: Bool = false) async {
         refreshingIndex = true
         defer { refreshingIndex = false }
         guard !indexURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -129,7 +129,7 @@ final class SourceManagerViewModel {
             return
         }
         do {
-            let list = try await configService.fetchIndex(from: indexURL)
+            let list = try await configService.fetchIndex(from: indexURL, forceRefresh: forceRefresh)
             remoteSources = list
             recalculateSourceUpdates()
             lastRemoteRefreshAt = Date()
@@ -265,18 +265,20 @@ final class SourceManagerViewModel {
 
     func getOrCreateEngine(sourceKey: String, script: String) throws -> ComicSourceScriptEngine {
         if let existing = sourceEngines[sourceKey] {
+            touchEngineKey(sourceKey)
             existing.setStorageKey(sourceKey)
             return existing
         }
         let engine = try sourceRepository.createSourceEngine(script: script)
         engine.setStorageKey(sourceKey)
-        sourceEngines[sourceKey] = engine
+        cacheEngine(engine, for: sourceKey)
         smDebugLog("engine created: key=\(sourceKey)", level: .info)
         return engine
     }
 
     func getOrCreateEngineAsync(sourceKey: String, script: String, runEngine: @escaping (@escaping () throws -> ComicSourceScriptEngine) async throws -> ComicSourceScriptEngine) async throws -> ComicSourceScriptEngine {
         if let existing = sourceEngines[sourceKey] {
+            touchEngineKey(sourceKey)
             existing.setStorageKey(sourceKey)
             return existing
         }
@@ -285,7 +287,7 @@ final class SourceManagerViewModel {
             try repo.createSourceEngine(script: script)
         }
         engine.setStorageKey(sourceKey)
-        sourceEngines[sourceKey] = engine
+        cacheEngine(engine, for: sourceKey)
         return engine
     }
 
@@ -303,6 +305,25 @@ final class SourceManagerViewModel {
 
     func invalidateEngine(for key: String) {
         sourceEngines[key] = nil
+        sourceEngineOrder.removeAll { $0 == key }
+    }
+
+    private func cacheEngine(_ engine: ComicSourceScriptEngine, for key: String) {
+        sourceEngines[key] = engine
+        touchEngineKey(key)
+        trimEnginesIfNeeded()
+    }
+
+    private func touchEngineKey(_ key: String) {
+        sourceEngineOrder.removeAll { $0 == key }
+        sourceEngineOrder.append(key)
+    }
+
+    private func trimEnginesIfNeeded() {
+        while sourceEngineOrder.count > maxCachedSourceEngines {
+            let victim = sourceEngineOrder.removeFirst()
+            sourceEngines[victim] = nil
+        }
     }
 
     // MARK: - Private Helpers

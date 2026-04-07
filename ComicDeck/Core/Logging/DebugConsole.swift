@@ -11,13 +11,15 @@ final class RuntimeDebugConsole {
 
     private let maxLines = 300
     @ObservationIgnored
-    private let fileQueue = DispatchQueue(label: "boa.ComicDeck.RuntimeDebugConsole.file")
+    private let writeQueue = DispatchQueue(label: "boa.ComicDeck.RuntimeDebugConsole.write")
     @ObservationIgnored
     private let formatter: DateFormatter = {
         let df = DateFormatter()
         df.dateFormat = "HH:mm:ss.SSS"
         return df
     }()
+    @ObservationIgnored
+    private var bufferedLines: [String] = []
     @ObservationIgnored
     private var logsDirectoryURL: URL {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
@@ -33,29 +35,23 @@ final class RuntimeDebugConsole {
         UserDefaults.standard.bool(forKey: enabledKey)
     }
 
+    @inline(__always)
+    nonisolated static func appendRuntimeLine(_ line: String) {
+        guard isEnabled else { return }
+        NSLog("%@", line)
+        shared.append(line)
+    }
+
     func append(_ message: String) {
         guard Self.isEnabled else { return }
-        let timestamp = formatter.string(from: Date())
-        let line = "[\(timestamp)] \(message)"
-        fileQueue.async { [weak self] in
-            self?.appendToFile(line)
-        }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            self.lines.append(line)
-            if self.lines.count > self.maxLines {
-                self.lines.removeFirst(self.lines.count - self.maxLines)
-            }
+        writeQueue.async { [weak self] in
+            self?.appendSerialized(message)
         }
     }
 
     func clear() {
-        fileQueue.async { [weak self] in
-            self?.truncateLogFile()
-        }
-        Task { @MainActor in
-            lines.removeAll(keepingCapacity: true)
-            lastWriteError = nil
+        writeQueue.async { [weak self] in
+            self?.clearSerialized()
         }
     }
 
@@ -88,6 +84,29 @@ final class RuntimeDebugConsole {
         return exportURL
     }
 
+    private func appendSerialized(_ message: String) {
+        let timestamp = formatter.string(from: Date())
+        let line = "[\(timestamp)] \(message)"
+        bufferedLines.append(line)
+        if bufferedLines.count > maxLines {
+            bufferedLines.removeFirst(bufferedLines.count - maxLines)
+        }
+        appendToFile(line)
+        let snapshot = bufferedLines
+        Task { @MainActor [weak self] in
+            self?.lines = snapshot
+        }
+    }
+
+    private func clearSerialized() {
+        bufferedLines.removeAll(keepingCapacity: true)
+        truncateLogFile()
+        Task { @MainActor [weak self] in
+            self?.lines.removeAll(keepingCapacity: true)
+            self?.lastWriteError = nil
+        }
+    }
+
     private func appendToFile(_ line: String) {
         do {
             try ensureLogsDirectory()
@@ -115,6 +134,9 @@ final class RuntimeDebugConsole {
             try ensureLogsDirectory()
             if FileManager.default.fileExists(atPath: activeLogFileURL.path) {
                 try Data().write(to: activeLogFileURL, options: .atomic)
+            }
+            Task { @MainActor [weak self] in
+                self?.lastWriteError = nil
             }
         } catch {
             Task { @MainActor [weak self] in

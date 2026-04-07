@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		C1A0001A1111111100000001 /* ComicDeckWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = C1A000011111111100000001 /* ComicDeckWidgets.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C3D000031111111100000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = C3D000021111111100000001 /* GRDB */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +71,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C3D000031111111100000001 /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -133,6 +135,7 @@
 			);
 			name = ComicDeck;
 			packageProductDependencies = (
+				C3D000021111111100000001 /* GRDB */,
 			);
 			productName = ComicDeck;
 			productReference = C0E56FC72F5B32F900702D5B /* ComicDeck.app */;
@@ -214,6 +217,9 @@
 			);
 			mainGroup = C0E56FBE2F5B32F900702D5B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C3D000011111111100000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C0E56FC82F5B32F900702D5B /* Products */;
 			projectDirPath = "";
@@ -345,7 +351,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = ABCDEFGHIJ;
+				DEVELOPMENT_TEAM = YOUR_DEVELOPMENT_TEAM;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -407,7 +413,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = ABCDEFGHIJ;
+				DEVELOPMENT_TEAM = YOUR_DEVELOPMENT_TEAM;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -433,7 +439,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ABCDEFGHIJ;
+				DEVELOPMENT_TEAM = YOUR_DEVELOPMENT_TEAM;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_FILE_ACCESS_MOVIES_FOLDER = readwrite;
@@ -492,7 +498,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ABCDEFGHIJ;
+				DEVELOPMENT_TEAM = YOUR_DEVELOPMENT_TEAM;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_FILE_ACCESS_MOVIES_FOLDER = readwrite;
@@ -550,7 +556,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ABCDEFGHIJ;
+				DEVELOPMENT_TEAM = YOUR_DEVELOPMENT_TEAM;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_FILE_ACCESS_MOVIES_FOLDER = readwrite;
@@ -596,7 +602,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ABCDEFGHIJ;
+				DEVELOPMENT_TEAM = YOUR_DEVELOPMENT_TEAM;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
 				ENABLE_FILE_ACCESS_MOVIES_FOLDER = readwrite;
@@ -642,7 +648,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ABCDEFGHIJ;
+				DEVELOPMENT_TEAM = YOUR_DEVELOPMENT_TEAM;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -669,7 +675,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ABCDEFGHIJ;
+				DEVELOPMENT_TEAM = YOUR_DEVELOPMENT_TEAM;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -690,6 +696,25 @@
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C3D000011111111100000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C3D000021111111100000001 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C3D000011111111100000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCConfigurationList section */
 		C0E56FC22F5B32F900702D5B /* Build configuration list for PBXProject "ComicDeck" */ = {

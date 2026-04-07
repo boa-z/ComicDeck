@@ -11,10 +11,18 @@ final class FavoritesScreenModel {
     var selectedFolderID: String?
     var currentPage = 1
     var sourceError = ""
-    var cachedFoldersBySource: [String: FavoriteFolderListing] = [:]
-    var cachedFavoritesByScope: [String: [ComicSummary]] = [:]
-    var cachedNextTokenByPage: [String: String] = [:]
-    var cursorModeByScope: [String: Bool] = [:]
+    private let foldersCache = TimedValueCache<FavoriteFolderListing>(
+        policy: ValueCachePolicy(ttl: 5 * 60, maxEntries: 24)
+    )
+    private let favoritesCache = TimedValueCache<[ComicSummary]>(
+        policy: ValueCachePolicy(ttl: 90, maxEntries: 48)
+    )
+    private let nextTokenCache = TimedValueCache<String>(
+        policy: ValueCachePolicy(ttl: 10 * 60, maxEntries: 96)
+    )
+    private let cursorModeCache = TimedValueCache<Bool>(
+        policy: ValueCachePolicy(ttl: 10 * 60, maxEntries: 48)
+    )
     var showPagePicker = false
     var pageInput = ""
     var refreshTask: Task<Void, Never>?
@@ -97,9 +105,9 @@ final class FavoritesScreenModel {
     private func removeFromVisibleFavorites(_ item: ComicSummary) {
         sourceFavorites.removeAll { $0.id == item.id && $0.sourceKey == item.sourceKey }
         let scopeKey = cacheScopeKey(sourceKey: selectedSourceKey, folderID: selectedFolderID, page: currentPage)
-        if var cached = cachedFavoritesByScope[scopeKey] {
+        if var cached = favoritesCache.value(forKey: scopeKey) {
             cached.removeAll { $0.id == item.id && $0.sourceKey == item.sourceKey }
-            cachedFavoritesByScope[scopeKey] = cached
+            favoritesCache.setValue(cached, forKey: scopeKey)
         }
     }
 
@@ -136,9 +144,9 @@ final class FavoritesScreenModel {
     func jumpToPage(_ targetPage: Int, vm: ReaderViewModel) async {
         guard targetPage > 0 else { return }
         let scopeKey = cursorScopeKey(sourceKey: selectedSourceKey, folderID: selectedFolderID)
-        if cursorModeByScope[scopeKey] == true && targetPage > 1 {
+        if cursorModeCache.value(forKey: scopeKey) == true && targetPage > 1 {
             let targetCacheKey = cacheScopeKey(sourceKey: selectedSourceKey, folderID: selectedFolderID, page: targetPage)
-            if cachedFavoritesByScope[targetCacheKey] == nil {
+            if !favoritesCache.containsValue(forKey: targetCacheKey) {
                 sourceError = "This source uses cursor pagination. Please load pages sequentially."
                 return
             }
@@ -164,10 +172,10 @@ final class FavoritesScreenModel {
         let generation = refreshGeneration
 
         if !forceNetwork {
-            if let cachedListing = cachedFoldersBySource[sourceKey] {
+            if let cachedListing = foldersCache.value(forKey: sourceKey) {
                 sourceFolders = cachedListing.folders
             }
-            if let cachedFavorites = cachedFavoritesByScope[scopeKey] {
+            if let cachedFavorites = favoritesCache.value(forKey: scopeKey) {
                 sourceFavorites = cachedFavorites
                 sourceError = ""
                 return
@@ -196,9 +204,9 @@ final class FavoritesScreenModel {
             let effectiveCursorScope = cursorScopeKey(sourceKey: sourceKey, folderID: effectiveFolderID)
             let previousPageToken: String? = {
                 guard page > 1 else { return nil }
-                return cachedNextTokenByPage[nextTokenCacheKey(sourceKey: sourceKey, folderID: effectiveFolderID, page: page - 1)]
+                return nextTokenCache.value(forKey: nextTokenCacheKey(sourceKey: sourceKey, folderID: effectiveFolderID, page: page - 1))
             }()
-            let cursorMode = cursorModeByScope[effectiveCursorScope] == true
+            let cursorMode = cursorModeCache.value(forKey: effectiveCursorScope) == true
             if cursorMode && page > 1 && previousPageToken == nil {
                 sourceFavorites = []
                 sourceError = "This source uses cursor pagination. Please load pages sequentially."
@@ -214,7 +222,7 @@ final class FavoritesScreenModel {
             guard !Task.isCancelled, refreshGeneration == generation else { return }
 
             sourceFolders = folders
-            cachedFoldersBySource[sourceKey] = favoriteListing
+            foldersCache.setValue(favoriteListing, forKey: sourceKey)
             if effectiveFolderID != selectedFolderID {
                 selectedFolderID = effectiveFolderID
                 if folderID != nil && effectiveFolderID == nil {
@@ -223,15 +231,15 @@ final class FavoritesScreenModel {
             }
             sourceFavorites = pageResult.comics
             let updatedScopeKey = cacheScopeKey(sourceKey: sourceKey, folderID: effectiveFolderID, page: page)
-            cachedFavoritesByScope[updatedScopeKey] = pageResult.comics
+            favoritesCache.setValue(pageResult.comics, forKey: updatedScopeKey)
             if let next = pageResult.nextToken, !next.isEmpty {
-                cachedNextTokenByPage[nextTokenCacheKey(sourceKey: sourceKey, folderID: effectiveFolderID, page: page)] = next
+                nextTokenCache.setValue(next, forKey: nextTokenCacheKey(sourceKey: sourceKey, folderID: effectiveFolderID, page: page))
             }
             let detectedCursorMode = (pageResult.maxPage == nil) && (pageResult.nextToken != nil || page > 1)
             if detectedCursorMode {
-                cursorModeByScope[effectiveCursorScope] = true
+                cursorModeCache.setValue(true, forKey: effectiveCursorScope)
             } else if page == 1 {
-                cursorModeByScope[effectiveCursorScope] = false
+                cursorModeCache.setValue(false, forKey: effectiveCursorScope)
             }
         } catch {
             guard !Task.isCancelled, refreshGeneration == generation else { return }
@@ -269,6 +277,9 @@ final class FavoritesScreenModel {
             }
         }
 
+        favoritesCache.removeAll { $0.hasPrefix("\(selectedSourceKey)|") }
+        nextTokenCache.removeAll { $0.hasPrefix("\(selectedSourceKey)|") }
+        cursorModeCache.removeAll { $0.hasPrefix("\(selectedSourceKey)|") }
         clearSelection()
         setSelecting(false)
         requestRefresh(vm: vm, forceNetwork: true)

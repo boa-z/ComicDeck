@@ -61,10 +61,14 @@ struct ReaderOverlayView: View {
         )
     }
 
+    @State private var isSliderDragging = false
+    @State private var sliderDragValue: Double = 0
+
     private var sliderValue: Binding<Double> {
         Binding(
             get: {
                 guard totalPages > 0 else { return 0 }
+                if isSliderDragging { return sliderDragValue }
                 if readerMode == .rtl {
                     return Double(max(totalPages - 1 - currentPage, 0))
                 }
@@ -72,16 +76,22 @@ struct ReaderOverlayView: View {
             },
             set: { newValue in
                 guard totalPages > 0 else { return }
-                let clamped = max(0, min(safePageUpperBound, Int(newValue.rounded())))
-                if readerMode == .vertical {
-                    onJumpToVerticalPage(clamped)
-                } else if readerMode == .rtl {
-                    currentPage = safePageUpperBound - clamped
-                } else {
-                    currentPage = clamped
-                }
+                sliderDragValue = newValue
+                if isSliderDragging { return }
+                applySliderValue(newValue)
             }
         )
+    }
+
+    private func applySliderValue(_ newValue: Double) {
+        let clamped = max(0, min(safePageUpperBound, Int(newValue.rounded())))
+        if readerMode == .vertical {
+            onJumpToVerticalPage(clamped)
+        } else if readerMode == .rtl {
+            currentPage = safePageUpperBound - clamped
+        } else {
+            currentPage = clamped
+        }
     }
 
     private var canRenderSlider: Bool {
@@ -171,7 +181,12 @@ struct ReaderOverlayView: View {
                             value: sliderValue,
                             in: 0...Double(safePageUpperBound),
                             step: 1
-                        )
+                        ) { editing in
+                            isSliderDragging = editing
+                            if !editing {
+                                applySliderValue(sliderDragValue)
+                            }
+                        }
                         .id("reader-progress-\(totalPages)")
                         .tint(.white)
                         .animation(animatePageTransitions ? .easeInOut(duration: 0.18) : nil, value: currentPage)
@@ -294,6 +309,7 @@ struct ReaderSettingsSheet: View {
     @Binding var animatePageTransitions: Bool
     @Binding var readerBackgroundMode: ReaderBackgroundMode
     @Binding var keepScreenOn: Bool
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -333,6 +349,13 @@ struct ReaderSettingsSheet: View {
                 }
             }
             .navigationTitle(AppLocalization.text("reader.settings.navigation_title", "Reader Settings"))
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(AppLocalization.text("common.done", "Done")) {
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }

@@ -120,6 +120,7 @@ struct ReaderPageView: View {
     let request: ImageRequest?
     let nonce: Int
     let supportsZoom: Bool
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         ZStack {
@@ -127,7 +128,7 @@ struct ReaderPageView: View {
                 if let urlRequest = buildURLRequest(from: request) {
                     Group {
                         if supportsZoom {
-                            ZoomableRemoteImage(request: urlRequest)
+                            ZoomableRemoteImage(request: urlRequest, displayScale: displayScale)
                         } else {
                             PlainRemoteImage(request: urlRequest)
                         }
@@ -179,6 +180,7 @@ struct PlainRemoteImage: View {
     @State private var uiImage: UIImage?
     @State private var errorText: String?
     @State private var loading = false
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         GeometryReader { proxy in
@@ -225,7 +227,7 @@ struct PlainRemoteImage: View {
                 for: request,
                 data: data,
                 targetSize: targetSize,
-                scale: UIScreen.main.scale,
+                scale: displayScale,
                 allowOriginalSize: false
             ) else {
                 throw ReaderImagePipelineError.invalidResponse
@@ -240,9 +242,10 @@ struct PlainRemoteImage: View {
 
 struct ZoomableRemoteImage: UIViewRepresentable {
     let request: URLRequest
+    var displayScale: CGFloat = 2.0
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(displayScale: displayScale)
     }
 
     func makeUIView(context: Context) -> ZoomingImageScrollView {
@@ -265,6 +268,12 @@ struct ZoomableRemoteImage: UIViewRepresentable {
         private weak var view: ZoomingImageScrollView?
         private var loadTask: Task<Void, Never>?
         private var currentKey = ""
+        private let displayScale: CGFloat
+
+        init(displayScale: CGFloat) {
+            self.displayScale = displayScale
+            super.init()
+        }
 
         func attach(_ view: ZoomingImageScrollView) {
             guard self.view !== view else { return }
@@ -278,29 +287,29 @@ struct ZoomableRemoteImage: UIViewRepresentable {
             currentKey = key
             cancel()
             view?.setLoading(true)
-            loadTask = Task {
+            loadTask = Task { [weak self, displayScale] in
                 do {
                     let data = try await ReaderImagePipeline.shared.loadData(for: request)
                     guard !Task.isCancelled else { return }
                     let targetSize = await MainActor.run {
-                        self.view?.bounds.size ?? .zero
+                        self?.view?.bounds.size ?? .zero
                     }
                     guard let image = ReaderDecodedImageStore.shared.image(
                         for: request,
                         data: data,
                         targetSize: targetSize,
-                        scale: UIScreen.main.scale,
+                        scale: displayScale,
                         allowOriginalSize: true
                     ) else {
                         throw ReaderImagePipelineError.invalidResponse
                     }
                     await MainActor.run {
-                        self.view?.setImage(image)
+                        self?.view?.setImage(image)
                     }
                 } catch {
                     guard !Task.isCancelled else { return }
                     await MainActor.run {
-                        self.view?.setError("Failed to load image")
+                        self?.view?.setError("Failed to load image")
                     }
                     readerDebugLog(
                         "image request error: \(error.localizedDescription), url=\(request.url?.absoluteString ?? "")",

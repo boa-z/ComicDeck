@@ -26,11 +26,9 @@ struct LoginWebView: UIViewRepresentable {
         webDebugLog("updateUIView called, currentURL=\(uiView.url?.absoluteString ?? "nil")")
     }
     
-    private func webDebugLog(_ message: String) {
-        guard RuntimeDebugConsole.isEnabled else { return }
+    private nonisolated func webDebugLog(_ message: String) {
         let line = "[SourceRuntime][DEBUG][LoginWebView] \(message)"
-        NSLog("%@", line)
-        RuntimeDebugConsole.shared.append(line)
+        RuntimeDebugConsole.appendRuntimeLine(line)
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
@@ -42,11 +40,9 @@ struct LoginWebView: UIViewRepresentable {
             self.onPageChanged = onPageChanged
         }
 
-        private func webDebugLog(_ message: String) {
-            guard RuntimeDebugConsole.isEnabled else { return }
+        private nonisolated func webDebugLog(_ message: String) {
             let line = "[SourceRuntime][DEBUG][LoginWebView.Coordinator] \(message)"
-            NSLog("%@", line)
-            RuntimeDebugConsole.shared.append(line)
+            RuntimeDebugConsole.appendRuntimeLine(line)
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {

@@ -45,7 +45,7 @@ struct SourceRepositoryView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    Task { await sourceManager.refreshRemoteSources() }
+                    Task { await sourceManager.refreshRemoteSources(forceRefresh: true) }
                 } label: {
                     if sourceManager.refreshingIndex {
                         ProgressView()
@@ -58,7 +58,7 @@ struct SourceRepositoryView: View {
             }
         }
         .refreshable {
-            await sourceManager.refreshRemoteSources()
+            await sourceManager.refreshRemoteSources(forceRefresh: true)
         }
     }
 
@@ -79,7 +79,7 @@ struct SourceRepositoryView: View {
                     .buttonStyle(.bordered)
 
                     Button {
-                        Task { await sourceManager.refreshRemoteSources() }
+                        Task { await sourceManager.refreshRemoteSources(forceRefresh: true) }
                     } label: {
                         if sourceManager.refreshingIndex {
                             Label("Refreshing...", systemImage: "arrow.clockwise")

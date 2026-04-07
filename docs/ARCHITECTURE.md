@@ -134,6 +134,13 @@ Responsibilities:
 - provide logging and networking primitives
 - expose bootstrap and localization helpers
 
+Persistence implementation:
+
+- `CoreBootstrap` opens the app database at `database/source_runtime.sqlite3`
+- `SQLiteStore` remains the stable actor facade used by Runtime and Features
+- `Core/Storage` now uses GRDB internally for SQLite access, configuration, and versioned migrations
+- migrations preserve the existing table names and data contracts used by favorites, history, downloads, offline indexing, and tracker sync
+
 Important subfolders:
 
 - `Core/Models`

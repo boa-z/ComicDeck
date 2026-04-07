@@ -12,11 +12,9 @@ private enum RuntimeLogLevel: String {
 }
 
 @inline(__always)
-private func jsDebugLog(_ message: String, level: RuntimeLogLevel = .debug) {
-    guard RuntimeDebugConsole.isEnabled else { return }
+private nonisolated func jsDebugLog(_ message: String, level: RuntimeLogLevel = .debug) {
     let line = "[SourceRuntime][\(level.rawValue)][JS] \(message)"
-    NSLog("%@", line)
-    RuntimeDebugConsole.shared.append(line)
+    RuntimeDebugConsole.appendRuntimeLine(line)
 }
 
 @inline(__always)
@@ -3515,18 +3513,18 @@ nonisolated final class ComicSourceScriptEngine {
         let bridgeUI = JSValue(newObjectIn: ctx)!
         let showMessage: @convention(block) (String) -> Void = { message in
             if RuntimeDebugConsole.isEnabled {
-                RuntimeDebugConsole.shared.append("[SourceRuntime][INFO][UI] \(message)")
+                RuntimeDebugConsole.appendRuntimeLine("[SourceRuntime][INFO][UI] \(message)")
             }
         }
         let showDialog: @convention(block) (String, String, [String]) -> Int = { title, content, labels in
             if RuntimeDebugConsole.isEnabled {
-                RuntimeDebugConsole.shared.append("[SourceRuntime][INFO][UI] dialog: \(title) | \(content)")
+                RuntimeDebugConsole.appendRuntimeLine("[SourceRuntime][INFO][UI] dialog: \(title) | \(content)")
             }
             return BridgeUIRuntime.showDialog(title: title, message: content, actions: labels)
         }
         let showInputDialog: @convention(block) (String) -> String = { title in
             if RuntimeDebugConsole.isEnabled {
-                RuntimeDebugConsole.shared.append("[SourceRuntime][INFO][UI] input dialog requested: \(title)")
+                RuntimeDebugConsole.appendRuntimeLine("[SourceRuntime][INFO][UI] input dialog requested: \(title)")
             }
             return BridgeUIRuntime.showInputDialog(title: title) ?? ""
         }

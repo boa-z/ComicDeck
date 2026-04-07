@@ -9,11 +9,9 @@ private enum LibVMLogLevel: String {
 }
 
 @inline(__always)
-private func libDebugLog(_ message: String, level: LibVMLogLevel = .debug) {
-    guard RuntimeDebugConsole.isEnabled else { return }
+private nonisolated func libDebugLog(_ message: String, level: LibVMLogLevel = .debug) {
     let line = "[SourceRuntime][\(level.rawValue)][LibraryVM] \(message)"
-    NSLog("%@", line)
-    RuntimeDebugConsole.shared.append(line)
+    RuntimeDebugConsole.appendRuntimeLine(line)
 }
 
 @MainActor

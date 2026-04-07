@@ -10,20 +10,25 @@ enum OfflineChapterLoadError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingDirectory:
-            return "Offline chapter files are missing."
+            return AppLocalization.text("reader.error.missing_directory", "Offline chapter files are missing.")
         case .noImagesFound:
-            return "No offline pages were found in this chapter."
+            return AppLocalization.text("reader.error.no_images", "No offline pages were found in this chapter.")
         case let .incompleteDownload(found, expected):
-            return "Offline chapter is incomplete: \(found) of \(expected) pages available."
+            return AppLocalization.format(
+                "reader.error.incomplete_download",
+                "Offline chapter is incomplete: %lld of %lld pages available.",
+                Int64(found),
+                Int64(expected)
+            )
         }
     }
 
     var recoverySuggestion: String? {
         switch self {
         case .missingDirectory, .noImagesFound:
-            return "Re-download this chapter before opening it offline."
+            return AppLocalization.text("reader.error.redownload_suggestion", "Re-download this chapter before opening it offline.")
         case .incompleteDownload:
-            return "Delete the broken download and download the chapter again."
+            return AppLocalization.text("reader.error.delete_redownload_suggestion", "Delete the broken download and download the chapter again.")
         }
     }
 }
@@ -129,7 +134,9 @@ final class ReaderSession {
 
         do {
             if let localChapterDirectory {
-                let localRequests = try loadLocalImageRequests(from: localChapterDirectory)
+                let localRequests = try await Task.detached(priority: .userInitiated) {
+                    try Self.scanLocalImages(from: localChapterDirectory)
+                }.value
                 guard generation == loadGeneration, !Task.isCancelled else { return }
                 applyLoadedRequests(localRequests)
                 currentPage = preferredInitialPageIndex(total: totalPages, readerMode: readerMode)
@@ -242,7 +249,7 @@ final class ReaderSession {
             sourceKey: item.sourceKey,
             comicID: item.id,
             chapterID: chapter.id
-        )?.directoryPath
+        ).flatMap { $0.integrityStatus == .complete ? $0 : nil }?.directoryPath
         initialPage = 1
         syncCurrentChapterIndex()
         await load(using: vm, readerMode: readerMode)
@@ -440,11 +447,13 @@ final class ReaderSession {
         guard generation == loadGeneration, !Task.isCancelled else { return }
         guard let handle = readerPageRequestSessionHandle else { return }
 
-        let unresolved = Array(Set(indexes))
-            .filter { imageRequests.indices.contains($0) }
-            .filter { imageRequests[$0] == nil }
-            .filter { !pendingPageIndexes.contains($0) }
-            .sorted()
+        var seen = Set<Int>()
+        let unresolved = indexes.filter { idx in
+            imageRequests.indices.contains(idx)
+                && imageRequests[idx] == nil
+                && !pendingPageIndexes.contains(idx)
+                && seen.insert(idx).inserted
+        }
         guard !unresolved.isEmpty else { return }
 
         pendingPageIndexes.formUnion(unresolved)
@@ -516,7 +525,7 @@ final class ReaderSession {
         return totalPages - 1
     }
 
-    private func loadLocalImageRequests(from directoryPath: String) throws -> [ImageRequest] {
+    private nonisolated static func scanLocalImages(from directoryPath: String) throws -> [ImageRequest] {
         let url = URL(fileURLWithPath: directoryPath, isDirectory: true)
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: directoryPath, isDirectory: &isDirectory), isDirectory.boolValue else {

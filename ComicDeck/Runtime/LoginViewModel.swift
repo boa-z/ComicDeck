@@ -9,11 +9,9 @@ private enum LoginVMLogLevel: String {
 }
 
 @inline(__always)
-private func loginDebugLog(_ message: String, level: LoginVMLogLevel = .debug) {
-    guard RuntimeDebugConsole.isEnabled else { return }
+private nonisolated func loginDebugLog(_ message: String, level: LoginVMLogLevel = .debug) {
     let line = "[SourceRuntime][\(level.rawValue)][LoginVM] \(message)"
-    NSLog("%@", line)
-    RuntimeDebugConsole.shared.append(line)
+    RuntimeDebugConsole.appendRuntimeLine(line)
 }
 
 /// Manages source login state (web login, account login, cookie login).
@@ -267,11 +265,14 @@ final class LoginViewModel {
         let sourceKey = activeLoginSourceKey.isEmpty
             ? (sourceManagerViewModel?.selectedSourceKey ?? "")
             : activeLoginSourceKey
-        guard let source = sourceManagerViewModel?.installedSource(for: sourceKey),
-              let engine = sourceManagerViewModel?.sourceEngines[source.key]
-        else { return }
         Task {
+            guard let sourceStore,
+                  let sourceManagerViewModel,
+                  let source = sourceManagerViewModel.installedSource(for: sourceKey)
+            else { return }
             do {
+                let installedScript = try await sourceStore.readScript(fileName: source.scriptFileName)
+                let engine = try sourceManagerViewModel.getOrCreateEngine(sourceKey: source.key, script: installedScript)
                 let ok = try await self.runEngine {
                     try engine.checkWebLoginStatus(url: url, title: title)
                 }

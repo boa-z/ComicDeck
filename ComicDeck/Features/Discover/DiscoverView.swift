@@ -58,6 +58,7 @@ private enum DiscoverMode: CaseIterable {
 @MainActor
 struct ExploreView: View {
     @Bindable var vm: ReaderViewModel
+    @Environment(LibraryViewModel.self) private var library
     @State private var model = ExploreScreenModel()
     @State private var route: CategoryNavigationTarget?
 
@@ -108,10 +109,13 @@ struct ExploreView: View {
             switch target {
             case let .category(sourceKey, item):
                 CategoryComicsPageView(vm: vm, sourceKey: sourceKey, item: item)
+                    .environment(library)
             case let .ranking(sourceKey):
                 CategoryRankingPageView(vm: vm, sourceKey: sourceKey, initialProfile: .empty)
+                    .environment(library)
             case let .search(sourceKey, keyword):
                 SourceScopedSearchView(vm: vm, sourceKey: sourceKey, initialKeyword: keyword)
+                    .environment(library)
             }
         }
         .task {
@@ -146,6 +150,7 @@ struct ExploreView: View {
                                 guard !keyword.isEmpty else { return }
                                 route = .search(sourceKey: sourceKey, keyword: keyword)
                             }
+                            .environment(library)
                         } label: {
                             SearchResultCard(item: item)
                         }
@@ -166,6 +171,7 @@ struct ExploreView: View {
                                     guard !keyword.isEmpty else { return }
                                     route = .search(sourceKey: sourceKey, keyword: keyword)
                                 }
+                                .environment(library)
                             } label: {
                                 SearchResultCard(item: item)
                             }
@@ -189,6 +195,7 @@ struct ExploreView: View {
                                         guard !keyword.isEmpty else { return }
                                         route = .search(sourceKey: sourceKey, keyword: keyword)
                                     }
+                                    .environment(library)
                                 } label: {
                                     SearchResultCard(item: item)
                                 }
@@ -205,6 +212,7 @@ struct ExploreView: View {
                                         guard !keyword.isEmpty else { return }
                                         route = .search(sourceKey: sourceKey, keyword: keyword)
                                     }
+                                    .environment(library)
                                 } label: {
                                     SearchResultCard(item: item)
                                 }
@@ -273,6 +281,7 @@ struct ExploreView: View {
 @MainActor
 struct CategoryView: View {
     @Bindable var vm: ReaderViewModel
+    @Environment(LibraryViewModel.self) private var library
     @State private var model = CategoryScreenModel()
     @State private var navTarget: CategoryNavigationTarget?
 
@@ -344,10 +353,13 @@ struct CategoryView: View {
             switch target {
             case let .category(sourceKey, item):
                 CategoryComicsPageView(vm: vm, sourceKey: sourceKey, item: item)
+                    .environment(library)
             case let .ranking(sourceKey):
                 CategoryRankingPageView(vm: vm, sourceKey: sourceKey, initialProfile: model.rankingProfile)
+                    .environment(library)
             case let .search(sourceKey, keyword):
                 SourceScopedSearchView(vm: vm, sourceKey: sourceKey, initialKeyword: keyword)
+                    .environment(library)
             }
         }
         .task {
@@ -403,6 +415,7 @@ enum CategoryNavigationTarget: Hashable, Identifiable {
 @MainActor
 struct CategoryComicsPageView: View {
     @Bindable var vm: ReaderViewModel
+    @Environment(LibraryViewModel.self) private var library
     let sourceKey: String
     let item: CategoryItemData
 
@@ -444,10 +457,13 @@ struct CategoryComicsPageView: View {
             switch target {
             case let .search(sourceKey, keyword):
                 SourceScopedSearchView(vm: vm, sourceKey: sourceKey, initialKeyword: keyword)
+                    .environment(library)
             case let .category(sourceKey, item):
                 CategoryComicsPageView(vm: vm, sourceKey: sourceKey, item: item)
+                    .environment(library)
             case let .ranking(sourceKey):
                 CategoryRankingPageView(vm: vm, sourceKey: sourceKey, initialProfile: .empty)
+                    .environment(library)
             }
         }
         .task {
@@ -617,6 +633,7 @@ struct CategoryComicsPageView: View {
                 guard !keyword.isEmpty else { return }
                 navTarget = .search(sourceKey: source, keyword: keyword)
             }
+            .environment(library)
         } label: {
             label()
         }
@@ -627,6 +644,7 @@ struct CategoryComicsPageView: View {
 @MainActor
 struct CategoryRankingPageView: View {
     @Bindable var vm: ReaderViewModel
+    @Environment(LibraryViewModel.self) private var library
     let sourceKey: String
     let initialProfile: CategoryRankingProfile
 
@@ -668,10 +686,13 @@ struct CategoryRankingPageView: View {
             switch target {
             case let .search(sourceKey, keyword):
                 SourceScopedSearchView(vm: vm, sourceKey: sourceKey, initialKeyword: keyword)
+                    .environment(library)
             case let .category(sourceKey, item):
                 CategoryComicsPageView(vm: vm, sourceKey: sourceKey, item: item)
+                    .environment(library)
             case let .ranking(sourceKey):
                 CategoryRankingPageView(vm: vm, sourceKey: sourceKey, initialProfile: .empty)
+                    .environment(library)
             }
         }
         .task {
@@ -836,6 +857,7 @@ struct CategoryRankingPageView: View {
                 guard !keyword.isEmpty else { return }
                 navTarget = .search(sourceKey: source, keyword: keyword)
             }
+            .environment(library)
         } label: {
             label()
         }

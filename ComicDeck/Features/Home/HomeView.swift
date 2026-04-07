@@ -454,7 +454,11 @@ struct HomeView: View {
                     ),
                     chapterID: item.chapterID,
                     chapterTitle: item.chapterTitle,
-                    localChapterDirectory: item.directoryPath
+                    localChapterDirectory: item.directoryPath,
+                    chapterSequence: library.offlineChapters
+                        .filter { $0.sourceKey == item.sourceKey && $0.comicID == item.comicID && $0.integrityStatus == .complete }
+                        .sorted { $0.downloadedAt < $1.downloadedAt }
+                        .map { ComicChapter(id: $0.chapterID, title: $0.chapterTitle) }
                 )
             } label: {
                 HStack(spacing: AppSpacing.md) {

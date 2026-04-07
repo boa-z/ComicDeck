@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import CryptoKit
 
 enum ReaderLogLevel: String {
     case debug = "DEBUG"
@@ -10,11 +9,9 @@ enum ReaderLogLevel: String {
 }
 
 @inline(__always)
-func readerDebugLog(_ message: String, level: ReaderLogLevel = .debug) {
-    guard RuntimeDebugConsole.isEnabled else { return }
+nonisolated func readerDebugLog(_ message: String, level: ReaderLogLevel = .debug) {
     let line = "[SourceRuntime][\(level.rawValue)][Reader] \(message)"
-    NSLog("%@", line)
-    RuntimeDebugConsole.shared.append(line)
+    RuntimeDebugConsole.appendRuntimeLine(line)
 }
 
 enum ReaderMode: String, CaseIterable, Identifiable {
@@ -404,13 +401,22 @@ struct ComicReaderView: View {
             chapterNavigationTask?.cancel()
             chapterNavigationTask = nil
             prefetcher.cancel()
-            Task {
+            UIApplication.shared.isIdleTimerDisabled = false
+
+            let app = UIApplication.shared
+            var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+            bgTaskID = app.beginBackgroundTask(withName: "ReaderCleanup") {
+                app.endBackgroundTask(bgTaskID)
+                bgTaskID = .invalid
+            }
+            Task { @MainActor in
                 await ReaderImagePipeline.shared.cancelPrefetchSession()
                 await session.close(using: vm)
                 await persistHistoryNow()
                 session.finishReadingSession(using: library)
+                app.endBackgroundTask(bgTaskID)
+                bgTaskID = .invalid
             }
-            UIApplication.shared.isIdleTimerDisabled = false
         }
     }
 
@@ -602,6 +608,7 @@ struct ComicReaderView: View {
     }
 }
 
+@MainActor
 private final class ReaderImagePrefetcher {
     static let shared = ReaderImagePrefetcher()
 

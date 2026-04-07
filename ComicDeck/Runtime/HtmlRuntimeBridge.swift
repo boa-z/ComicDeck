@@ -8,11 +8,9 @@ private enum HtmlBridgeLogLevel: String {
 }
 
 @inline(__always)
-private func htmlBridgeLog(_ message: String, level: HtmlBridgeLogLevel = .debug) {
-    guard RuntimeDebugConsole.isEnabled else { return }
+private nonisolated func htmlBridgeLog(_ message: String, level: HtmlBridgeLogLevel = .debug) {
     let line = "[SourceRuntime][\(level.rawValue)][HtmlBridge] \(message)"
-    NSLog("%@", line)
-    RuntimeDebugConsole.shared.append(line)
+    RuntimeDebugConsole.appendRuntimeLine(line)
 }
 
 nonisolated final class HtmlRuntimeBridge {

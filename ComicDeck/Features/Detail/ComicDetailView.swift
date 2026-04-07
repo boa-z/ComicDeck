@@ -146,10 +146,13 @@ struct ComicDetailView: View {
                 switch target {
                 case let .category(sourceKey, item):
                     CategoryComicsPageView(vm: vm, sourceKey: sourceKey, item: item)
+                        .environment(library)
                 case let .ranking(sourceKey):
                     CategoryRankingPageView(vm: vm, sourceKey: sourceKey, initialProfile: .empty)
+                        .environment(library)
                 case let .search(sourceKey, keyword):
                     SourceScopedSearchView(vm: vm, sourceKey: sourceKey, initialKeyword: keyword)
+                        .environment(library)
                 }
             }
             .confirmationDialog(

@@ -53,11 +53,9 @@ struct MainView: View {
         nonmutating set { appAppearanceRaw = newValue.rawValue }
     }
 
-    private func appDebugLog(_ message: String) {
-        guard RuntimeDebugConsole.isEnabled else { return }
+    private nonisolated func appDebugLog(_ message: String) {
         let line = "[SourceRuntime][DEBUG][MainView] \(message)"
-        NSLog("%@", line)
-        RuntimeDebugConsole.shared.append(line)
+        RuntimeDebugConsole.appendRuntimeLine(line)
     }
 
     var body: some View {

@@ -9,11 +9,9 @@ enum VMLogLevel: String {
 }
 
 @inline(__always)
-func vmDebugLog(_ message: String, level: VMLogLevel = .debug) {
-    guard RuntimeDebugConsole.isEnabled else { return }
+nonisolated func vmDebugLog(_ message: String, level: VMLogLevel = .debug) {
     let line = "[SourceRuntime][\(level.rawValue)][VM] \(message)"
-    NSLog("%@", line)
-    RuntimeDebugConsole.shared.append(line)
+    RuntimeDebugConsole.appendRuntimeLine(line)
 }
 
 /// Central coordinator ViewModel. Owns infrastructure (core, stores, queues)
