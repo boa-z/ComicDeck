@@ -188,7 +188,7 @@
     "Authorizing..." : {
 
     },
-    "Auto-load repository on open" : {
+    "Auto-load source index on open" : {
 
     },
     "Back" : {
@@ -4848,7 +4848,7 @@
     "Refresh Remote Backups" : {
 
     },
-    "Refresh source repository" : {
+    "Refresh source index" : {
 
     },
     "Refreshing..." : {
@@ -4872,7 +4872,7 @@
     "Remote File Name" : {
 
     },
-    "Remote sources stay idle until you explicitly load them." : {
+    "Remote sources stay idle until you explicitly load your source index." : {
 
     },
     "Remove" : {
@@ -5013,10 +5013,10 @@
     "Search methods: %@" : {
 
     },
-    "Search repository sources" : {
+    "Search Settings" : {
 
     },
-    "Search Settings" : {
+    "Search source index" : {
 
     },
     "search.action.apply_filters" : {
@@ -5805,6 +5805,9 @@
 
     },
     "Source (%@)" : {
+
+    },
+    "Source Index" : {
 
     },
     "Source Search Features" : {
@@ -6769,7 +6772,7 @@
     "Test Connection" : {
 
     },
-    "The repository index refreshes automatically when you open Sources." : {
+    "The configured source index refreshes automatically when you open Sources." : {
 
     },
     "This action cannot be undone." : {
@@ -6925,9 +6928,6 @@
 
     },
     "Use an existing WebDAV directory. Restore from a specific remote backup or keep using the configured latest backup file. Offline files and active download queue are not uploaded." : {
-
-    },
-    "Use Official Index" : {
 
     },
     "Use Source" : {

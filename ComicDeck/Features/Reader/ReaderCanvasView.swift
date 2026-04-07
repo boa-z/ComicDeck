@@ -12,6 +12,10 @@ struct ReaderCanvasView: View {
     @Binding var verticalViewportHeight: CGFloat
     @Binding var verticalScrollTarget: Int?
     @Binding var verticalTrackingSuspendedUntil: Date
+    let onLeftArrow: () -> Void
+    let onRightArrow: () -> Void
+    let onUpArrow: (() -> Void)?
+    let onDownArrow: (() -> Void)?
     let onUpdateCurrentPageFromVerticalLayout: () -> Void
 
     private let horizontalLoadRadius = 1

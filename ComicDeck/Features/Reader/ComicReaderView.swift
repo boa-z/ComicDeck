@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import GameController
 
 enum ReaderLogLevel: String {
     case debug = "DEBUG"
@@ -115,6 +116,8 @@ struct ComicReaderView: View {
     @State private var showSettings = false
     @State private var historySaveTask: Task<Void, Never>? = nil
     @FocusState private var isReaderFocused: Bool
+    @State private var keyboardDidConnectObserver: NSObjectProtocol?
+    @State private var keyboardDidDisconnectObserver: NSObjectProtocol?
 
     private let prefetcher = ReaderImagePrefetcher.shared
     @State private var readerLoadTask: Task<Void, Never>? = nil
@@ -186,238 +189,346 @@ struct ComicReaderView: View {
     }
 
     var body: some View {
+        baseReaderView
+    }
+
+    private var baseReaderView: some View {
+        readerBody
+            .navigationBarBackButtonHidden(!session.loading)
+            .toolbar(.hidden, for: .tabBar)
+            .statusBarHidden(!session.showControls)
+            .focusable(true)
+            .focused($isReaderFocused)
+            .sheet(isPresented: $showSettings) {
+                ReaderSettingsSheet(
+                    mode: Binding(
+                        get: { readerMode },
+                        set: { readerMode = $0 }
+                    ),
+                    invertTapZones: $invertTapZones,
+                    preloadDistance: $preloadDistance,
+                    tapZonePreset: Binding(
+                        get: { tapZonePreset },
+                        set: { tapZonePreset = $0 }
+                    ),
+                    animatePageTransitions: $animatePageTransitions,
+                    readerBackgroundMode: Binding(
+                        get: { readerBackgroundMode },
+                        set: { readerBackgroundMode = $0 }
+                    ),
+                    keepScreenOn: $keepScreenOn
+                )
+                .presentationDetents([.medium])
+            }
+            .onChange(of: showSettings) { _, isPresented in
+                if !isPresented {
+                    isReaderFocused = true
+                }
+            }
+            .onChange(of: readerMode) { oldMode, mode in
+                guard session.totalPages > 0 else { return }
+                let displayed = session.displayedPageIndex(readerMode: oldMode)
+                let oneBased = max(1, min(session.totalPages, displayed))
+                let ltrIndex = min(session.totalPages - 1, oneBased - 1)
+                session.currentPage = mode == .rtl ? max(0, session.totalPages - 1 - ltrIndex) : ltrIndex
+                if mode == .vertical {
+                    session.verticalScrollTarget = session.currentPage
+                }
+            }
+            .onChange(of: session.currentPage) { _, _ in
+                session.resolvePagesAroundCurrentPage(using: vm, readerMode: readerMode)
+                preloadAroundCurrentPage()
+                scheduleHistorySave()
+            }
+            .task {
+                prefetchGeneration = await ReaderImagePipeline.shared.beginPrefetchSession()
+                lastPrefetchedPage = session.currentPage
+                readerLoadTask?.cancel()
+                readerLoadTask = Task {
+                    await load()
+                }
+                chapterSequenceTask?.cancel()
+                chapterSequenceTask = Task {
+                    await session.loadChapterSequenceIfNeeded(using: vm)
+                }
+            }
+            .onAppear {
+                session.markVisible()
+                isReaderFocused = true
+                UIApplication.shared.isIdleTimerDisabled = keepScreenOn
+                installKeyboardMonitoring()
+            }
+            .onChange(of: keepScreenOn) { _, enabled in
+                UIApplication.shared.isIdleTimerDisabled = enabled
+            }
+            .onDisappear {
+                historySaveTask?.cancel()
+                historySaveTask = nil
+                readerLoadTask?.cancel()
+                readerLoadTask = nil
+                chapterSequenceTask?.cancel()
+                chapterSequenceTask = nil
+                chapterNavigationTask?.cancel()
+                chapterNavigationTask = nil
+                prefetcher.cancel()
+                UIApplication.shared.isIdleTimerDisabled = false
+                uninstallKeyboardMonitoring()
+
+                let app = UIApplication.shared
+                var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+                bgTaskID = app.beginBackgroundTask(withName: "ReaderCleanup") {
+                    app.endBackgroundTask(bgTaskID)
+                    bgTaskID = .invalid
+                }
+                Task { @MainActor in
+                    await ReaderImagePipeline.shared.cancelPrefetchSession()
+                    await session.close(using: vm)
+                    await persistHistoryNow()
+                    session.finishReadingSession(using: library)
+                    app.endBackgroundTask(bgTaskID)
+                    bgTaskID = .invalid
+                }
+            }
+    }
+
+    private var readerBody: some View {
         ZStack {
             resolvedReaderBackground.ignoresSafeArea()
+            readerContent
+        }
+    }
 
-            if session.loading && !session.canRenderReader {
-                VStack(spacing: 10) {
-                    ProgressView(value: session.loadingProgress, total: 1)
-                        .progressViewStyle(.linear)
-                        .tint(.white)
-                        .padding(.horizontal, 28)
-                    Text(session.loadingMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.white.opacity(0.9))
-                    if RuntimeDebugConsole.isEnabled {
-                        DebugLogPanel(lines: Array(debugConsole.lines.suffix(20)))
-                            .padding(.horizontal, 14)
-                    }
-                }
-            } else if !session.errorText.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: isOfflineReading ? "externaldrive.badge.exclamationmark" : "wifi.exclamationmark")
-                        .font(.system(size: 28))
-                        .foregroundStyle(isOfflineReading ? .orange : .red)
-                    Text(session.errorText).foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                    if isOfflineReading {
-                        Text(AppLocalization.text("reader.error.offline_mode", "Offline mode only. Network fallback is disabled for downloaded chapters."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    HStack(spacing: 12) {
-                        Button(AppLocalization.text("common.back", "Back")) {
-                            dismiss()
-                        }
-                        .buttonStyle(.bordered)
-                        .accessibilityHint(AppLocalization.text("common.accessibility.back", "Return to the previous screen"))
+    @ViewBuilder
+    private var readerContent: some View {
+        if session.loading && !session.canRenderReader {
+            loadingView
+        } else if !session.errorText.isEmpty {
+            readerErrorView
+        } else if session.totalPages == 0 {
+            emptyReaderView
+        } else {
+            activeReaderView
+        }
+    }
 
-                        Button(AppLocalization.text("common.retry", "Retry")) { Task { await load() } }
-                            .buttonStyle(.borderedProminent)
-                    }
-                }
-                .padding()
-            } else if session.totalPages == 0 {
-                Text(AppLocalization.text("reader.error.no_images", "No images"))
-                    .foregroundStyle(.white.opacity(0.75))
-            } else {
-                GeometryReader { geo in
-                    ZStack {
-                        ReaderCanvasView(
-                            imageRequests: session.imageRequests,
-                            readerMode: readerMode,
-                            reloadNonce: session.reloadNonce,
-                            animatePageTransitions: animatePageTransitions && !reduceMotion,
-                            currentPage: $session.currentPage,
-                            verticalPageFrames: $session.verticalPageFrames,
-                            verticalViewportHeight: $session.verticalViewportHeight,
-                            verticalScrollTarget: $session.verticalScrollTarget,
-                            verticalTrackingSuspendedUntil: $session.verticalTrackingSuspendedUntil,
-                            onUpdateCurrentPageFromVerticalLayout: {
-                                session.updateCurrentPageFromVerticalLayout(readerMode: readerMode)
-                            }
-                        )
-                        .ignoresSafeArea()
-
-                        if session.loading && session.canRenderReader {
-                            VStack {
-                                ProgressView(value: session.loadingProgress, total: 1)
-                                    .progressViewStyle(.linear)
-                                    .tint(.white)
-                                    .padding(.horizontal, 24)
-                                    .padding(.top, 12)
-                                Spacer()
-                            }
-                        }
-
-                        if session.showControls {
-                            ReaderOverlayView(
-                                chapterTitle: session.chapterTitle,
-                                chapterID: session.chapterID,
-                                comicTitle: item.title,
-                                offlineStatusText: session.offlineStatusText,
-                                displayedPageIndex: displayedPageIndex,
-                                totalPages: session.totalPages,
-                                resolvedPageCount: session.resolvedPageCount,
-                                isLoadingMore: session.isLoadingMore,
-                                readerMode: readerMode,
-                                animatePageTransitions: animatePageTransitions && !reduceMotion,
-                                currentPage: $session.currentPage,
-                                previousChapterTitle: session.previousChapter?.title.isEmpty == false ? session.previousChapter?.title : session.previousChapter?.id,
-                                nextChapterTitle: session.nextChapter?.title.isEmpty == false ? session.nextChapter?.title : session.nextChapter?.id,
-                                onDismiss: dismiss.callAsFunction,
-                                onOpenModeMenu: { readerMode = $0 },
-                                onOpenSettings: { showSettings = true },
-                                onReload: reloadCurrentPage,
-                                onOpenPreviousChapter: openPreviousChapter,
-                                onOpenNextChapter: openNextChapter,
-                                onJumpToVerticalPage: { target in
-                                    session.jumpToVerticalPage(target, readerMode: readerMode)
-                                }
-                            )
-                            .transition(.opacity)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.black)
-                    .contentShape(Rectangle())
-                    .simultaneousGesture(
-                        SpatialTapGesture().onEnded { value in
-                            handleTap(at: value.location, in: geo.size)
-                        }
-                    )
-                    .animation(reduceMotion ? .none : .easeInOut(duration: 0.18), value: session.showControls)
-                }
+    private var loadingView: some View {
+        VStack(spacing: 10) {
+            ProgressView(value: session.loadingProgress, total: 1)
+                .progressViewStyle(.linear)
+                .tint(.white)
+                .padding(.horizontal, 28)
+            Text(session.loadingMessage)
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.9))
+            if RuntimeDebugConsole.isEnabled {
+                DebugLogPanel(lines: Array(debugConsole.lines.suffix(20)))
+                    .padding(.horizontal, 14)
             }
         }
-        .navigationBarBackButtonHidden(!session.loading)
-        .toolbar(.hidden, for: .tabBar)
-        .statusBarHidden(!session.showControls)
-        .focusable(true)
-        .focused($isReaderFocused)
+    }
+
+    private var readerErrorView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: isOfflineReading ? "externaldrive.badge.exclamationmark" : "wifi.exclamationmark")
+                .font(.system(size: 28))
+                .foregroundStyle(isOfflineReading ? .orange : .red)
+            Text(session.errorText).foregroundStyle(.red)
+                .multilineTextAlignment(.center)
+            if isOfflineReading {
+                Text(AppLocalization.text("reader.error.offline_mode", "Offline mode only. Network fallback is disabled for downloaded chapters."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            HStack(spacing: 12) {
+                Button(AppLocalization.text("common.back", "Back")) {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+                .accessibilityHint(AppLocalization.text("common.accessibility.back", "Return to the previous screen"))
+
+                Button(AppLocalization.text("common.retry", "Retry")) { Task { await load() } }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding()
+    }
+
+    private var emptyReaderView: some View {
+        Text(AppLocalization.text("reader.error.no_images", "No images"))
+            .foregroundStyle(.white.opacity(0.75))
+    }
+
+    private var activeReaderView: some View {
+        GeometryReader { geo in
+            ZStack {
+                readerCanvas
+
+                if session.loading && session.canRenderReader {
+                    loadingOverlay
+                }
+
+                if session.showControls {
+                    readerOverlay
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(SwiftUI.Color(red: 0, green: 0, blue: 0))
+            .contentShape(Rectangle())
+            .simultaneousGesture(
+                SpatialTapGesture().onEnded { value in
+                    handleTap(at: value.location, in: geo.size)
+                }
+            )
+            .animation(reduceMotion ? .none : .easeInOut(duration: 0.18), value: session.showControls)
+        }
+    }
+
+    private var readerCanvas: some View {
+        ReaderCanvasView(
+            imageRequests: session.imageRequests,
+            readerMode: readerMode,
+            reloadNonce: session.reloadNonce,
+            animatePageTransitions: animatePageTransitions && !reduceMotion,
+            currentPage: $session.currentPage,
+            verticalPageFrames: $session.verticalPageFrames,
+            verticalViewportHeight: $session.verticalViewportHeight,
+            verticalScrollTarget: $session.verticalScrollTarget,
+            verticalTrackingSuspendedUntil: $session.verticalTrackingSuspendedUntil,
+            onLeftArrow: { previousPage() },
+            onRightArrow: { nextPage() },
+            onUpArrow: upArrowHandler,
+            onDownArrow: downArrowHandler,
+            onUpdateCurrentPageFromVerticalLayout: {
+                session.updateCurrentPageFromVerticalLayout(readerMode: readerMode)
+            }
+        )
+        .ignoresSafeArea()
+    }
+
+    private var upArrowHandler: (() -> Void)? {
+        guard readerMode == .vertical else { return nil }
+        return { previousPage() }
+    }
+
+    private var downArrowHandler: (() -> Void)? {
+        guard readerMode == .vertical else { return nil }
+        return { nextPage() }
+    }
+
+    private func installKeyboardMonitoring() {
         #if targetEnvironment(macCatalyst)
-        .onKeyPress(.leftArrow) {
-            previousPage()
-            return .handled
-        }
-        .onKeyPress(.rightArrow) {
-            nextPage()
-            return .handled
-        }
-        .onKeyPress(.upArrow) {
-            if readerMode == .vertical {
-                previousPage()
-                return .handled
+        attachKeyboardHandler()
+        if keyboardDidConnectObserver == nil {
+            keyboardDidConnectObserver = NotificationCenter.default.addObserver(
+                forName: .GCKeyboardDidConnect,
+                object: nil,
+                queue: .main
+            ) { _ in
+                Task { @MainActor in
+                    attachKeyboardHandler()
+                }
             }
-            return .ignored
         }
-        .onKeyPress(.downArrow) {
-            if readerMode == .vertical {
-                nextPage()
-                return .handled
+        if keyboardDidDisconnectObserver == nil {
+            keyboardDidDisconnectObserver = NotificationCenter.default.addObserver(
+                forName: .GCKeyboardDidDisconnect,
+                object: nil,
+                queue: .main
+            ) { _ in
+                Task { @MainActor in
+                    clearKeyboardHandler()
+                }
             }
-            return .ignored
         }
         #endif
-        .sheet(isPresented: $showSettings) {
-            ReaderSettingsSheet(
-                mode: Binding(
-                    get: { readerMode },
-                    set: { readerMode = $0 }
-                ),
-                invertTapZones: $invertTapZones,
-                preloadDistance: $preloadDistance,
-                tapZonePreset: Binding(
-                    get: { tapZonePreset },
-                    set: { tapZonePreset = $0 }
-                ),
-                animatePageTransitions: $animatePageTransitions,
-                readerBackgroundMode: Binding(
-                    get: { readerBackgroundMode },
-                    set: { readerBackgroundMode = $0 }
-                ),
-                keepScreenOn: $keepScreenOn
-            )
-            .presentationDetents([.medium])
-        }
-        .onChange(of: showSettings) { _, isPresented in
-            if !isPresented {
-                isReaderFocused = true
-            }
-        }
-        .onChange(of: readerMode) { oldMode, mode in
-            guard session.totalPages > 0 else { return }
-            let displayed = session.displayedPageIndex(readerMode: oldMode)
-            let oneBased = max(1, min(session.totalPages, displayed))
-            let ltrIndex = min(session.totalPages - 1, oneBased - 1)
-            session.currentPage = mode == .rtl ? max(0, session.totalPages - 1 - ltrIndex) : ltrIndex
-            if mode == .vertical {
-                session.verticalScrollTarget = session.currentPage
-            }
-        }
-        .onChange(of: session.currentPage) { _, _ in
-            session.resolvePagesAroundCurrentPage(using: vm, readerMode: readerMode)
-            preloadAroundCurrentPage()
-            scheduleHistorySave()
-        }
-        .task {
-            prefetchGeneration = await ReaderImagePipeline.shared.beginPrefetchSession()
-            lastPrefetchedPage = session.currentPage
-            readerLoadTask?.cancel()
-            readerLoadTask = Task {
-                await load()
-            }
-            chapterSequenceTask?.cancel()
-            chapterSequenceTask = Task {
-                await session.loadChapterSequenceIfNeeded(using: vm)
-            }
-        }
-        .onAppear {
-            session.markVisible()
-            isReaderFocused = true
-            UIApplication.shared.isIdleTimerDisabled = keepScreenOn
-        }
-        .onChange(of: keepScreenOn) { _, enabled in
-            UIApplication.shared.isIdleTimerDisabled = enabled
-        }
-        .onDisappear {
-            historySaveTask?.cancel()
-            historySaveTask = nil
-            readerLoadTask?.cancel()
-            readerLoadTask = nil
-            chapterSequenceTask?.cancel()
-            chapterSequenceTask = nil
-            chapterNavigationTask?.cancel()
-            chapterNavigationTask = nil
-            prefetcher.cancel()
-            UIApplication.shared.isIdleTimerDisabled = false
+    }
 
-            let app = UIApplication.shared
-            var bgTaskID: UIBackgroundTaskIdentifier = .invalid
-            bgTaskID = app.beginBackgroundTask(withName: "ReaderCleanup") {
-                app.endBackgroundTask(bgTaskID)
-                bgTaskID = .invalid
-            }
+    private func uninstallKeyboardMonitoring() {
+        #if targetEnvironment(macCatalyst)
+        clearKeyboardHandler()
+        if let observer = keyboardDidConnectObserver {
+            NotificationCenter.default.removeObserver(observer)
+            keyboardDidConnectObserver = nil
+        }
+        if let observer = keyboardDidDisconnectObserver {
+            NotificationCenter.default.removeObserver(observer)
+            keyboardDidDisconnectObserver = nil
+        }
+        #endif
+    }
+
+    private func attachKeyboardHandler() {
+        #if targetEnvironment(macCatalyst)
+        GCKeyboard.coalesced?.keyboardInput?.keyChangedHandler = { _, _, keyCode, pressed in
+            guard pressed else { return }
             Task { @MainActor in
-                await ReaderImagePipeline.shared.cancelPrefetchSession()
-                await session.close(using: vm)
-                await persistHistoryNow()
-                session.finishReadingSession(using: library)
-                app.endBackgroundTask(bgTaskID)
-                bgTaskID = .invalid
+                handleKeyboardKey(keyCode)
             }
         }
+        #endif
+    }
+
+    private func clearKeyboardHandler() {
+        #if targetEnvironment(macCatalyst)
+        GCKeyboard.coalesced?.keyboardInput?.keyChangedHandler = nil
+        #endif
+    }
+
+    private func handleKeyboardKey(_ keyCode: GCKeyCode) {
+        #if targetEnvironment(macCatalyst)
+        switch keyCode {
+        case GCKeyCode.leftArrow, GCKeyCode.keypad4:
+            previousPage()
+        case GCKeyCode.rightArrow, GCKeyCode.keypad6:
+            nextPage()
+        case GCKeyCode.upArrow, GCKeyCode.keypad8:
+            openPreviousChapter()
+        case GCKeyCode.downArrow, GCKeyCode.keypad2:
+            openNextChapter()
+        default:
+            break
+        }
+        #endif
+    }
+
+    private var loadingOverlay: some View {
+        VStack {
+            ProgressView(value: session.loadingProgress, total: 1)
+                .progressViewStyle(.linear)
+                .tint(.white)
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+            Spacer()
+        }
+    }
+
+    private var readerOverlay: some View {
+        ReaderOverlayView(
+            chapterTitle: session.chapterTitle,
+            chapterID: session.chapterID,
+            comicTitle: item.title,
+            offlineStatusText: session.offlineStatusText,
+            displayedPageIndex: displayedPageIndex,
+            totalPages: session.totalPages,
+            resolvedPageCount: session.resolvedPageCount,
+            isLoadingMore: session.isLoadingMore,
+            readerMode: readerMode,
+            animatePageTransitions: animatePageTransitions && !reduceMotion,
+            currentPage: $session.currentPage,
+            previousChapterTitle: session.previousChapter?.title.isEmpty == false ? session.previousChapter?.title : session.previousChapter?.id,
+            nextChapterTitle: session.nextChapter?.title.isEmpty == false ? session.nextChapter?.title : session.nextChapter?.id,
+            onDismiss: dismiss.callAsFunction,
+            onOpenModeMenu: { readerMode = $0 },
+            onOpenSettings: { showSettings = true },
+            onReload: reloadCurrentPage,
+            onOpenPreviousChapter: openPreviousChapter,
+            onOpenNextChapter: openNextChapter,
+            onJumpToVerticalPage: { target in
+                session.jumpToVerticalPage(target, readerMode: readerMode)
+            }
+        )
+        .transition(.opacity)
     }
 
     private func onLeftTap() {
