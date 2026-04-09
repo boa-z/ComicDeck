@@ -72,10 +72,14 @@ final class ReaderSession {
     var translationEnabled = false
     var translationSourceLanguage: ReaderTranslationLanguage?
     var translationTargetLanguage: ReaderTranslationLanguage = .chineseSimplified
-    var translationPageStates: [Int: ReaderTranslationStatus] = [:]
-    var translationPageOverlays: [Int: [ReaderTranslationOverlay]] = [:]
+    var translationPageStates: [Int: ReaderPageTranslationStatus] = [:]
+    var translationPageDocuments: [Int: ReaderPageTranslationDocument] = [:]
     var translationErrorText: [Int: String] = [:]
     var translationUnsupportedReason = ""
+
+    var translationPageBlocks: [Int: [ReaderTextBlock]] {
+        translationPageDocuments.mapValues { $0.blocks }
+    }
 
     private var readingSessionStartedAt: Date?
     private var loadGeneration = 0
@@ -283,17 +287,17 @@ final class ReaderSession {
         translationTargetLanguage = targetLanguage
         if languageChanged {
             translationPageStates.removeAll()
-            translationPageOverlays.removeAll()
+            translationPageDocuments.removeAll()
             translationErrorText.removeAll()
         }
     }
 
-    func translationStatus(for pageIndex: Int) -> ReaderTranslationStatus {
+    func translationStatus(for pageIndex: Int) -> ReaderPageTranslationStatus {
         translationPageStates[pageIndex] ?? .idle
     }
 
-    func translationOverlays(for pageIndex: Int) -> [ReaderTranslationOverlay] {
-        translationPageOverlays[pageIndex] ?? []
+    func translationBlocks(for pageIndex: Int) -> [ReaderTextBlock] {
+        translationPageDocuments[pageIndex]?.blocks ?? []
     }
 
     func translationError(for pageIndex: Int) -> String? {
@@ -369,7 +373,7 @@ final class ReaderSession {
     func reloadCurrentPage() {
         reloadNonce += 1
         translationPageStates[currentPage] = .idle
-        translationPageOverlays[currentPage] = []
+        translationPageDocuments[currentPage] = nil
         translationErrorText[currentPage] = nil
     }
 
@@ -466,7 +470,7 @@ final class ReaderSession {
         translationTasks.values.forEach { $0.cancel() }
         translationTasks.removeAll()
         translationPageStates.removeAll()
-        translationPageOverlays.removeAll()
+        translationPageDocuments.removeAll()
         translationErrorText.removeAll()
         translationUnsupportedReason = ""
     }
@@ -587,17 +591,17 @@ final class ReaderSession {
             )
             guard generation == translationGeneration, !Task.isCancelled else { return }
             translationPageStates[pageIndex] = record.status
-            translationPageOverlays[pageIndex] = record.overlays
+            translationPageDocuments[pageIndex] = record
             translationErrorText[pageIndex] = record.errorText
             readerDebugLog(
-                "translation ready: page=\(pageIndex), status=\(record.status.rawValue), overlays=\(record.overlays.count), source=\(sourceLanguage?.rawValue ?? "auto"), target=\(targetLanguage.rawValue)",
+                "translation ready: page=\(pageIndex), status=\(record.status.rawValue), blocks=\(record.blocks.count), source=\(sourceLanguage?.rawValue ?? "auto"), target=\(targetLanguage.rawValue)",
                 level: .info
             )
         } catch {
             guard generation == translationGeneration, !Task.isCancelled else { return }
             let message = error.localizedDescription
             translationPageStates[pageIndex] = .failed
-            translationPageOverlays[pageIndex] = []
+            translationPageDocuments[pageIndex] = nil
             translationErrorText[pageIndex] = message
             await service.saveFailure(
                 item: item,

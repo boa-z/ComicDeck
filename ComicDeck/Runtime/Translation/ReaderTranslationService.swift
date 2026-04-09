@@ -6,6 +6,7 @@ actor ReaderTranslationService {
     private let database: SQLiteStore
     private let ocrProvider: OCRProvider
     private let translationProvider: TranslationProvider
+    private let pipelineVersion = "reader-page-translation-v1"
 
     init(
         database: SQLiteStore,
@@ -24,15 +25,17 @@ actor ReaderTranslationService {
         request: ImageRequest,
         sourceLanguage: ReaderTranslationLanguage?,
         targetLanguage: ReaderTranslationLanguage
-    ) async throws -> ReaderPageTranslationRecord? {
+    ) async throws -> ReaderPageTranslationDocument? {
         let requestKey = Self.imageRequestKey(request, sourceLanguage: sourceLanguage)
-        return try await database.getReaderPageTranslation(
+        return try await database.getReaderPageTranslationDocument(
             sourceKey: item.sourceKey,
             comicID: item.id,
             chapterID: chapterID,
             pageIndex: pageIndex,
             targetLanguage: targetLanguage,
-            imageRequestKey: requestKey
+            imageRequestKey: requestKey,
+            pipelineVersion: pipelineVersion,
+            providerConfigHash: providerConfigHash
         )
     }
 
@@ -43,7 +46,7 @@ actor ReaderTranslationService {
         request: ImageRequest,
         sourceLanguage: ReaderTranslationLanguage?,
         targetLanguage: ReaderTranslationLanguage
-    ) async throws -> ReaderPageTranslationRecord {
+    ) async throws -> ReaderPageTranslationDocument {
         guard let urlRequest = Self.buildURLRequest(from: request) else {
             throw ReaderImagePipelineError.invalidResponse
         }
@@ -52,13 +55,15 @@ actor ReaderTranslationService {
         let requestKey = Self.imageRequestKey(request, sourceLanguage: sourceLanguage)
         let fingerprint = Self.imageFingerprint(for: imageData)
 
-        if let cached = try await database.getReaderPageTranslation(
+        if let cached = try await database.getReaderPageTranslationDocument(
             sourceKey: item.sourceKey,
             comicID: item.id,
             chapterID: chapterID,
             pageIndex: pageIndex,
             targetLanguage: targetLanguage,
-            imageRequestKey: requestKey
+            imageRequestKey: requestKey,
+            pipelineVersion: pipelineVersion,
+            providerConfigHash: providerConfigHash
         ), cached.imageFingerprint == fingerprint {
             return cached
         }
@@ -70,31 +75,47 @@ actor ReaderTranslationService {
             targetLanguage: targetLanguage
         )
 
-        let overlays = zip(regions, translated).enumerated().map { idx, pair in
-            ReaderTranslationOverlay(
-                id: "page-\(pageIndex)-overlay-\(idx)",
-                pageIndex: pageIndex,
-                x: pair.0.boundingBox.minX,
-                y: 1 - pair.0.boundingBox.maxY,
-                width: pair.0.boundingBox.width,
-                height: pair.0.boundingBox.height,
-                text: pair.1,
-                sourceText: pair.0.text
+        let blocks = zip(regions, translated).enumerated().map { index, pair in
+            ReaderTextBlock(
+                id: "page-\(pageIndex)-block-\(index)",
+                sourceRect: ReaderNormalizedRect(
+                    x: pair.0.boundingBox.minX,
+                    y: 1 - pair.0.boundingBox.maxY,
+                    width: pair.0.boundingBox.width,
+                    height: pair.0.boundingBox.height
+                ),
+                containerRect: nil,
+                readingDirection: inferredReadingDirection(sourceLanguage: sourceLanguage),
+                sourceText: pair.0.text,
+                translatedText: pair.1,
+                styleHints: nil,
+                zIndex: index,
+                confidence: nil
             )
         }
 
-        return try await database.upsertReaderPageTranslation(
-            sourceKey: item.sourceKey,
-            comicID: item.id,
-            chapterID: chapterID,
-            pageIndex: pageIndex,
-            targetLanguage: targetLanguage,
-            provider: "\(ocrProvider.name)+\(translationProvider.name)",
-            status: .ready,
-            imageRequestKey: requestKey,
-            imageFingerprint: fingerprint,
-            overlays: overlays,
-            errorText: nil
+        return try await database.upsertReaderPageTranslationDocument(
+            ReaderPageTranslationDocument(
+                id: 0,
+                sourceKey: item.sourceKey,
+                comicID: item.id,
+                chapterID: chapterID,
+                pageIndex: pageIndex,
+                sourceLanguage: sourceLanguage,
+                targetLanguage: targetLanguage,
+                provider: providerName,
+                status: .ready,
+                currentStage: .ready,
+                imageRequestKey: requestKey,
+                imageFingerprint: fingerprint,
+                pipelineVersion: pipelineVersion,
+                providerConfigHash: providerConfigHash,
+                blocks: blocks,
+                cleanupRegions: [],
+                renderedAsset: nil,
+                errorText: nil,
+                updatedAt: 0
+            )
         )
     }
 
@@ -108,21 +129,48 @@ actor ReaderTranslationService {
         errorText: String
     ) async {
         do {
-            _ = try await database.upsertReaderPageTranslation(
-                sourceKey: item.sourceKey,
-                comicID: item.id,
-                chapterID: chapterID,
-                pageIndex: pageIndex,
-                targetLanguage: targetLanguage,
-                provider: "\(ocrProvider.name)+\(translationProvider.name)",
-                status: .failed,
-                imageRequestKey: Self.imageRequestKey(request, sourceLanguage: sourceLanguage),
-                imageFingerprint: "",
-                overlays: [],
-                errorText: errorText
+            _ = try await database.upsertReaderPageTranslationDocument(
+                ReaderPageTranslationDocument(
+                    id: 0,
+                    sourceKey: item.sourceKey,
+                    comicID: item.id,
+                    chapterID: chapterID,
+                    pageIndex: pageIndex,
+                    sourceLanguage: sourceLanguage,
+                    targetLanguage: targetLanguage,
+                    provider: providerName,
+                    status: .failed,
+                    currentStage: .failed,
+                    imageRequestKey: Self.imageRequestKey(request, sourceLanguage: sourceLanguage),
+                    imageFingerprint: "",
+                    pipelineVersion: pipelineVersion,
+                    providerConfigHash: providerConfigHash,
+                    blocks: [],
+                    cleanupRegions: [],
+                    renderedAsset: nil,
+                    errorText: errorText,
+                    updatedAt: 0
+                )
             )
         } catch {
             return
+        }
+    }
+
+    private var providerName: String {
+        "\(ocrProvider.name)+\(translationProvider.name)"
+    }
+
+    private var providerConfigHash: String {
+        Self.digest(providerName)
+    }
+
+    private func inferredReadingDirection(sourceLanguage: ReaderTranslationLanguage?) -> ReaderTextReadingDirection {
+        switch sourceLanguage {
+        case .japanese, .korean, .chineseSimplified, .chineseTraditional:
+            return .verticalRL
+        case .english, .none:
+            return .horizontalLTR
         }
     }
 

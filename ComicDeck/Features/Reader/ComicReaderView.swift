@@ -440,7 +440,7 @@ struct ComicReaderView: View {
             reloadNonce: session.reloadNonce,
             animatePageTransitions: animatePageTransitions && !reduceMotion,
             translationEnabled: translationEnabled,
-            translationOverlays: session.translationPageOverlays,
+            translationBlocks: session.translationPageBlocks,
             currentPage: $session.currentPage,
             verticalPageFrames: $session.verticalPageFrames,
             verticalViewportHeight: $session.verticalViewportHeight,
@@ -593,7 +593,7 @@ struct ComicReaderView: View {
         }
         let currentPage = session.currentPage
         let status = session.translationStatus(for: currentPage)
-        if status == .ready, session.translationOverlays(for: currentPage).isEmpty {
+        if status == .ready, session.translationBlocks(for: currentPage).isEmpty {
             return AppLocalization.text("reader.translation.status.ready_empty", "Translation ready, but no text regions were found")
         }
         switch status {

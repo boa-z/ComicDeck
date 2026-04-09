@@ -525,6 +525,68 @@ final class SQLiteStoreTests: XCTestCase {
         XCTAssertEqual(indexedDownloadedAt, 777)
     }
 
+    func testReaderPageTranslationDocumentRoundTripsThroughSQLiteStore() async throws {
+        let store = try makeStore()
+        let document = ReaderPageTranslationDocument(
+            id: 0,
+            sourceKey: "source-a",
+            comicID: "comic-1",
+            chapterID: "chapter-1",
+            pageIndex: 4,
+            sourceLanguage: .japanese,
+            targetLanguage: .english,
+            provider: "custom-http",
+            status: .ready,
+            currentStage: .ready,
+            imageRequestKey: "GET|https://example.com/page-4.jpg",
+            imageFingerprint: "fp-4",
+            pipelineVersion: "reader-page-translation-v1",
+            providerConfigHash: "provider-hash-4",
+            blocks: [
+                ReaderTextBlock(
+                    id: "block-1",
+                    sourceRect: ReaderNormalizedRect(x: 0.1, y: 0.2, width: 0.2, height: 0.15),
+                    containerRect: nil,
+                    readingDirection: .verticalRL,
+                    sourceText: "原文",
+                    translatedText: "Translation",
+                    styleHints: nil,
+                    zIndex: 0,
+                    confidence: 0.8
+                )
+            ],
+            cleanupRegions: [],
+            renderedAsset: ReaderRenderedPageAsset(
+                localFilePath: "/tmp/page-4.png",
+                pixelWidth: 1200,
+                pixelHeight: 1800,
+                renderMode: .translated,
+                provider: "custom-http",
+                updatedAt: 444
+            ),
+            errorText: nil,
+            updatedAt: 444
+        )
+
+        let saved = try await store.upsertReaderPageTranslationDocument(document)
+        let loaded = try await store.getReaderPageTranslationDocument(
+            sourceKey: "source-a",
+            comicID: "comic-1",
+            chapterID: "chapter-1",
+            pageIndex: 4,
+            targetLanguage: .english,
+            imageRequestKey: "GET|https://example.com/page-4.jpg",
+            pipelineVersion: "reader-page-translation-v1",
+            providerConfigHash: "provider-hash-4"
+        )
+
+        let unwrapped = try XCTUnwrap(loaded)
+        XCTAssertEqual(unwrapped.blocks, saved.blocks)
+        XCTAssertEqual(unwrapped.renderedAsset, saved.renderedAsset)
+        XCTAssertEqual(unwrapped.currentStage, .ready)
+        XCTAssertEqual(unwrapped.provider, "custom-http")
+    }
+
     private func makeStore() throws -> SQLiteStore {
         let directory = try makeTemporaryDirectory()
         let databaseURL = directory.appendingPathComponent("source_runtime.sqlite3")

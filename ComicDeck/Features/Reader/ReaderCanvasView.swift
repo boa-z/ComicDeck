@@ -8,7 +8,7 @@ struct ReaderCanvasView: View {
     let reloadNonce: Int
     let animatePageTransitions: Bool
     let translationEnabled: Bool
-    let translationOverlays: [Int: [ReaderTranslationOverlay]]
+    let translationBlocks: [Int: [ReaderTextBlock]]
     @Binding var currentPage: Int
     @Binding var verticalPageFrames: [Int: CGRect]
     @Binding var verticalViewportHeight: CGFloat
@@ -44,7 +44,7 @@ struct ReaderCanvasView: View {
                     nonce: reloadNonce,
                     supportsZoom: true,
                     translationEnabled: translationEnabled,
-                    overlays: translationOverlays[idx] ?? []
+                    overlays: translationBlocks[idx] ?? []
                 )
                     .tag(idx)
             }
@@ -66,7 +66,7 @@ struct ReaderCanvasView: View {
                             nonce: reloadNonce,
                             supportsZoom: false,
                             translationEnabled: translationEnabled,
-                            overlays: translationOverlays[idx] ?? []
+                            overlays: translationBlocks[idx] ?? []
                         )
                             .id(idx)
                             .background(
@@ -131,7 +131,7 @@ struct ReaderPageView: View {
     let nonce: Int
     let supportsZoom: Bool
     let translationEnabled: Bool
-    let overlays: [ReaderTranslationOverlay]
+    let overlays: [ReaderTextBlock]
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
@@ -210,7 +210,7 @@ private struct ReaderPagePlaceholderView: View {
 
 struct PlainRemoteImage: View {
     let request: URLRequest
-    let overlays: [ReaderTranslationOverlay]
+    let overlays: [ReaderTextBlock]
     @State private var uiImage: UIImage?
     @State private var errorText: String?
     @State private var loading = false
@@ -281,7 +281,7 @@ struct PlainRemoteImage: View {
 
 struct ZoomableRemoteImage: UIViewRepresentable {
     let request: URLRequest
-    let overlays: [ReaderTranslationOverlay]
+    let overlays: [ReaderTextBlock]
     var displayScale: CGFloat = 2.0
 
     func makeCoordinator() -> Coordinator {
@@ -412,7 +412,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     let doubleTapRecognizer = UITapGestureRecognizer()
     private let loadingIndicator = UIActivityIndicatorView(style: .medium)
     private let errorLabel = UILabel()
-    var currentOverlays: [ReaderTranslationOverlay] = []
+    var currentOverlays: [ReaderTextBlock] = []
     var baseImage: UIImage?
     private var lastBoundsSize: CGSize = .zero
 
@@ -568,7 +568,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
         centerImageIfNeeded()
     }
 
-    func setOverlays(_ overlays: [ReaderTranslationOverlay]) {
+    func setOverlays(_ overlays: [ReaderTextBlock]) {
         currentOverlays = overlays
         readerDebugLog(
             "zoom translated image payload updated: overlays=\(overlays.count)",
@@ -584,7 +584,7 @@ enum ReaderTranslatedImageRenderer {
         let sourceTexts: [String]
     }
 
-    static func render(_ image: UIImage, overlays: [ReaderTranslationOverlay]) -> UIImage {
+    static func render(_ image: UIImage, overlays: [ReaderTextBlock]) -> UIImage {
         guard !overlays.isEmpty else { return image }
         let blocks = mergeOverlaysIntoBlocks(overlays, imageSize: image.size)
         let format = UIGraphicsImageRendererFormat.default()
@@ -611,15 +611,15 @@ enum ReaderTranslatedImageRenderer {
         return rendered
     }
 
-    private static func mergeOverlaysIntoBlocks(_ overlays: [ReaderTranslationOverlay], imageSize: CGSize) -> [TranslationBlock] {
+    private static func mergeOverlaysIntoBlocks(_ overlays: [ReaderTextBlock], imageSize: CGSize) -> [TranslationBlock] {
         let rects = overlays.map { overlay in
             (
                 overlay: overlay,
                 rect: CGRect(
-                    x: overlay.x * imageSize.width,
-                    y: overlay.y * imageSize.height,
-                    width: max(overlay.width * imageSize.width, 44),
-                    height: max(overlay.height * imageSize.height, 24)
+                    x: overlay.sourceRect.x * imageSize.width,
+                    y: overlay.sourceRect.y * imageSize.height,
+                    width: max(overlay.sourceRect.width * imageSize.width, 44),
+                    height: max(overlay.sourceRect.height * imageSize.height, 24)
                 ).integral
             )
         }.sorted { lhs, rhs in
@@ -633,7 +633,7 @@ enum ReaderTranslatedImageRenderer {
         for item in rects {
             if let last = blocks.last, shouldMerge(item.rect, into: last.rect) {
                 let mergedRect = last.rect.union(item.rect).insetBy(dx: -6, dy: -4)
-                let mergedText = [last.text, item.overlay.text]
+                let mergedText = [last.text, item.overlay.translatedText ?? item.overlay.sourceText]
                     .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                     .joined(separator: "\n")
                 let mergedSources = last.sourceTexts + [item.overlay.sourceText]
@@ -646,7 +646,7 @@ enum ReaderTranslatedImageRenderer {
                 blocks.append(
                     TranslationBlock(
                         rect: clamp(item.rect.insetBy(dx: -4, dy: -2).integral, imageSize: imageSize),
-                        text: item.overlay.text,
+                        text: item.overlay.translatedText ?? item.overlay.sourceText,
                         sourceTexts: [item.overlay.sourceText]
                     )
                 )
