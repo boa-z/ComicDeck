@@ -110,9 +110,12 @@ struct ComicReaderView: View {
     @AppStorage("Reader.animatePageTransitions") private var animatePageTransitions = true
     @AppStorage("Reader.backgroundColor") private var readerBackgroundRaw = ReaderBackgroundMode.system.rawValue
     @AppStorage("Reader.keepScreenOn") private var keepScreenOn = true
-    @AppStorage("Reader.translationEnabled") private var translationEnabled = false
-    @AppStorage("Reader.translationSourceLanguage") private var translationSourceLanguageRaw = ""
-    @AppStorage("Reader.translationTargetLanguage") private var translationTargetLanguageRaw = ReaderTranslationLanguage.chineseSimplified.rawValue
+    @AppStorage("Translation.enabled") private var translationEnabled = false
+    @AppStorage("Translation.backend") private var translationBackendRaw = ReaderTranslationBackendKind.builtIn.rawValue
+    @AppStorage("Translation.koharuBaseURL") private var translationKoharuBaseURL = ""
+    @AppStorage("Translation.requestTimeoutSeconds") private var translationRequestTimeoutSeconds = 60
+    @AppStorage("Translation.sourceLanguage") private var translationSourceLanguageRaw = ""
+    @AppStorage("Translation.targetLanguage") private var translationTargetLanguageRaw = ReaderTranslationLanguage.chineseSimplified.rawValue
 
     @State private var debugConsole = RuntimeDebugConsole.shared
     @State private var session: ReaderSession
@@ -168,6 +171,11 @@ struct ComicReaderView: View {
     private var readerBackgroundMode: ReaderBackgroundMode {
         get { ReaderBackgroundMode(rawValue: readerBackgroundRaw) ?? .system }
         nonmutating set { readerBackgroundRaw = newValue.rawValue }
+    }
+
+    private var translationBackendKind: ReaderTranslationBackendKind {
+        get { ReaderTranslationBackendKind(rawValue: translationBackendRaw) ?? .builtIn }
+        nonmutating set { translationBackendRaw = newValue.rawValue }
     }
 
     private var translationSourceLanguage: ReaderTranslationLanguage? {
@@ -229,16 +237,7 @@ struct ComicReaderView: View {
                         get: { readerBackgroundMode },
                         set: { readerBackgroundMode = $0 }
                     ),
-                    keepScreenOn: $keepScreenOn,
-                    translationEnabled: $translationEnabled,
-                    translationSourceLanguage: Binding(
-                        get: { translationSourceLanguage },
-                        set: { translationSourceLanguage = $0 }
-                    ),
-                    translationTargetLanguage: Binding(
-                        get: { translationTargetLanguage },
-                        set: { translationTargetLanguage = $0 }
-                    )
+                    keepScreenOn: $keepScreenOn
                 )
                 .presentationDetents([.medium])
             }
@@ -278,6 +277,9 @@ struct ComicReaderView: View {
                 session.markVisible()
                 session.applyTranslationPreferences(
                     enabled: translationEnabled,
+                    backendKind: translationBackendKind,
+                    koharuBaseURL: translationKoharuBaseURL,
+                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
                     sourceLanguage: translationSourceLanguage,
                     targetLanguage: translationTargetLanguage
                 )
@@ -291,6 +293,9 @@ struct ComicReaderView: View {
             .onChange(of: translationEnabled) { _, enabled in
                 session.applyTranslationPreferences(
                     enabled: enabled,
+                    backendKind: translationBackendKind,
+                    koharuBaseURL: translationKoharuBaseURL,
+                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
                     sourceLanguage: translationSourceLanguage,
                     targetLanguage: translationTargetLanguage
                 )
@@ -298,6 +303,39 @@ struct ComicReaderView: View {
             .onChange(of: translationSourceLanguageRaw) { _, _ in
                 session.applyTranslationPreferences(
                     enabled: translationEnabled,
+                    backendKind: translationBackendKind,
+                    koharuBaseURL: translationKoharuBaseURL,
+                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
+                    sourceLanguage: translationSourceLanguage,
+                    targetLanguage: translationTargetLanguage
+                )
+            }
+            .onChange(of: translationBackendKind) { _, kind in
+                session.applyTranslationPreferences(
+                    enabled: translationEnabled,
+                    backendKind: kind,
+                    koharuBaseURL: translationKoharuBaseURL,
+                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
+                    sourceLanguage: translationSourceLanguage,
+                    targetLanguage: translationTargetLanguage
+                )
+            }
+            .onChange(of: translationKoharuBaseURL) { _, baseURL in
+                session.applyTranslationPreferences(
+                    enabled: translationEnabled,
+                    backendKind: translationBackendKind,
+                    koharuBaseURL: baseURL,
+                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
+                    sourceLanguage: translationSourceLanguage,
+                    targetLanguage: translationTargetLanguage
+                )
+            }
+            .onChange(of: translationRequestTimeoutSeconds) { _, timeoutSeconds in
+                session.applyTranslationPreferences(
+                    enabled: translationEnabled,
+                    backendKind: translationBackendKind,
+                    koharuBaseURL: translationKoharuBaseURL,
+                    requestTimeoutSeconds: timeoutSeconds,
                     sourceLanguage: translationSourceLanguage,
                     targetLanguage: translationTargetLanguage
                 )
@@ -305,6 +343,9 @@ struct ComicReaderView: View {
             .onChange(of: translationTargetLanguage) { _, language in
                 session.applyTranslationPreferences(
                     enabled: translationEnabled,
+                    backendKind: translationBackendKind,
+                    koharuBaseURL: translationKoharuBaseURL,
+                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
                     sourceLanguage: translationSourceLanguage,
                     targetLanguage: language
                 )
@@ -441,6 +482,7 @@ struct ComicReaderView: View {
             animatePageTransitions: animatePageTransitions && !reduceMotion,
             translationEnabled: translationEnabled,
             translationBlocks: session.translationPageBlocks,
+            translationRenderedAssets: session.translationRenderedAssets,
             currentPage: $session.currentPage,
             verticalPageFrames: $session.verticalPageFrames,
             verticalViewportHeight: $session.verticalViewportHeight,
@@ -568,6 +610,7 @@ struct ComicReaderView: View {
             translationStatusText: translationStatusText,
             isTranslatingCurrentPage: session.translationStatus(for: session.currentPage) == .processing,
             onTranslateCurrentPage: translationEnabled ? { session.translateCurrentPage(using: vm) } : nil,
+            translationBackendKind: translationBackendKind,
             readerMode: readerMode,
             animatePageTransitions: animatePageTransitions && !reduceMotion,
             currentPage: $session.currentPage,
@@ -644,6 +687,9 @@ struct ComicReaderView: View {
         await session.load(using: vm, readerMode: readerMode)
         session.applyTranslationPreferences(
             enabled: translationEnabled,
+            backendKind: translationBackendKind,
+            koharuBaseURL: translationKoharuBaseURL,
+            requestTimeoutSeconds: translationRequestTimeoutSeconds,
             sourceLanguage: translationSourceLanguage,
             targetLanguage: translationTargetLanguage
         )

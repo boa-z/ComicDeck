@@ -9,6 +9,7 @@ struct ReaderCanvasView: View {
     let animatePageTransitions: Bool
     let translationEnabled: Bool
     let translationBlocks: [Int: [ReaderTextBlock]]
+    let translationRenderedAssets: [Int: ReaderRenderedPageAsset]
     @Binding var currentPage: Int
     @Binding var verticalPageFrames: [Int: CGRect]
     @Binding var verticalViewportHeight: CGFloat
@@ -44,7 +45,8 @@ struct ReaderCanvasView: View {
                     nonce: reloadNonce,
                     supportsZoom: true,
                     translationEnabled: translationEnabled,
-                    overlays: translationBlocks[idx] ?? []
+                    overlays: translationBlocks[idx] ?? [],
+                    renderedAsset: translationRenderedAssets[idx]
                 )
                     .tag(idx)
             }
@@ -66,7 +68,8 @@ struct ReaderCanvasView: View {
                             nonce: reloadNonce,
                             supportsZoom: false,
                             translationEnabled: translationEnabled,
-                            overlays: translationBlocks[idx] ?? []
+                            overlays: translationBlocks[idx] ?? [],
+                            renderedAsset: translationRenderedAssets[idx]
                         )
                             .id(idx)
                             .background(
@@ -132,39 +135,41 @@ struct ReaderPageView: View {
     let supportsZoom: Bool
     let translationEnabled: Bool
     let overlays: [ReaderTextBlock]
+    let renderedAsset: ReaderRenderedPageAsset?
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         ZStack {
             if let request {
                 let overlayCount = overlays.count
-                let canRenderOverlays = translationEnabled && overlayCount > 0
-                if let urlRequest = buildURLRequest(from: request) {
+                let renderedRequest = renderedAssetRequest()
+                let activeOverlays = renderedRequest == nil && translationEnabled && overlayCount > 0 ? overlays : []
+                if let urlRequest = renderedRequest ?? buildURLRequest(from: request) {
                     Group {
                         if supportsZoom {
                             ZoomableRemoteImage(
                                 request: urlRequest,
-                                overlays: canRenderOverlays ? overlays : [],
+                                overlays: activeOverlays,
                                 displayScale: displayScale
                             )
                         } else {
                             PlainRemoteImage(
                                 request: urlRequest,
-                                overlays: canRenderOverlays ? overlays : []
+                                overlays: activeOverlays
                             )
                         }
                     }
-                    .id("\(pageIndex)-\(nonce)-\(imageRequestKey(request))")
+                    .id("\(pageIndex)-\(nonce)-\(urlRequestKey(urlRequest))")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onAppear {
                         readerDebugLog(
-                            "page render appear: page=\(pageIndex), zoom=\(supportsZoom), translationEnabled=\(translationEnabled), overlays=\(overlayCount), url=\(request.url)",
+                            "page render appear: page=\(pageIndex), zoom=\(supportsZoom), translationEnabled=\(translationEnabled), overlays=\(overlayCount), renderedAsset=\(renderedRequest != nil), url=\(urlRequest.url?.absoluteString ?? request.url)",
                             level: .debug
                         )
                     }
                     .onChange(of: overlayCount) { _, count in
                         readerDebugLog(
-                            "page overlays updated: page=\(pageIndex), zoom=\(supportsZoom), translationEnabled=\(translationEnabled), overlays=\(count)",
+                            "page overlays updated: page=\(pageIndex), zoom=\(supportsZoom), translationEnabled=\(translationEnabled), overlays=\(count), renderedAsset=\(renderedRequest != nil)",
                             level: .info
                         )
                     }
@@ -189,6 +194,17 @@ struct ReaderPageView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
+    }
+
+    private func renderedAssetRequest() -> URLRequest? {
+        guard translationEnabled, let renderedAsset, !renderedAsset.localFilePath.isEmpty else {
+            return nil
+        }
+        let fileURL = URL(fileURLWithPath: renderedAsset.localFilePath)
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            return nil
+        }
+        return URLRequest(url: fileURL)
     }
 }
 
@@ -348,10 +364,6 @@ struct ZoomableRemoteImage: UIViewRepresentable {
                     ) else {
                         throw ReaderImagePipelineError.invalidResponse
                     }
-                    let overlays = await MainActor.run {
-                        self?.view?.currentOverlays ?? []
-                    }
-                    let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
                     await MainActor.run {
                         self?.view?.setBaseImage(baseImage)
                         self?.updateRenderedImageIfNeeded()

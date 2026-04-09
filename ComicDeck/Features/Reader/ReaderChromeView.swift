@@ -13,6 +13,7 @@ struct ReaderOverlayView: View {
     let translationStatusText: String?
     let isTranslatingCurrentPage: Bool
     let onTranslateCurrentPage: (() -> Void)?
+    let translationBackendKind: ReaderTranslationBackendKind
     let readerMode: ReaderMode
     let animatePageTransitions: Bool
     @Binding var currentPage: Int
@@ -150,8 +151,13 @@ struct ReaderOverlayView: View {
 
                 if translationEnabled, let onTranslateCurrentPage {
                     Button(
-                        AppLocalization.text("reader.translation.action.current_page", "Translate current page"),
-                        systemImage: "text.bubble",
+                        AppLocalization.text(
+                            translationBackendKind == .koharu
+                                ? "reader.translation.action.current_page.koharu"
+                                : "reader.translation.action.current_page",
+                            translationBackendKind == .koharu ? "Translate current page with Koharu" : "Translate current page"
+                        ),
+                        systemImage: translationBackendKind == .koharu ? "network" : "text.bubble",
                         action: onTranslateCurrentPage
                     )
                     .labelStyle(.iconOnly)
@@ -159,7 +165,14 @@ struct ReaderOverlayView: View {
                     .padding(10)
                     .background(AppSurface.readerOverlay, in: Circle())
                     .disabled(isTranslatingCurrentPage)
-                    .accessibilityLabel(AppLocalization.text("reader.translation.action.current_page", "Translate current page"))
+                    .accessibilityLabel(
+                        AppLocalization.text(
+                            translationBackendKind == .koharu
+                                ? "reader.translation.action.current_page.koharu"
+                                : "reader.translation.action.current_page",
+                            translationBackendKind == .koharu ? "Translate current page with Koharu" : "Translate current page"
+                        )
+                    )
                 }
 
                 Button(AppLocalization.text("reader.action.reload_page", "Reload current page"), systemImage: "arrow.clockwise", action: onReload)
@@ -333,10 +346,6 @@ struct ReaderSettingsSheet: View {
     @Binding var animatePageTransitions: Bool
     @Binding var readerBackgroundMode: ReaderBackgroundMode
     @Binding var keepScreenOn: Bool
-    @Binding var translationEnabled: Bool
-    @Binding var translationSourceLanguage: ReaderTranslationLanguage?
-    @Binding var translationTargetLanguage: ReaderTranslationLanguage
-    private let autoDetectSourceLanguageTag = "reader.translation.source.auto"
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -376,32 +385,6 @@ struct ReaderSettingsSheet: View {
                     }
                 }
 
-                Section(AppLocalization.text("reader.translation.settings.section", "Page Translation")) {
-                    Toggle(AppLocalization.text("reader.translation.settings.enabled", "Enable page translation"), isOn: $translationEnabled)
-                    Picker(
-                        AppLocalization.text("reader.translation.settings.source_language", "Comic language"),
-                        selection: Binding<String>(
-                            get: { translationSourceLanguage?.rawValue ?? autoDetectSourceLanguageTag },
-                            set: { newValue in
-                                translationSourceLanguage = newValue == autoDetectSourceLanguageTag
-                                    ? nil
-                                    : ReaderTranslationLanguage(rawValue: newValue)
-                            }
-                        )
-                    ) {
-                        Text(AppLocalization.text("reader.translation.settings.source_language.auto", "Auto detect")).tag(autoDetectSourceLanguageTag)
-                        ForEach(ReaderTranslationLanguage.allCases) { item in
-                            Text(item.title).tag(item.rawValue)
-                        }
-                    }
-                    .disabled(!translationEnabled)
-                    Picker(AppLocalization.text("reader.translation.settings.language", "Target language"), selection: $translationTargetLanguage) {
-                        ForEach(ReaderTranslationLanguage.allCases) { item in
-                            Text(item.title).tag(item)
-                        }
-                    }
-                    .disabled(!translationEnabled)
-                }
             }
             .navigationTitle(AppLocalization.text("reader.settings.navigation_title", "Reader Settings"))
             .toolbar {

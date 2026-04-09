@@ -2,18 +2,21 @@ import CoreGraphics
 import CryptoKit
 import Foundation
 
-actor ReaderTranslationService {
+actor ReaderTranslationService: ReaderPageTranslationBackend {
     private let database: SQLiteStore
     private let ocrProvider: OCRProvider
     private let translationProvider: TranslationProvider
+    private let requestTimeoutSeconds: Int
     private let pipelineVersion = "reader-page-translation-v1"
 
     init(
         database: SQLiteStore,
+        requestTimeoutSeconds: Int = 60,
         ocrProvider: OCRProvider? = nil,
         translationProvider: TranslationProvider? = nil
     ) {
         self.database = database
+        self.requestTimeoutSeconds = ReaderPageTranslationBackendConfiguration.clampedRequestTimeoutSeconds(requestTimeoutSeconds)
         self.ocrProvider = ocrProvider ?? AppleVisionOCRProvider()
         self.translationProvider = translationProvider ?? AppleTranslationProvider()
     }
@@ -47,7 +50,10 @@ actor ReaderTranslationService {
         sourceLanguage: ReaderTranslationLanguage?,
         targetLanguage: ReaderTranslationLanguage
     ) async throws -> ReaderPageTranslationDocument {
-        guard let urlRequest = Self.buildURLRequest(from: request) else {
+        guard let urlRequest = ReaderPageTranslationBackendSupport.buildURLRequest(
+            from: request,
+            timeoutSeconds: requestTimeoutSeconds
+        ) else {
             throw ReaderImagePipelineError.invalidResponse
         }
 
@@ -178,42 +184,6 @@ actor ReaderTranslationService {
         SHA256.hash(data: data).compactMap { String(format: "%02x", $0) }.joined()
     }
 
-    private static func buildURLRequest(from request: ImageRequest) -> URLRequest? {
-        let normalizedURL = request.url.hasPrefix("//") ? "https:\(request.url)" : request.url
-        guard let url = URL(string: normalizedURL),
-              let scheme = url.scheme?.lowercased(),
-              scheme == "http" || scheme == "https" || scheme == "file"
-        else {
-            return nil
-        }
-
-        var urlRequest = URLRequest(url: url)
-        urlRequest.timeoutInterval = 25
-        let normalizedMethod = request.method.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        let method = normalizedMethod.isEmpty ? "GET" : normalizedMethod
-        urlRequest.httpMethod = method
-        if method != "GET" && method != "HEAD", let body = request.body, !body.isEmpty {
-            urlRequest.httpBody = Data(body)
-        } else {
-            urlRequest.httpBody = nil
-            urlRequest.setValue(nil as String?, forHTTPHeaderField: "Content-Length")
-        }
-        for (key, value) in request.headers {
-            urlRequest.setValue(value, forHTTPHeaderField: key)
-        }
-        if urlRequest.value(forHTTPHeaderField: "Accept") == nil {
-            urlRequest.setValue("image/avif,image/webp,image/apng,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
-        }
-        if urlRequest.value(forHTTPHeaderField: "User-Agent") == nil {
-            urlRequest.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148", forHTTPHeaderField: "User-Agent")
-        }
-        if urlRequest.value(forHTTPHeaderField: "Referer") == nil,
-           urlRequest.value(forHTTPHeaderField: "referer") == nil,
-           let host = url.host {
-            urlRequest.setValue("https://\(host)/", forHTTPHeaderField: "Referer")
-        }
-        return urlRequest
-    }
 
     private static func imageRequestKey(_ request: ImageRequest, sourceLanguage: ReaderTranslationLanguage?) -> String {
         let bodyData = request.body.map { Data($0) }

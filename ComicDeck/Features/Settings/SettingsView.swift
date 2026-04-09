@@ -10,6 +10,12 @@ struct SettingsView: View {
     @AppStorage(RuntimeDebugConsole.enabledKey) private var debugEnabled = false
     @AppStorage("ui.appAppearance") private var appAppearanceRaw = AppAppearance.system.rawValue
     @AppStorage("ui.comicBrowseMode") private var browseModeRaw = ComicBrowseDisplayMode.list.rawValue
+    @AppStorage("Translation.enabled") private var translationEnabled = false
+    @AppStorage("Translation.backend") private var translationBackendRaw = ReaderTranslationBackendKind.builtIn.rawValue
+    @AppStorage("Translation.koharuBaseURL") private var translationKoharuBaseURL = ""
+    @AppStorage("Translation.requestTimeoutSeconds") private var translationRequestTimeoutSeconds = 60
+    @AppStorage("Translation.sourceLanguage") private var translationSourceLanguageRaw = ""
+    @AppStorage("Translation.targetLanguage") private var translationTargetLanguageRaw = ReaderTranslationLanguage.chineseSimplified.rawValue
     @State private var debugConsole = RuntimeDebugConsole.shared
     @State private var model = SettingsScreenModel()
     @State private var showingBackupImporter = false
@@ -23,6 +29,30 @@ struct SettingsView: View {
         get { ComicBrowseDisplayMode(rawValue: browseModeRaw) ?? .list }
         nonmutating set { browseModeRaw = newValue.rawValue }
     }
+
+    private var translationBackendKind: ReaderTranslationBackendKind {
+        get { ReaderTranslationBackendKind(rawValue: translationBackendRaw) ?? .builtIn }
+        nonmutating set { translationBackendRaw = newValue.rawValue }
+    }
+
+    private var translationSourceLanguage: ReaderTranslationLanguage? {
+        get { ReaderTranslationLanguage(rawValue: translationSourceLanguageRaw) }
+        nonmutating set { translationSourceLanguageRaw = newValue?.rawValue ?? "" }
+    }
+
+    private var translationTargetLanguage: ReaderTranslationLanguage {
+        get { ReaderTranslationLanguage(rawValue: translationTargetLanguageRaw) ?? .chineseSimplified }
+        nonmutating set { translationTargetLanguageRaw = newValue.rawValue }
+    }
+
+    private var translationTimeoutBinding: Binding<Int> {
+        Binding(
+            get: { ReaderPageTranslationBackendConfiguration.clampedRequestTimeoutSeconds(translationRequestTimeoutSeconds) },
+            set: { translationRequestTimeoutSeconds = ReaderPageTranslationBackendConfiguration.clampedRequestTimeoutSeconds($0) }
+        )
+    }
+
+    private let autoDetectSourceLanguageTag = "settings.translation.source.auto"
 
     var body: some View {
         NavigationStack {
@@ -92,6 +122,75 @@ struct SettingsView: View {
                         Task { await model.clearReaderCache(using: library) }
                     }
                     .disabled(model.clearingReaderCache)
+                }
+
+                Section(AppLocalization.text("reader.translation.settings.section", "Page Translation")) {
+                    Toggle(AppLocalization.text("reader.translation.settings.enabled", "Enable page translation"), isOn: $translationEnabled)
+
+                    Picker(
+                        AppLocalization.text("reader.translation.settings.backend", "Translation backend"),
+                        selection: Binding(
+                            get: { translationBackendKind },
+                            set: { translationBackendKind = $0 }
+                        )
+                    ) {
+                        ForEach(ReaderTranslationBackendKind.allCases) { item in
+                            Text(item.title).tag(item)
+                        }
+                    }
+
+                    Stepper(value: translationTimeoutBinding, in: ReaderPageTranslationBackendConfiguration.minRequestTimeoutSeconds...ReaderPageTranslationBackendConfiguration.maxRequestTimeoutSeconds, step: 5) {
+                        Text(
+                            AppLocalization.format(
+                                "settings.translation.timeout",
+                                "Request timeout: %lld sec",
+                                Int64(translationTimeoutBinding.wrappedValue)
+                            )
+                        )
+                    }
+
+                    if translationBackendKind == .koharu {
+                        VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                            Text(AppLocalization.text("reader.translation.settings.koharu_url", "Koharu server URL"))
+                                .font(.subheadline.weight(.semibold))
+                            TextField(
+                                AppLocalization.text("reader.translation.settings.koharu_url.placeholder", "http://127.0.0.1:8080"),
+                                text: $translationKoharuBaseURL
+                            )
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.URL)
+                            .autocorrectionDisabled()
+                            .textContentType(.URL)
+                        }
+                    }
+
+                    Picker(
+                        AppLocalization.text("reader.translation.settings.source_language", "Comic language"),
+                        selection: Binding(
+                            get: { translationSourceLanguage?.rawValue ?? autoDetectSourceLanguageTag },
+                            set: { rawValue in
+                                translationSourceLanguage = rawValue == autoDetectSourceLanguageTag ? nil : ReaderTranslationLanguage(rawValue: rawValue)
+                            }
+                        )
+                    ) {
+                        Text(AppLocalization.text("reader.translation.settings.source_language.auto", "Auto detect"))
+                            .tag(autoDetectSourceLanguageTag)
+                        ForEach(ReaderTranslationLanguage.allCases) { language in
+                            Text(language.title).tag(language.rawValue)
+                        }
+                    }
+
+                    Picker(
+                        AppLocalization.text("reader.translation.settings.language", "Target language"),
+                        selection: Binding(
+                            get: { translationTargetLanguage },
+                            set: { translationTargetLanguage = $0 }
+                        )
+                    ) {
+                        ForEach(ReaderTranslationLanguage.allCases) { language in
+                            Text(language.title).tag(language)
+                        }
+                    }
                 }
 
                 Section(AppLocalization.text("settings.section.diagnostics", "Diagnostics")) {

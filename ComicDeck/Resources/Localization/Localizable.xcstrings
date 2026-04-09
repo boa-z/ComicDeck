@@ -4875,6 +4875,23 @@
         }
       }
     },
+    "reader.translation.error.koharu_url_invalid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koharu server URL is invalid."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koharu 服务器地址无效。"
+          }
+        }
+      }
+    },
     "reader.translation.error.unavailable" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4909,6 +4926,23 @@
         }
       }
     },
+    "reader.translation.action.current_page.koharu" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Translate current page with Koharu"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用 Koharu 翻译当前页"
+          }
+        }
+      }
+    },
     "reader.translation.settings.enabled" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4922,6 +4956,91 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "启用页面翻译"
+          }
+        }
+      }
+    },
+    "reader.translation.settings.backend" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Translation backend"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻译后端"
+          }
+        }
+      }
+    },
+    "reader.translation.settings.backend.option.built_in" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built-in"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内置"
+          }
+        }
+      }
+    },
+    "reader.translation.settings.backend.option.koharu" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koharu"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koharu"
+          }
+        }
+      }
+    },
+    "reader.translation.settings.koharu_url" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koharu server URL"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koharu 服务器地址"
+          }
+        }
+      }
+    },
+    "reader.translation.settings.koharu_url.placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "http://127.0.0.1:8080"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "http://127.0.0.1:8080"
           }
         }
       }
@@ -4990,6 +5109,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "页面翻译"
+          }
+        }
+      }
+    },
+    "settings.translation.timeout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Request timeout: %1$lld sec"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请求超时：%1$lld 秒"
           }
         }
       }

@@ -39,7 +39,8 @@ final class ReaderViewModel {
     private var sourceStore: SourceStore?
     private var downloadManager: ComicDownloadManager?
     private var sourceRuntime: SourceRuntime?
-    private var readerTranslationService: ReaderTranslationService?
+    private var readerPageTranslationBackend: ReaderPageTranslationBackend?
+    private var readerPageTranslationBackendConfiguration: ReaderPageTranslationBackendConfiguration?
     private let notificationCenter: NotificationCenter
     private var downloadUpdateObserver: NSObjectProtocol?
 
@@ -101,9 +102,6 @@ final class ReaderViewModel {
                     database: core!.database,
                     rootDirectory: baseDir.appendingPathComponent("downloads", isDirectory: true)
                 )
-            }
-            if readerTranslationService == nil {
-                readerTranslationService = ReaderTranslationService(database: core!.database)
             }
             WebLoginCookieStore.restoreCookies()
 
@@ -288,10 +286,43 @@ final class ReaderViewModel {
         await requireSourceRuntime().disposeReaderPageRequestSession(handle, item: item)
     }
 
-    func getReaderTranslationService() async -> ReaderTranslationService? {
+    func getReaderPageTranslationBackend(
+        configuration: ReaderPageTranslationBackendConfiguration
+    ) async throws -> ReaderPageTranslationBackend {
         await prepareIfNeeded()
-        return readerTranslationService
+        guard let core else {
+            throw ReaderPageTranslationBackendConfigurationError.serviceUnavailable
+        }
+
+        switch configuration.kind {
+        case .builtIn:
+            return ReaderTranslationService(
+                database: core.database,
+                requestTimeoutSeconds: configuration.requestTimeoutSeconds
+            )
+        case .koharu:
+            let normalizedBaseURL = try configuration.normalizedKoharuAPIBaseURL()
+            let normalizedConfiguration = ReaderPageTranslationBackendConfiguration(
+                kind: .koharu,
+                koharuBaseURL: normalizedBaseURL.absoluteString,
+                requestTimeoutSeconds: configuration.requestTimeoutSeconds
+            )
+            if readerPageTranslationBackendConfiguration != normalizedConfiguration || readerPageTranslationBackend == nil {
+                readerPageTranslationBackend = KoharuPageTranslationBackend(
+                    database: core.database,
+                    baseURL: normalizedBaseURL,
+                    workingDirectory: core.baseDirectory,
+                    requestTimeoutSeconds: normalizedConfiguration.requestTimeoutSeconds
+                )
+                readerPageTranslationBackendConfiguration = normalizedConfiguration
+            }
+            guard let readerPageTranslationBackend else {
+                throw ReaderPageTranslationBackendConfigurationError.serviceUnavailable
+            }
+            return readerPageTranslationBackend
+        }
     }
+
 
     // MARK: - Source Favorites (delegated to engine, not local SQLite)
 

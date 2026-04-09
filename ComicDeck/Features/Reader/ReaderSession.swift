@@ -70,15 +70,23 @@ final class ReaderSession {
     var verticalTrackingSuspendedUntil: Date = .distantPast
 
     var translationEnabled = false
+    var translationBackendKind: ReaderTranslationBackendKind = .builtIn
+    var translationKoharuBaseURL = ""
+    var translationRequestTimeoutSeconds = 60
     var translationSourceLanguage: ReaderTranslationLanguage?
     var translationTargetLanguage: ReaderTranslationLanguage = .chineseSimplified
     var translationPageStates: [Int: ReaderPageTranslationStatus] = [:]
     var translationPageDocuments: [Int: ReaderPageTranslationDocument] = [:]
     var translationErrorText: [Int: String] = [:]
     var translationUnsupportedReason = ""
+    var pagePresentationStates: [Int: ReaderPagePresentationState] = [:]
 
     var translationPageBlocks: [Int: [ReaderTextBlock]] {
         translationPageDocuments.mapValues { $0.blocks }
+    }
+
+    var translationRenderedAssets: [Int: ReaderRenderedPageAsset] {
+        translationPageDocuments.compactMapValues(\.renderedAsset)
     }
 
     private var readingSessionStartedAt: Date?
@@ -278,17 +286,28 @@ final class ReaderSession {
 
     func applyTranslationPreferences(
         enabled: Bool,
+        backendKind: ReaderTranslationBackendKind,
+        koharuBaseURL: String,
+        requestTimeoutSeconds: Int,
         sourceLanguage: ReaderTranslationLanguage?,
         targetLanguage: ReaderTranslationLanguage
     ) {
-        let languageChanged = translationSourceLanguage != sourceLanguage || translationTargetLanguage != targetLanguage
+        let preferencesChanged = translationBackendKind != backendKind
+            || translationKoharuBaseURL != koharuBaseURL
+            || translationRequestTimeoutSeconds != requestTimeoutSeconds
+            || translationSourceLanguage != sourceLanguage
+            || translationTargetLanguage != targetLanguage
         translationEnabled = enabled
+        translationBackendKind = backendKind
+        translationKoharuBaseURL = koharuBaseURL
+        translationRequestTimeoutSeconds = ReaderPageTranslationBackendConfiguration.clampedRequestTimeoutSeconds(requestTimeoutSeconds)
         translationSourceLanguage = sourceLanguage
         translationTargetLanguage = targetLanguage
-        if languageChanged {
+        if preferencesChanged {
             translationPageStates.removeAll()
             translationPageDocuments.removeAll()
             translationErrorText.removeAll()
+            translationUnsupportedReason = ""
         }
     }
 
@@ -473,7 +492,14 @@ final class ReaderSession {
         translationPageDocuments.removeAll()
         translationErrorText.removeAll()
         translationUnsupportedReason = ""
+        pagePresentationStates.removeAll()
     }
+
+    #if DEBUG
+    func reloadReaderPresentationStateForTests() {
+        resetChapterLoadState()
+    }
+    #endif
 
     private func applyLoadedRequests(_ requests: [ImageRequest]) {
         imageRequests = requests.map(Optional.some)
@@ -569,19 +595,16 @@ final class ReaderSession {
         generation: Int
     ) async {
         guard generation == translationGeneration, !Task.isCancelled else { return }
-        guard let service = await vm.getReaderTranslationService() else {
-            if generation == translationGeneration {
-                translationPageStates[pageIndex] = .unsupported
-                translationErrorText[pageIndex] = AppLocalization.text(
-                    "reader.translation.error.service_unavailable",
-                    "Translation service is unavailable."
-                )
-            }
-            return
-        }
 
         do {
-            let record = try await service.translatePage(
+            let backend = try await vm.getReaderPageTranslationBackend(
+                configuration: ReaderPageTranslationBackendConfiguration(
+                    kind: translationBackendKind,
+                    koharuBaseURL: translationKoharuBaseURL,
+                    requestTimeoutSeconds: translationRequestTimeoutSeconds
+                )
+            )
+            let record = try await backend.translatePage(
                 item: item,
                 chapterID: chapterID,
                 pageIndex: pageIndex,
@@ -603,15 +626,26 @@ final class ReaderSession {
             translationPageStates[pageIndex] = .failed
             translationPageDocuments[pageIndex] = nil
             translationErrorText[pageIndex] = message
-            await service.saveFailure(
-                item: item,
-                chapterID: chapterID,
-                pageIndex: pageIndex,
-                request: request,
-                sourceLanguage: sourceLanguage,
-                targetLanguage: targetLanguage,
-                errorText: message
-            )
+            if case ReaderPageTranslationBackendConfigurationError.invalidKoharuBaseURL = error {
+                translationUnsupportedReason = message
+            }
+            if let backend = try? await vm.getReaderPageTranslationBackend(
+                configuration: ReaderPageTranslationBackendConfiguration(
+                    kind: translationBackendKind,
+                    koharuBaseURL: translationKoharuBaseURL,
+                    requestTimeoutSeconds: translationRequestTimeoutSeconds
+                )
+            ) {
+                await backend.saveFailure(
+                    item: item,
+                    chapterID: chapterID,
+                    pageIndex: pageIndex,
+                    request: request,
+                    sourceLanguage: sourceLanguage,
+                    targetLanguage: targetLanguage,
+                    errorText: message
+                )
+            }
             readerDebugLog("translation failed: page=\(pageIndex), error=\(message)", level: .warn)
         }
     }

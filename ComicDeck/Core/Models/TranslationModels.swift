@@ -181,6 +181,25 @@ public struct ReaderRenderedPageAsset: Codable, Sendable, Hashable {
     public let updatedAt: Int64
 }
 
+public struct ReaderPagePresentationState: Codable, Sendable, Hashable {
+    public let viewportSize: CGSize
+    public let imageFrame: ReaderNormalizedRect?
+    public let zoomScale: CGFloat
+    public let contentOffset: CGPoint
+
+    public nonisolated init(
+        viewportSize: CGSize,
+        imageFrame: ReaderNormalizedRect?,
+        zoomScale: CGFloat,
+        contentOffset: CGPoint
+    ) {
+        self.viewportSize = viewportSize
+        self.imageFrame = imageFrame
+        self.zoomScale = zoomScale
+        self.contentOffset = contentOffset
+    }
+}
+
 public struct ReaderPageTranslationDocument: Codable, Sendable, Hashable, Identifiable {
     public let id: Int64
     public let sourceKey: String
