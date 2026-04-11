@@ -64,15 +64,13 @@ final class ReaderSession {
     var currentPage = 0
     var showControls = true
     var reloadNonce = 0
-    var verticalPageFrames: [Int: CGRect] = [:]
-    var verticalViewportHeight: CGFloat = 1
-    var verticalScrollTarget: Int? = nil
-    var verticalTrackingSuspendedUntil: Date = .distantPast
 
     var translationEnabled = false
+    var translationShowOriginal = false
     var translationBackendKind: ReaderTranslationBackendKind = .builtIn
     var translationKoharuBaseURL = ""
     var translationRequestTimeoutSeconds = 60
+    var translationKoharuLLM = ReaderKoharuLLMConfiguration()
     var translationSourceLanguage: ReaderTranslationLanguage?
     var translationTargetLanguage: ReaderTranslationLanguage = .chineseSimplified
     var translationPageStates: [Int: ReaderPageTranslationStatus] = [:]
@@ -164,7 +162,6 @@ final class ReaderSession {
                 applyLoadedRequests(localRequests)
                 currentPage = preferredInitialPageIndex(total: totalPages, readerMode: readerMode)
                 if readerMode == .vertical {
-                    verticalScrollTarget = currentPage
                 }
                 loadingProgress = 1
                 loadingMessage = "Done"
@@ -192,9 +189,6 @@ final class ReaderSession {
             totalPages = prepared.totalPages
             imageRequests = Array(repeating: nil, count: prepared.totalPages)
             currentPage = preferredInitialPageIndex(total: totalPages, readerMode: readerMode)
-            if readerMode == .vertical {
-                verticalScrollTarget = currentPage
-            }
 
             loadingProgress = 0.55
             loadingMessage = "Preparing reader..."
@@ -290,20 +284,36 @@ final class ReaderSession {
         koharuBaseURL: String,
         requestTimeoutSeconds: Int,
         sourceLanguage: ReaderTranslationLanguage?,
-        targetLanguage: ReaderTranslationLanguage
+        targetLanguage: ReaderTranslationLanguage,
+        koharuLLM: ReaderKoharuLLMConfiguration = ReaderKoharuLLMConfiguration()
     ) {
-        let preferencesChanged = translationBackendKind != backendKind
-            || translationKoharuBaseURL != koharuBaseURL
-            || translationRequestTimeoutSeconds != requestTimeoutSeconds
+        let normalizedBackendConfiguration = ReaderPageTranslationBackendConfiguration(
+            kind: backendKind,
+            koharuBaseURL: koharuBaseURL,
+            requestTimeoutSeconds: requestTimeoutSeconds,
+            koharuLLM: koharuLLM
+        )
+        let existingBackendConfiguration = ReaderPageTranslationBackendConfiguration(
+            kind: translationBackendKind,
+            koharuBaseURL: translationKoharuBaseURL,
+            requestTimeoutSeconds: translationRequestTimeoutSeconds,
+            koharuLLM: translationKoharuLLM
+        )
+        let preferencesChanged = existingBackendConfiguration != normalizedBackendConfiguration
             || translationSourceLanguage != sourceLanguage
             || translationTargetLanguage != targetLanguage
         translationEnabled = enabled
+        translationShowOriginal = false
         translationBackendKind = backendKind
         translationKoharuBaseURL = koharuBaseURL
-        translationRequestTimeoutSeconds = ReaderPageTranslationBackendConfiguration.clampedRequestTimeoutSeconds(requestTimeoutSeconds)
+        translationRequestTimeoutSeconds = normalizedBackendConfiguration.requestTimeoutSeconds
+        translationKoharuLLM = normalizedBackendConfiguration.koharuLLM
         translationSourceLanguage = sourceLanguage
         translationTargetLanguage = targetLanguage
         if preferencesChanged {
+            translationGeneration += 1
+            translationTasks.values.forEach { $0.cancel() }
+            translationTasks.removeAll()
             translationPageStates.removeAll()
             translationPageDocuments.removeAll()
             translationErrorText.removeAll()
@@ -311,16 +321,22 @@ final class ReaderSession {
         }
     }
 
+    func toggleTranslationShowOriginal() {
+        translationShowOriginal.toggle()
+    }
+
     func translationStatus(for pageIndex: Int) -> ReaderPageTranslationStatus {
         translationPageStates[pageIndex] ?? .idle
     }
 
     func translationBlocks(for pageIndex: Int) -> [ReaderTextBlock] {
-        translationPageDocuments[pageIndex]?.blocks ?? []
+        guard !translationShowOriginal else { return [] }
+        return translationPageDocuments[pageIndex]?.blocks ?? []
     }
 
     func translationError(for pageIndex: Int) -> String? {
-        translationErrorText[pageIndex]
+        guard !translationShowOriginal else { return nil }
+        return translationErrorText[pageIndex]
     }
 
     func translateCurrentPage(using vm: ReaderViewModel) {
@@ -351,7 +367,7 @@ final class ReaderSession {
         guard totalPages > 0 else { return }
         if readerMode == .vertical {
             let target = min(totalPages - 1, currentPage + 1)
-            jumpToVerticalPage(target, readerMode: readerMode)
+            jumpToPage(target, readerMode: readerMode)
             return
         }
         let move = {
@@ -372,7 +388,7 @@ final class ReaderSession {
         guard totalPages > 0 else { return }
         if readerMode == .vertical {
             let target = max(0, currentPage - 1)
-            jumpToVerticalPage(target, readerMode: readerMode)
+            jumpToPage(target, readerMode: readerMode)
             return
         }
         let move = {
@@ -396,26 +412,14 @@ final class ReaderSession {
         translationErrorText[currentPage] = nil
     }
 
-    func jumpToVerticalPage(_ target: Int, readerMode: ReaderMode) {
-        guard readerMode == .vertical else { return }
+    func jumpToPage(_ target: Int, readerMode: ReaderMode) {
         guard totalPages > 0 else { return }
+        if readerMode == .vertical {
+            currentPage = max(0, min(totalPages - 1, target))
+            return
+        }
         let clamped = max(0, min(totalPages - 1, target))
         currentPage = clamped
-        verticalScrollTarget = clamped
-    }
-
-    func updateCurrentPageFromVerticalLayout(readerMode: ReaderMode) {
-        guard readerMode == .vertical else { return }
-        guard Date() >= verticalTrackingSuspendedUntil else { return }
-        guard !verticalPageFrames.isEmpty else { return }
-        let viewportMid = verticalViewportHeight * 0.5
-        let best = verticalPageFrames.min { lhs, rhs in
-            abs(lhs.value.midY - viewportMid) < abs(rhs.value.midY - viewportMid)
-        }?.key
-        guard let best else { return }
-        if best != currentPage {
-            currentPage = best
-        }
     }
 
     func persistHistory(using library: LibraryViewModel, readerMode: ReaderMode) async {
@@ -483,8 +487,6 @@ final class ReaderSession {
         pendingPageIndexes.removeAll()
         isLoadingMore = false
         readerPageRequestSessionHandle = nil
-        verticalPageFrames = [:]
-        verticalScrollTarget = nil
         currentPage = 0
         translationTasks.values.forEach { $0.cancel() }
         translationTasks.removeAll()
@@ -498,6 +500,18 @@ final class ReaderSession {
     #if DEBUG
     func reloadReaderPresentationStateForTests() {
         resetChapterLoadState()
+    }
+
+    func translationGenerationForTests() -> Int {
+        translationGeneration
+    }
+
+    func primeTranslationTaskForTests(pageIndex: Int = 0) {
+        translationTasks[pageIndex] = Task {}
+    }
+
+    func translationTaskCountForTests() -> Int {
+        translationTasks.count
     }
     #endif
 
@@ -601,7 +615,8 @@ final class ReaderSession {
                 configuration: ReaderPageTranslationBackendConfiguration(
                     kind: translationBackendKind,
                     koharuBaseURL: translationKoharuBaseURL,
-                    requestTimeoutSeconds: translationRequestTimeoutSeconds
+                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
+                    koharuLLM: translationKoharuLLM
                 )
             )
             let record = try await backend.translatePage(
@@ -633,7 +648,8 @@ final class ReaderSession {
                 configuration: ReaderPageTranslationBackendConfiguration(
                     kind: translationBackendKind,
                     koharuBaseURL: translationKoharuBaseURL,
-                    requestTimeoutSeconds: translationRequestTimeoutSeconds
+                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
+                    koharuLLM: translationKoharuLLM
                 )
             ) {
                 await backend.saveFailure(
@@ -671,9 +687,6 @@ final class ReaderSession {
         }
         applyLoadedRequests(requests)
         currentPage = preferredInitialPageIndex(total: totalPages, readerMode: readerMode)
-        if readerMode == .vertical {
-            verticalScrollTarget = currentPage
-        }
         loadingProgress = 1
         loadingMessage = "Done"
         loading = false

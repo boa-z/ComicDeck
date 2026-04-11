@@ -243,6 +243,17 @@ Design intent:
 - downloads and offline flows still use the existing eager full-request resolution path, while the reader uses the additive progressive request-session path
 - image caching and page-byte loading stay outside the view tree in `ReaderImagePipeline`; progressive loading only changes how `ImageRequest` values are generated
 
+### Reader Translation
+
+Page translation is layered on top of the existing reader session and document pipeline.
+
+Design intent:
+
+- the built-in backend uses ComicDeck-managed translation services within the reader pipeline
+- the Koharu backend still uses the existing Koharu document translation pipeline rather than a separate model-selection request path
+- when Koharu page translation is enabled, ComicDeck bridges Koharu model selection through `DELETE /llm` or `PUT /llm` global configuration calls before requesting translation
+- Koharu cache partitioning includes a normalized representation of the active Koharu configuration so new reader sessions do not reuse documents created under a different server-side LLM setup
+
 ## Downloads and Offline
 
 Queue state and offline state are intentionally distinct.

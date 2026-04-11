@@ -305,14 +305,16 @@ final class ReaderViewModel {
             let normalizedConfiguration = ReaderPageTranslationBackendConfiguration(
                 kind: .koharu,
                 koharuBaseURL: normalizedBaseURL.absoluteString,
-                requestTimeoutSeconds: configuration.requestTimeoutSeconds
+                requestTimeoutSeconds: configuration.requestTimeoutSeconds,
+                koharuLLM: configuration.koharuLLM
             )
             if readerPageTranslationBackendConfiguration != normalizedConfiguration || readerPageTranslationBackend == nil {
                 readerPageTranslationBackend = KoharuPageTranslationBackend(
                     database: core.database,
                     baseURL: normalizedBaseURL,
                     workingDirectory: core.baseDirectory,
-                    requestTimeoutSeconds: normalizedConfiguration.requestTimeoutSeconds
+                    requestTimeoutSeconds: normalizedConfiguration.requestTimeoutSeconds,
+                    koharuLLM: normalizedConfiguration.koharuLLM
                 )
                 readerPageTranslationBackendConfiguration = normalizedConfiguration
             }

@@ -587,10 +587,274 @@ final class SQLiteStoreTests: XCTestCase {
         XCTAssertEqual(unwrapped.provider, "custom-http")
     }
 
+    func testReaderPageTranslationDocumentLookupPartitionsByProviderConfigHash() async throws {
+        let store = try makeStore()
+        let first = makeReaderPageTranslationDocument(providerConfigHash: "hash-a", translatedText: "First")
+        let second = makeReaderPageTranslationDocument(providerConfigHash: "hash-b", translatedText: "Second")
+
+        _ = try await store.upsertReaderPageTranslationDocument(first)
+        _ = try await store.upsertReaderPageTranslationDocument(second)
+
+        let loadedFirst = try await store.getReaderPageTranslationDocument(
+            sourceKey: first.sourceKey,
+            comicID: first.comicID,
+            chapterID: first.chapterID,
+            pageIndex: first.pageIndex,
+            targetLanguage: first.targetLanguage,
+            imageRequestKey: first.imageRequestKey,
+            pipelineVersion: first.pipelineVersion,
+            providerConfigHash: "hash-a"
+        )
+        let loadedSecond = try await store.getReaderPageTranslationDocument(
+            sourceKey: second.sourceKey,
+            comicID: second.comicID,
+            chapterID: second.chapterID,
+            pageIndex: second.pageIndex,
+            targetLanguage: second.targetLanguage,
+            imageRequestKey: second.imageRequestKey,
+            pipelineVersion: second.pipelineVersion,
+            providerConfigHash: "hash-b"
+        )
+
+        XCTAssertEqual(loadedFirst?.providerConfigHash, "hash-a")
+        XCTAssertEqual(loadedFirst?.blocks.first?.translatedText, "First")
+        XCTAssertEqual(loadedSecond?.providerConfigHash, "hash-b")
+        XCTAssertEqual(loadedSecond?.blocks.first?.translatedText, "Second")
+    }
+
+    func testNormalizedEquivalentKoharuProviderConfigHashesMatch() throws {
+        let lhs = try KoharuProviderConfigurationFingerprint.make(
+            configuration: ReaderPageTranslationBackendConfiguration(
+                kind: .koharu,
+                koharuBaseURL: "  https://koharu.example.com/service/  ",
+                requestTimeoutSeconds: 60,
+                koharuLLM: ReaderKoharuLLMConfiguration(
+                    mode: .provider,
+                    providerID: " provider-a ",
+                    modelID: " model-1 ",
+                    temperature: 0.4,
+                    maxTokens: 1024,
+                    customSystemPrompt: " Translate naturally. "
+                )
+            )
+        )
+        let rhs = try KoharuProviderConfigurationFingerprint.make(
+            configuration: ReaderPageTranslationBackendConfiguration(
+                kind: .koharu,
+                koharuBaseURL: "https://koharu.example.com/service/api/v1",
+                requestTimeoutSeconds: 60,
+                koharuLLM: ReaderKoharuLLMConfiguration(
+                    mode: .provider,
+                    providerID: "provider-a",
+                    modelID: "model-1",
+                    temperature: 0.4,
+                    maxTokens: 1024,
+                    customSystemPrompt: "Translate naturally."
+                )
+            )
+        )
+
+        XCTAssertEqual(lhs, rhs)
+    }
+
+    func testKoharuProviderFingerprintChangesWhenModeChanges() throws {
+        try assertKoharuProviderFingerprintFieldChange(
+            baseline: ReaderKoharuLLMConfiguration(
+                mode: .provider,
+                providerID: "provider-a",
+                modelID: "model-1",
+                temperature: 0.4,
+                maxTokens: 1024,
+                customSystemPrompt: "Translate naturally."
+            ),
+            changed: ReaderKoharuLLMConfiguration(
+                mode: .local,
+                modelID: "model-1",
+                temperature: 0.4,
+                maxTokens: 1024,
+                customSystemPrompt: "Translate naturally."
+            )
+        )
+    }
+
+    func testKoharuProviderFingerprintChangesWhenProviderIDChanges() throws {
+        try assertKoharuProviderFingerprintFieldChange(
+            baseline: ReaderKoharuLLMConfiguration(
+                mode: .provider,
+                providerID: "provider-a",
+                modelID: "model-1",
+                temperature: 0.4,
+                maxTokens: 1024,
+                customSystemPrompt: "Translate naturally."
+            ),
+            changed: ReaderKoharuLLMConfiguration(
+                mode: .provider,
+                providerID: "provider-b",
+                modelID: "model-1",
+                temperature: 0.4,
+                maxTokens: 1024,
+                customSystemPrompt: "Translate naturally."
+            )
+        )
+    }
+
+    func testKoharuProviderFingerprintChangesWhenModelIDChanges() throws {
+        try assertKoharuProviderFingerprintFieldChange(
+            baseline: ReaderKoharuLLMConfiguration(
+                mode: .provider,
+                providerID: "provider-a",
+                modelID: "model-1",
+                temperature: 0.4,
+                maxTokens: 1024,
+                customSystemPrompt: "Translate naturally."
+            ),
+            changed: ReaderKoharuLLMConfiguration(
+                mode: .provider,
+                providerID: "provider-a",
+                modelID: "model-2",
+                temperature: 0.4,
+                maxTokens: 1024,
+                customSystemPrompt: "Translate naturally."
+            )
+        )
+    }
+
+    func testKoharuProviderFingerprintChangesWhenTemperatureChanges() throws {
+        try assertKoharuProviderFingerprintFieldChange(
+            baseline: ReaderKoharuLLMConfiguration(
+                mode: .provider,
+                providerID: "provider-a",
+                modelID: "model-1",
+                temperature: 0.4,
+                maxTokens: 1024,
+                customSystemPrompt: "Translate naturally."
+            ),
+            changed: ReaderKoharuLLMConfiguration(
+                mode: .provider,
+                providerID: "provider-a",
+                modelID: "model-1",
+                temperature: 0.6,
+                maxTokens: 1024,
+                customSystemPrompt: "Translate naturally."
+            )
+        )
+    }
+
+    func testKoharuProviderFingerprintChangesWhenMaxTokensChanges() throws {
+        try assertKoharuProviderFingerprintFieldChange(
+            baseline: ReaderKoharuLLMConfiguration(
+                mode: .provider,
+                providerID: "provider-a",
+                modelID: "model-1",
+                temperature: 0.4,
+                maxTokens: 1024,
+                customSystemPrompt: "Translate naturally."
+            ),
+            changed: ReaderKoharuLLMConfiguration(
+                mode: .provider,
+                providerID: "provider-a",
+                modelID: "model-1",
+                temperature: 0.4,
+                maxTokens: 2048,
+                customSystemPrompt: "Translate naturally."
+            )
+        )
+    }
+
+    func testKoharuProviderFingerprintChangesWhenCustomSystemPromptChanges() throws {
+        try assertKoharuProviderFingerprintFieldChange(
+            baseline: ReaderKoharuLLMConfiguration(
+                mode: .provider,
+                providerID: "provider-a",
+                modelID: "model-1",
+                temperature: 0.4,
+                maxTokens: 1024,
+                customSystemPrompt: "Translate naturally."
+            ),
+            changed: ReaderKoharuLLMConfiguration(
+                mode: .provider,
+                providerID: "provider-a",
+                modelID: "model-1",
+                temperature: 0.4,
+                maxTokens: 1024,
+                customSystemPrompt: "Translate literally."
+            )
+        )
+    }
+
     private func makeStore() throws -> SQLiteStore {
         let directory = try makeTemporaryDirectory()
         let databaseURL = directory.appendingPathComponent("source_runtime.sqlite3")
         return try SQLiteStore(databaseURL: databaseURL)
+    }
+
+    private func assertKoharuProviderFingerprintFieldChange(
+        baseline: ReaderKoharuLLMConfiguration,
+        changed: ReaderKoharuLLMConfiguration,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let baselineFingerprint = try makeKoharuProviderFingerprint(koharuLLM: baseline)
+        let changedFingerprint = try makeKoharuProviderFingerprint(koharuLLM: changed)
+
+        XCTAssertNotEqual(baselineFingerprint, changedFingerprint, file: file, line: line)
+    }
+
+    private func makeKoharuProviderFingerprint(koharuLLM: ReaderKoharuLLMConfiguration) throws -> String {
+        try KoharuProviderConfigurationFingerprint.make(
+            configuration: ReaderPageTranslationBackendConfiguration(
+                kind: .koharu,
+                koharuBaseURL: "https://koharu.example.com/service/api/v1",
+                requestTimeoutSeconds: 60,
+                koharuLLM: koharuLLM
+            )
+        )
+    }
+
+    private func makeReaderPageTranslationDocument(
+        providerConfigHash: String,
+        translatedText: String
+    ) -> ReaderPageTranslationDocument {
+        ReaderPageTranslationDocument(
+            id: 0,
+            sourceKey: "source-a",
+            comicID: "comic-1",
+            chapterID: "chapter-1",
+            pageIndex: 4,
+            sourceLanguage: .japanese,
+            targetLanguage: .english,
+            provider: "custom-http",
+            status: .ready,
+            currentStage: .ready,
+            imageRequestKey: "GET|https://example.com/page-4.jpg",
+            imageFingerprint: "fp-4",
+            pipelineVersion: "reader-page-translation-v1",
+            providerConfigHash: providerConfigHash,
+            blocks: [
+                ReaderTextBlock(
+                    id: "block-1",
+                    sourceRect: ReaderNormalizedRect(x: 0.1, y: 0.2, width: 0.2, height: 0.15),
+                    containerRect: nil,
+                    readingDirection: .verticalRL,
+                    sourceText: "原文",
+                    translatedText: translatedText,
+                    styleHints: nil,
+                    zIndex: 0,
+                    confidence: 0.8
+                )
+            ],
+            cleanupRegions: [],
+            renderedAsset: ReaderRenderedPageAsset(
+                localFilePath: "/tmp/page-4.png",
+                pixelWidth: 1200,
+                pixelHeight: 1800,
+                renderMode: .translated,
+                provider: "custom-http",
+                updatedAt: 444
+            ),
+            errorText: nil,
+            updatedAt: 444
+        )
     }
 
     private func makeTemporaryDirectory() throws -> URL {

@@ -8,18 +8,11 @@ struct ReaderCanvasView: View {
     let reloadNonce: Int
     let animatePageTransitions: Bool
     let translationEnabled: Bool
+    let translationShowOriginal: Bool
     let translationBlocks: [Int: [ReaderTextBlock]]
     let translationRenderedAssets: [Int: ReaderRenderedPageAsset]
     @Binding var currentPage: Int
-    @Binding var verticalPageFrames: [Int: CGRect]
-    @Binding var verticalViewportHeight: CGFloat
-    @Binding var verticalScrollTarget: Int?
-    @Binding var verticalTrackingSuspendedUntil: Date
-    let onLeftArrow: () -> Void
-    let onRightArrow: () -> Void
-    let onUpArrow: (() -> Void)?
-    let onDownArrow: (() -> Void)?
-    let onUpdateCurrentPageFromVerticalLayout: () -> Void
+    let verticalCoordinator: ReaderVerticalCoordinator
 
     private let horizontalLoadRadius = 1
     private let verticalLoadRadius = 2
@@ -45,6 +38,7 @@ struct ReaderCanvasView: View {
                     nonce: reloadNonce,
                     supportsZoom: true,
                     translationEnabled: translationEnabled,
+                    translationShowOriginal: translationShowOriginal,
                     overlays: translationBlocks[idx] ?? [],
                     renderedAsset: translationRenderedAssets[idx]
                 )
@@ -64,10 +58,11 @@ struct ReaderCanvasView: View {
                     ForEach(Array(imageRequests.enumerated()), id: \.offset) { idx, request in
                         ReaderPageView(
                             pageIndex: idx,
-                            request: shouldLoadPage(at: idx) ? request : nil,
+                            request: request,
                             nonce: reloadNonce,
                             supportsZoom: false,
                             translationEnabled: translationEnabled,
+                            translationShowOriginal: translationShowOriginal,
                             overlays: translationBlocks[idx] ?? [],
                             renderedAsset: translationRenderedAssets[idx]
                         )
@@ -83,11 +78,19 @@ struct ReaderCanvasView: View {
                     }
                 }
                 .onPreferenceChange(ReaderPageFramesPreferenceKey.self) { frames in
-                    verticalPageFrames = frames
-                    onUpdateCurrentPageFromVerticalLayout()
+                    verticalCoordinator.recordPageFrames(frames)
+                    if let target = verticalCoordinator.initialScrollTarget(currentPage: currentPage) {
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            proxy.scrollTo(target, anchor: .top)
+                        }
+                    }
+                    if let resolved = verticalCoordinator.currentPageFromLayout(), resolved != currentPage {
+                        currentPage = resolved
+                    }
                 }
-                .onChange(of: verticalScrollTarget) { _, target in
+                .onChange(of: verticalCoordinator.scrollTarget) { _, target in
                     guard let target else { return }
+                    guard verticalCoordinator.initialScrollCompleted else { return }
                     if animatePageTransitions {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             proxy.scrollTo(target, anchor: .top)
@@ -95,18 +98,18 @@ struct ReaderCanvasView: View {
                     } else {
                         proxy.scrollTo(target, anchor: .top)
                     }
-                    let hold = Date().addingTimeInterval(0.35)
-                    if verticalTrackingSuspendedUntil < hold {
-                        verticalTrackingSuspendedUntil = hold
-                    }
                 }
                 .onAppear {
-                    verticalViewportHeight = max(1, viewportHeight)
-                    verticalScrollTarget = currentPage
+                    verticalCoordinator.updateViewportHeight(viewportHeight)
                 }
                 .onChange(of: viewportHeight) { _, value in
-                    verticalViewportHeight = max(1, value)
-                    onUpdateCurrentPageFromVerticalLayout()
+                    verticalCoordinator.updateViewportHeight(value)
+                    if let resolved = verticalCoordinator.currentPageFromLayout(), resolved != currentPage {
+                        currentPage = resolved
+                    }
+                }
+                .onChange(of: imageRequests.count) { _, _ in
+                    verticalCoordinator.prepareForContent(currentPage: currentPage)
                 }
             }
             .background(Color.black)
@@ -115,8 +118,11 @@ struct ReaderCanvasView: View {
     }
 
     private func shouldLoadPage(at index: Int) -> Bool {
-        let radius = readerMode == .vertical ? verticalLoadRadius : horizontalLoadRadius
-        return abs(index - currentPage) <= radius
+        if readerMode == .vertical {
+            let centerPage = verticalCoordinator.currentPageFromLayout() ?? currentPage
+            return abs(index - centerPage) <= verticalLoadRadius
+        }
+        return abs(index - currentPage) <= horizontalLoadRadius
     }
 }
 
@@ -134,6 +140,7 @@ struct ReaderPageView: View {
     let nonce: Int
     let supportsZoom: Bool
     let translationEnabled: Bool
+    let translationShowOriginal: Bool
     let overlays: [ReaderTextBlock]
     let renderedAsset: ReaderRenderedPageAsset?
     @Environment(\.displayScale) private var displayScale
@@ -141,8 +148,8 @@ struct ReaderPageView: View {
     var body: some View {
         ZStack {
             if let request {
-                let overlayCount = overlays.count
-                let renderedRequest = renderedAssetRequest()
+                let overlayCount = translationShowOriginal ? 0 : overlays.count
+                let renderedRequest = translationShowOriginal ? nil : renderedAssetRequest()
                 let activeOverlays = renderedRequest == nil && translationEnabled && overlayCount > 0 ? overlays : []
                 if let urlRequest = renderedRequest ?? buildURLRequest(from: request) {
                     Group {
@@ -160,12 +167,19 @@ struct ReaderPageView: View {
                         }
                     }
                     .id("\(pageIndex)-\(nonce)-\(urlRequestKey(urlRequest))")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: supportsZoom ? .infinity : nil)
                     .onAppear {
                         readerDebugLog(
                             "page render appear: page=\(pageIndex), zoom=\(supportsZoom), translationEnabled=\(translationEnabled), overlays=\(overlayCount), renderedAsset=\(renderedRequest != nil), url=\(urlRequest.url?.absoluteString ?? request.url)",
                             level: .debug
                         )
+                        if let fileURL = urlRequest.url, fileURL.isFileURL {
+                            let exists = FileManager.default.fileExists(atPath: fileURL.path)
+                            readerDebugLog(
+                                "page file check: page=\(pageIndex), path=\(fileURL.path), exists=\(exists)",
+                                level: .debug
+                            )
+                        }
                     }
                     .onChange(of: overlayCount) { _, count in
                         readerDebugLog(
@@ -189,10 +203,13 @@ struct ReaderPageView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else {
-                ReaderPagePlaceholderView(pageIndex: pageIndex)
+                ReaderPagePlaceholderView(
+                    pageIndex: pageIndex,
+                    minHeight: supportsZoom ? 220 : 420
+                )
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: supportsZoom ? .infinity : nil)
         .background(Color.black)
     }
 
@@ -210,6 +227,7 @@ struct ReaderPageView: View {
 
 private struct ReaderPagePlaceholderView: View {
     let pageIndex: Int
+    let minHeight: CGFloat
 
     var body: some View {
         VStack(spacing: 10) {
@@ -219,7 +237,7 @@ private struct ReaderPagePlaceholderView: View {
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, minHeight: minHeight)
         .background(Color.black)
     }
 }
@@ -228,51 +246,85 @@ struct PlainRemoteImage: View {
     let request: URLRequest
     let overlays: [ReaderTextBlock]
     @State private var uiImage: UIImage?
+    @State private var imageSize: CGSize?
     @State private var errorText: String?
     @State private var loading = false
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                if let uiImage {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let errorText {
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundStyle(.yellow)
-                        Text("Failed to load image")
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.85))
-                        Text(errorText)
-                            .font(.caption2)
-                            .foregroundStyle(.white.opacity(0.55))
-                            .lineLimit(3)
-                    }
-                    .padding()
-                } else {
+        ZStack {
+            if let uiImage {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorText {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.yellow)
+                    Text("Failed to load image")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.85))
+                    Text(errorText)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(3)
+                }
+                .padding()
+            } else {
+                VStack(spacing: 10) {
                     ProgressView()
                         .tint(.white)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Text(AppLocalization.text("reader.loading.image", "Loading image..."))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.8))
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .task(id: "\(urlRequestKey(request))|\(Int(proxy.size.width.rounded()))x\(Int(proxy.size.height.rounded()))|\(overlays.count)") {
-                await load(targetSize: proxy.size)
+        }
+        .frame(maxWidth: .infinity)
+        .aspectRatio(ReaderPlainImageLayout.displayAspectRatio(for: imageSize ?? uiImage?.size), contentMode: .fit)
+        .background(Color.black)
+        .background {
+            GeometryReader { proxy in
+                Color.clear
+                    .task(id: loadTaskKey(containerWidth: proxy.size.width)) {
+                        await load(containerWidth: proxy.size.width)
+                    }
             }
         }
     }
 
-    private func load(targetSize: CGSize) async {
-        if loading { return }
+    private func loadTaskKey(containerWidth: CGFloat) -> String {
+        return "\(urlRequestKey(request))|w\(Int(max(containerWidth, 1).rounded()))|\(overlays.count)"
+    }
+
+    private func load(containerWidth: CGFloat) async {
+        guard containerWidth > 0 else { return }
+
         loading = true
         defer { loading = false }
         errorText = nil
         uiImage = nil
+
         do {
-            let data = try await ReaderImagePipeline.shared.loadData(for: request)
+            let data = try await ReaderImagePipeline.shared.loadData(for: request, priority: .visible)
+            guard !Task.isCancelled else {
+                readerDebugLog("plain image load cancelled", level: .warn)
+                return
+            }
+            let sourceSize = Self.imageSourceSize(from: data)
+            if let sourceSize {
+                imageSize = sourceSize
+            }
+            let targetSize = ReaderPlainImageLayout.decodeTargetSize(
+                for: containerWidth,
+                imageSize: sourceSize ?? imageSize ?? uiImage?.size
+            )
+            readerDebugLog(
+                "plain image load start: url=\(request.url?.absoluteString ?? "nil"), isFile=\(request.url?.isFileURL == true), width=\(Int(containerWidth.rounded())), source=\(Int(sourceSize?.width ?? 0))x\(Int(sourceSize?.height ?? 0)), target=\(Int(targetSize.width.rounded()))x\(Int(targetSize.height.rounded()))",
+                level: .debug
+            )
             guard let baseImage = ReaderDecodedImageStore.shared.image(
                 for: request,
                 data: data,
@@ -280,18 +332,64 @@ struct PlainRemoteImage: View {
                 scale: displayScale,
                 allowOriginalSize: false
             ) else {
+                readerDebugLog("plain image decode failed: dataBytes=\(data.count)", level: .error)
                 throw ReaderImagePipelineError.invalidResponse
             }
+            guard !Task.isCancelled else {
+                readerDebugLog("plain image render cancelled", level: .warn)
+                return
+            }
             let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
+            imageSize = baseImage.size
             uiImage = image
             readerDebugLog(
-                "plain translated image ready: overlays=\(overlays.count), size=\(Int(image.size.width.rounded()))x\(Int(image.size.height.rounded()))",
+                "plain translated image ready: overlays=\(overlays.count), size=\(Int(image.size.width))x\(Int(image.size.height))",
                 level: .info
             )
+        } catch is CancellationError {
+            readerDebugLog("plain image cancellation error caught", level: .warn)
+            return
         } catch {
             errorText = error.localizedDescription
             readerDebugLog("plain image request error: \(error.localizedDescription), url=\(request.url?.absoluteString ?? "")", level: .error)
         }
+    }
+
+    private static func imageSourceSize(from data: Data) -> CGSize? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return nil
+        }
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
+            return nil
+        }
+        guard let width = properties[kCGImagePropertyPixelWidth] as? CGFloat,
+              let height = properties[kCGImagePropertyPixelHeight] as? CGFloat,
+              width > 0,
+              height > 0 else {
+            return nil
+        }
+        return CGSize(width: width, height: height)
+    }
+}
+
+enum ReaderPlainImageLayout {
+    static let fallbackAspectRatio: CGFloat = 0.7
+
+    static func displayAspectRatio(for imageSize: CGSize?) -> CGFloat {
+        guard let imageSize, imageSize.width > 0, imageSize.height > 0 else {
+            return fallbackAspectRatio
+        }
+        let aspectRatio = imageSize.width / imageSize.height
+        guard aspectRatio.isFinite, aspectRatio > 0 else {
+            return fallbackAspectRatio
+        }
+        return aspectRatio
+    }
+
+    static func decodeTargetSize(for width: CGFloat, imageSize: CGSize?) -> CGSize {
+        let resolvedWidth = max(width, 1)
+        let resolvedHeight = max(resolvedWidth / displayAspectRatio(for: imageSize), 1)
+        return CGSize(width: resolvedWidth, height: resolvedHeight)
     }
 }
 
@@ -350,11 +448,12 @@ struct ZoomableRemoteImage: UIViewRepresentable {
             view?.setLoading(true)
             loadTask = Task { [weak self, displayScale] in
                 do {
-                    let data = try await ReaderImagePipeline.shared.loadData(for: request)
+                    let data = try await ReaderImagePipeline.shared.loadData(for: request, priority: .visible)
                     guard !Task.isCancelled else { return }
                     let targetSize = await MainActor.run {
                         self?.view?.bounds.size ?? .zero
                     }
+                    guard !Task.isCancelled else { return }
                     guard let baseImage = ReaderDecodedImageStore.shared.image(
                         for: request,
                         data: data,
@@ -368,6 +467,8 @@ struct ZoomableRemoteImage: UIViewRepresentable {
                         self?.view?.setBaseImage(baseImage)
                         self?.updateRenderedImageIfNeeded()
                     }
+                } catch is CancellationError {
+                    return
                 } catch {
                     guard !Task.isCancelled else { return }
                     await MainActor.run {
@@ -746,6 +847,10 @@ final class ReaderDecodedImageStore {
     init() {
         cache.countLimit = 48
         cache.totalCostLimit = 120 * 1024 * 1024
+    }
+
+    func trim() {
+        cache.removeAllObjects()
     }
 
     func image(

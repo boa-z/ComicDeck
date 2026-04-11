@@ -541,6 +541,62 @@ final class ComicSourceHtmlIntegrationTests: XCTestCase {
         XCTAssertEqual(session.preferredInitialPageIndex(total: 5, readerMode: .rtl), 3)
     }
 
+    @MainActor
+    func testReaderSessionPreservesPagePresentationStateWhenTranslationLanguageChanges() {
+        let session = ReaderSession(
+            item: ComicSummary(id: "comic-1", sourceKey: "test", title: "Test Comic"),
+            chapterID: "chapter-1",
+            chapterTitle: "Chapter 1"
+        )
+        session.pagePresentationStates[2] = ReaderPagePresentationState(
+            viewportSize: CGSize(width: 390, height: 844),
+            imageFrame: ReaderNormalizedRect(x: 0.1, y: 0.15, width: 0.8, height: 0.6),
+            zoomScale: 2,
+            contentOffset: CGPoint(x: 12, y: 34)
+        )
+
+        session.applyTranslationPreferences(
+            enabled: true,
+            backendKind: .builtIn,
+            koharuBaseURL: "",
+            requestTimeoutSeconds: 60,
+            sourceLanguage: .japanese,
+            targetLanguage: .english,
+            koharuLLM: ReaderKoharuLLMConfiguration()
+        )
+        XCTAssertEqual(session.pagePresentationStates[2]?.zoomScale, 2)
+
+        session.applyTranslationPreferences(
+            enabled: true,
+            backendKind: .builtIn,
+            koharuBaseURL: "",
+            requestTimeoutSeconds: 60,
+            sourceLanguage: .english,
+            targetLanguage: .english,
+            koharuLLM: ReaderKoharuLLMConfiguration()
+        )
+        XCTAssertEqual(session.pagePresentationStates[2]?.contentOffset, CGPoint(x: 12, y: 34))
+    }
+
+    @MainActor
+    func testReaderSessionResetChapterLoadStateClearsPagePresentationState() {
+        let session = ReaderSession(
+            item: ComicSummary(id: "comic-1", sourceKey: "test", title: "Test Comic"),
+            chapterID: "chapter-1",
+            chapterTitle: "Chapter 1"
+        )
+        session.pagePresentationStates[1] = ReaderPagePresentationState(
+            viewportSize: CGSize(width: 430, height: 932),
+            imageFrame: ReaderNormalizedRect(x: 0, y: 0.1, width: 1, height: 0.7),
+            zoomScale: 1.5,
+            contentOffset: CGPoint(x: 0, y: 22)
+        )
+
+        session.reloadReaderPresentationStateForTests()
+
+        XCTAssertTrue(session.pagePresentationStates.isEmpty)
+    }
+
     func testEhentaiFavoritesTableRowsWorkWithImplicitTbody() throws {
         let script = """
         class TestSource extends ComicSource {

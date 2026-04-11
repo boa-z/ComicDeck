@@ -23,6 +23,64 @@ enum ReaderTranslationBackendKind: String, CaseIterable, Identifiable, Sendable,
     }
 }
 
+enum ReaderKoharuLLMMode: String, Sendable, Hashable {
+    case serverDefault
+    case provider
+    case local
+}
+
+struct ReaderKoharuLLMConfiguration: Sendable, Hashable {
+    let mode: ReaderKoharuLLMMode
+    let providerID: String?
+    let modelID: String?
+    let temperature: Double?
+    let maxTokens: Int?
+    let customSystemPrompt: String?
+
+    nonisolated init(
+        mode: ReaderKoharuLLMMode = .serverDefault,
+        providerID: String? = nil,
+        modelID: String? = nil,
+        temperature: Double? = nil,
+        maxTokens: Int? = nil,
+        customSystemPrompt: String? = nil
+    ) {
+        let normalizedProviderID = Self.normalizedOptionalString(providerID)
+        let normalizedModelID = Self.normalizedOptionalString(modelID)
+        let normalizedCustomSystemPrompt = Self.normalizedOptionalString(customSystemPrompt)
+
+        self.mode = mode
+
+        switch mode {
+        case .serverDefault:
+            self.providerID = nil
+            self.modelID = nil
+            self.temperature = nil
+            self.maxTokens = nil
+            self.customSystemPrompt = nil
+        case .provider:
+            self.providerID = normalizedProviderID
+            self.modelID = normalizedModelID
+            self.temperature = temperature
+            self.maxTokens = maxTokens
+            self.customSystemPrompt = normalizedCustomSystemPrompt
+        case .local:
+            self.providerID = nil
+            self.modelID = normalizedModelID
+            self.temperature = temperature
+            self.maxTokens = maxTokens
+            self.customSystemPrompt = normalizedCustomSystemPrompt
+        }
+    }
+
+    nonisolated private static func normalizedOptionalString(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+}
+
 struct ReaderPageTranslationBackendConfiguration: Sendable, Hashable {
     static let minRequestTimeoutSeconds = 15
     static let maxRequestTimeoutSeconds = 300
@@ -30,11 +88,18 @@ struct ReaderPageTranslationBackendConfiguration: Sendable, Hashable {
     let kind: ReaderTranslationBackendKind
     let koharuBaseURL: String
     let requestTimeoutSeconds: Int
+    let koharuLLM: ReaderKoharuLLMConfiguration
 
-    init(kind: ReaderTranslationBackendKind, koharuBaseURL: String, requestTimeoutSeconds: Int) {
+    init(
+        kind: ReaderTranslationBackendKind,
+        koharuBaseURL: String,
+        requestTimeoutSeconds: Int,
+        koharuLLM: ReaderKoharuLLMConfiguration = ReaderKoharuLLMConfiguration()
+    ) {
         self.kind = kind
         self.koharuBaseURL = koharuBaseURL
         self.requestTimeoutSeconds = Self.clampedRequestTimeoutSeconds(requestTimeoutSeconds)
+        self.koharuLLM = koharuLLM
     }
 
     nonisolated static func clampedRequestTimeoutSeconds(_ value: Int) -> Int {

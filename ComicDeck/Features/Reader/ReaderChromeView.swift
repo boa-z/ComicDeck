@@ -10,9 +10,11 @@ struct ReaderOverlayView: View {
     let resolvedPageCount: Int
     let isLoadingMore: Bool
     let translationEnabled: Bool
+    let translationShowOriginal: Bool
     let translationStatusText: String?
     let isTranslatingCurrentPage: Bool
     let onTranslateCurrentPage: (() -> Void)?
+    let onToggleTranslationShowOriginal: (() -> Void)?
     let translationBackendKind: ReaderTranslationBackendKind
     let readerMode: ReaderMode
     let animatePageTransitions: Bool
@@ -157,7 +159,7 @@ struct ReaderOverlayView: View {
                                 : "reader.translation.action.current_page",
                             translationBackendKind == .koharu ? "Translate current page with Koharu" : "Translate current page"
                         ),
-                        systemImage: translationBackendKind == .koharu ? "network" : "text.bubble",
+                        systemImage: translationShowOriginal ? "text.word.spacing" : "character.book.closed",
                         action: onTranslateCurrentPage
                     )
                     .labelStyle(.iconOnly)
@@ -171,6 +173,27 @@ struct ReaderOverlayView: View {
                                 ? "reader.translation.action.current_page.koharu"
                                 : "reader.translation.action.current_page",
                             translationBackendKind == .koharu ? "Translate current page with Koharu" : "Translate current page"
+                        )
+                    )
+                }
+
+                if translationEnabled, let onToggleTranslationShowOriginal {
+                    Button(
+                        AppLocalization.text(
+                            "reader.translation.toggle",
+                            translationShowOriginal ? "Show translated" : "Show original"
+                        ),
+                        systemImage: translationShowOriginal ? "eye" : "eye.slash",
+                        action: onToggleTranslationShowOriginal
+                    )
+                    .labelStyle(.iconOnly)
+                    .font(.headline)
+                    .padding(10)
+                    .background(AppSurface.readerOverlay, in: Circle())
+                    .accessibilityLabel(
+                        AppLocalization.text(
+                            "reader.translation.toggle",
+                            translationShowOriginal ? "Show translated" : "Show original"
                         )
                     )
                 }

@@ -114,16 +114,24 @@ struct ComicReaderView: View {
     @AppStorage("Translation.backend") private var translationBackendRaw = ReaderTranslationBackendKind.builtIn.rawValue
     @AppStorage("Translation.koharuBaseURL") private var translationKoharuBaseURL = ""
     @AppStorage("Translation.requestTimeoutSeconds") private var translationRequestTimeoutSeconds = 60
+    @AppStorage("Translation.koharuLLMMode") private var translationKoharuLLMModeRaw = ReaderKoharuLLMMode.serverDefault.rawValue
+    @AppStorage("Translation.koharuLLMProviderID") private var translationKoharuLLMProviderID = ""
+    @AppStorage("Translation.koharuLLMModelID") private var translationKoharuLLMModelID = ""
+    @AppStorage("Translation.koharuLLMTemperature") private var translationKoharuLLMTemperatureRaw = ""
+    @AppStorage("Translation.koharuLLMMaxTokens") private var translationKoharuLLMMaxTokensRaw = ""
+    @AppStorage("Translation.koharuLLMSystemPrompt") private var translationKoharuLLMSystemPrompt = ""
     @AppStorage("Translation.sourceLanguage") private var translationSourceLanguageRaw = ""
     @AppStorage("Translation.targetLanguage") private var translationTargetLanguageRaw = ReaderTranslationLanguage.chineseSimplified.rawValue
 
     @State private var debugConsole = RuntimeDebugConsole.shared
     @State private var session: ReaderSession
+    @State private var verticalCoordinator = ReaderVerticalCoordinator()
     @State private var showSettings = false
     @State private var historySaveTask: Task<Void, Never>? = nil
     @FocusState private var isReaderFocused: Bool
     @State private var keyboardDidConnectObserver: NSObjectProtocol?
     @State private var keyboardDidDisconnectObserver: NSObjectProtocol?
+    @State private var memoryPressureObserver: NSObjectProtocol?
 
     private let prefetcher = ReaderImagePrefetcher.shared
     @State private var readerLoadTask: Task<Void, Never>? = nil
@@ -178,6 +186,34 @@ struct ComicReaderView: View {
         nonmutating set { translationBackendRaw = newValue.rawValue }
     }
 
+    private var translationKoharuLLMMode: ReaderKoharuLLMMode {
+        get { ReaderKoharuLLMMode(rawValue: translationKoharuLLMModeRaw) ?? .serverDefault }
+        nonmutating set { translationKoharuLLMModeRaw = newValue.rawValue }
+    }
+
+    private var translationKoharuLLMTemperature: Double? {
+        let trimmed = translationKoharuLLMTemperatureRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return Double(trimmed)
+    }
+
+    private var translationKoharuLLMMaxTokens: Int? {
+        let trimmed = translationKoharuLLMMaxTokensRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return Int(trimmed)
+    }
+
+    private var translationKoharuLLMConfiguration: ReaderKoharuLLMConfiguration {
+        ReaderKoharuLLMConfiguration(
+            mode: translationKoharuLLMMode,
+            providerID: translationKoharuLLMProviderID,
+            modelID: translationKoharuLLMModelID,
+            temperature: translationKoharuLLMTemperature,
+            maxTokens: translationKoharuLLMMaxTokens,
+            customSystemPrompt: translationKoharuLLMSystemPrompt
+        )
+    }
+
     private var translationSourceLanguage: ReaderTranslationLanguage? {
         get { ReaderTranslationLanguage(rawValue: translationSourceLanguageRaw) }
         nonmutating set { translationSourceLanguageRaw = newValue?.rawValue ?? "" }
@@ -214,6 +250,12 @@ struct ComicReaderView: View {
     }
 
     private var baseReaderView: some View {
+        translationPreferenceObservingView(
+            lifecycleWrappedReaderView(baseReaderContent)
+        )
+    }
+
+    private var baseReaderContent: some View {
         readerBody
             .navigationBarBackButtonHidden(!session.loading)
             .toolbar(.hidden, for: .tabBar)
@@ -241,6 +283,10 @@ struct ComicReaderView: View {
                 )
                 .presentationDetents([.medium])
             }
+    }
+
+    private func lifecycleWrappedReaderView<Content: View>(_ content: Content) -> some View {
+        content
             .onChange(of: showSettings) { _, isPresented in
                 if !isPresented {
                     isReaderFocused = true
@@ -253,7 +299,7 @@ struct ComicReaderView: View {
                 let ltrIndex = min(session.totalPages - 1, oneBased - 1)
                 session.currentPage = mode == .rtl ? max(0, session.totalPages - 1 - ltrIndex) : ltrIndex
                 if mode == .vertical {
-                    session.verticalScrollTarget = session.currentPage
+                    verticalCoordinator.prepareForContent(currentPage: session.currentPage)
                 }
             }
             .onChange(of: session.currentPage) { _, _ in
@@ -262,121 +308,61 @@ struct ComicReaderView: View {
                 scheduleHistorySave()
             }
             .task {
-                prefetchGeneration = await ReaderImagePipeline.shared.beginPrefetchSession()
-                lastPrefetchedPage = session.currentPage
-                readerLoadTask?.cancel()
-                readerLoadTask = Task {
-                    await load()
-                }
-                chapterSequenceTask?.cancel()
-                chapterSequenceTask = Task {
-                    await session.loadChapterSequenceIfNeeded(using: vm)
-                }
+                await handleInitialTask()
             }
             .onAppear {
                 session.markVisible()
-                session.applyTranslationPreferences(
-                    enabled: translationEnabled,
-                    backendKind: translationBackendKind,
-                    koharuBaseURL: translationKoharuBaseURL,
-                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
-                    sourceLanguage: translationSourceLanguage,
-                    targetLanguage: translationTargetLanguage
-                )
+                applyCurrentTranslationPreferences()
                 isReaderFocused = true
                 UIApplication.shared.isIdleTimerDisabled = keepScreenOn
                 installKeyboardMonitoring()
+                installMemoryPressureMonitoring()
             }
             .onChange(of: keepScreenOn) { _, enabled in
                 UIApplication.shared.isIdleTimerDisabled = enabled
             }
-            .onChange(of: translationEnabled) { _, enabled in
-                session.applyTranslationPreferences(
-                    enabled: enabled,
-                    backendKind: translationBackendKind,
-                    koharuBaseURL: translationKoharuBaseURL,
-                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
-                    sourceLanguage: translationSourceLanguage,
-                    targetLanguage: translationTargetLanguage
-                )
+            .onDisappear {
+                handleDisappear()
+            }
+    }
+
+    private func translationPreferenceObservingView<Content: View>(_ content: Content) -> some View {
+        content
+            .onChange(of: translationEnabled) { _, _ in
+                applyCurrentTranslationPreferences()
             }
             .onChange(of: translationSourceLanguageRaw) { _, _ in
-                session.applyTranslationPreferences(
-                    enabled: translationEnabled,
-                    backendKind: translationBackendKind,
-                    koharuBaseURL: translationKoharuBaseURL,
-                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
-                    sourceLanguage: translationSourceLanguage,
-                    targetLanguage: translationTargetLanguage
-                )
+                applyCurrentTranslationPreferences()
             }
-            .onChange(of: translationBackendKind) { _, kind in
-                session.applyTranslationPreferences(
-                    enabled: translationEnabled,
-                    backendKind: kind,
-                    koharuBaseURL: translationKoharuBaseURL,
-                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
-                    sourceLanguage: translationSourceLanguage,
-                    targetLanguage: translationTargetLanguage
-                )
+            .onChange(of: translationBackendKind) { _, _ in
+                applyCurrentTranslationPreferences()
             }
-            .onChange(of: translationKoharuBaseURL) { _, baseURL in
-                session.applyTranslationPreferences(
-                    enabled: translationEnabled,
-                    backendKind: translationBackendKind,
-                    koharuBaseURL: baseURL,
-                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
-                    sourceLanguage: translationSourceLanguage,
-                    targetLanguage: translationTargetLanguage
-                )
+            .onChange(of: translationKoharuBaseURL) { _, _ in
+                applyCurrentTranslationPreferences()
             }
-            .onChange(of: translationRequestTimeoutSeconds) { _, timeoutSeconds in
-                session.applyTranslationPreferences(
-                    enabled: translationEnabled,
-                    backendKind: translationBackendKind,
-                    koharuBaseURL: translationKoharuBaseURL,
-                    requestTimeoutSeconds: timeoutSeconds,
-                    sourceLanguage: translationSourceLanguage,
-                    targetLanguage: translationTargetLanguage
-                )
+            .onChange(of: translationRequestTimeoutSeconds) { _, _ in
+                applyCurrentTranslationPreferences()
             }
-            .onChange(of: translationTargetLanguage) { _, language in
-                session.applyTranslationPreferences(
-                    enabled: translationEnabled,
-                    backendKind: translationBackendKind,
-                    koharuBaseURL: translationKoharuBaseURL,
-                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
-                    sourceLanguage: translationSourceLanguage,
-                    targetLanguage: language
-                )
+            .onChange(of: translationTargetLanguage) { _, _ in
+                applyCurrentTranslationPreferences()
             }
-            .onDisappear {
-                historySaveTask?.cancel()
-                historySaveTask = nil
-                readerLoadTask?.cancel()
-                readerLoadTask = nil
-                chapterSequenceTask?.cancel()
-                chapterSequenceTask = nil
-                chapterNavigationTask?.cancel()
-                chapterNavigationTask = nil
-                prefetcher.cancel()
-                UIApplication.shared.isIdleTimerDisabled = false
-                uninstallKeyboardMonitoring()
-
-                let app = UIApplication.shared
-                var bgTaskID: UIBackgroundTaskIdentifier = .invalid
-                bgTaskID = app.beginBackgroundTask(withName: "ReaderCleanup") {
-                    app.endBackgroundTask(bgTaskID)
-                    bgTaskID = .invalid
-                }
-                Task { @MainActor in
-                    await ReaderImagePipeline.shared.cancelPrefetchSession()
-                    await session.close(using: vm)
-                    await persistHistoryNow()
-                    session.finishReadingSession(using: library)
-                    app.endBackgroundTask(bgTaskID)
-                    bgTaskID = .invalid
-                }
+            .onChange(of: translationKoharuLLMModeRaw) { _, _ in
+                applyCurrentTranslationPreferences()
+            }
+            .onChange(of: translationKoharuLLMProviderID) { _, _ in
+                applyCurrentTranslationPreferences()
+            }
+            .onChange(of: translationKoharuLLMModelID) { _, _ in
+                applyCurrentTranslationPreferences()
+            }
+            .onChange(of: translationKoharuLLMTemperatureRaw) { _, _ in
+                applyCurrentTranslationPreferences()
+            }
+            .onChange(of: translationKoharuLLMMaxTokensRaw) { _, _ in
+                applyCurrentTranslationPreferences()
+            }
+            .onChange(of: translationKoharuLLMSystemPrompt) { _, _ in
+                applyCurrentTranslationPreferences()
             }
     }
 
@@ -481,20 +467,11 @@ struct ComicReaderView: View {
             reloadNonce: session.reloadNonce,
             animatePageTransitions: animatePageTransitions && !reduceMotion,
             translationEnabled: translationEnabled,
+            translationShowOriginal: session.translationShowOriginal,
             translationBlocks: session.translationPageBlocks,
             translationRenderedAssets: session.translationRenderedAssets,
             currentPage: $session.currentPage,
-            verticalPageFrames: $session.verticalPageFrames,
-            verticalViewportHeight: $session.verticalViewportHeight,
-            verticalScrollTarget: $session.verticalScrollTarget,
-            verticalTrackingSuspendedUntil: $session.verticalTrackingSuspendedUntil,
-            onLeftArrow: { previousPage() },
-            onRightArrow: { nextPage() },
-            onUpArrow: upArrowHandler,
-            onDownArrow: downArrowHandler,
-            onUpdateCurrentPageFromVerticalLayout: {
-                session.updateCurrentPageFromVerticalLayout(readerMode: readerMode)
-            }
+            verticalCoordinator: verticalCoordinator
         )
         .ignoresSafeArea()
     }
@@ -537,6 +514,21 @@ struct ComicReaderView: View {
         #endif
     }
 
+    private func installMemoryPressureMonitoring() {
+        memoryPressureObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didReceiveMemoryWarningNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in
+                verticalCoordinator.clearTrackedFrames()
+                ReaderDecodedImageStore.shared.trim()
+                await ReaderImagePipeline.shared.clearAllCache()
+                readerDebugLog("memory pressure: trimmed all caches", level: .warn)
+            }
+        }
+    }
+
     private func uninstallKeyboardMonitoring() {
         #if targetEnvironment(macCatalyst)
         clearKeyboardHandler()
@@ -549,6 +541,10 @@ struct ComicReaderView: View {
             keyboardDidDisconnectObserver = nil
         }
         #endif
+        if let observer = memoryPressureObserver {
+            NotificationCenter.default.removeObserver(observer)
+            memoryPressureObserver = nil
+        }
     }
 
     private func attachKeyboardHandler() {
@@ -607,9 +603,11 @@ struct ComicReaderView: View {
             resolvedPageCount: session.resolvedPageCount,
             isLoadingMore: session.isLoadingMore,
             translationEnabled: translationEnabled,
+            translationShowOriginal: session.translationShowOriginal,
             translationStatusText: translationStatusText,
             isTranslatingCurrentPage: session.translationStatus(for: session.currentPage) == .processing,
             onTranslateCurrentPage: translationEnabled ? { session.translateCurrentPage(using: vm) } : nil,
+            onToggleTranslationShowOriginal: translationEnabled ? { session.toggleTranslationShowOriginal() } : nil,
             translationBackendKind: translationBackendKind,
             readerMode: readerMode,
             animatePageTransitions: animatePageTransitions && !reduceMotion,
@@ -623,7 +621,8 @@ struct ComicReaderView: View {
             onOpenPreviousChapter: openPreviousChapter,
             onOpenNextChapter: openNextChapter,
             onJumpToVerticalPage: { target in
-                session.jumpToVerticalPage(target, readerMode: readerMode)
+                session.jumpToPage(target, readerMode: readerMode)
+                _ = verticalCoordinator.scrollToPage(target, totalPages: session.totalPages)
             }
         )
         .transition(.opacity)
@@ -683,16 +682,66 @@ struct ComicReaderView: View {
         preloadAroundCurrentPage()
     }
 
-    private func load() async {
-        await session.load(using: vm, readerMode: readerMode)
+    private func applyCurrentTranslationPreferences() {
         session.applyTranslationPreferences(
             enabled: translationEnabled,
             backendKind: translationBackendKind,
             koharuBaseURL: translationKoharuBaseURL,
             requestTimeoutSeconds: translationRequestTimeoutSeconds,
             sourceLanguage: translationSourceLanguage,
-            targetLanguage: translationTargetLanguage
+            targetLanguage: translationTargetLanguage,
+            koharuLLM: translationKoharuLLMConfiguration
         )
+    }
+
+    private func handleInitialTask() async {
+        verticalCoordinator.prepareForContent(currentPage: session.currentPage)
+        prefetchGeneration = await ReaderImagePipeline.shared.beginPrefetchSession()
+        lastPrefetchedPage = session.currentPage
+
+        readerLoadTask?.cancel()
+        readerLoadTask = Task {
+            await load()
+        }
+
+        chapterSequenceTask?.cancel()
+        chapterSequenceTask = Task {
+            await session.loadChapterSequenceIfNeeded(using: vm)
+        }
+    }
+
+    private func handleDisappear() {
+        historySaveTask?.cancel()
+        historySaveTask = nil
+        readerLoadTask?.cancel()
+        readerLoadTask = nil
+        chapterSequenceTask?.cancel()
+        chapterSequenceTask = nil
+        chapterNavigationTask?.cancel()
+        chapterNavigationTask = nil
+        prefetcher.cancel()
+        UIApplication.shared.isIdleTimerDisabled = false
+        uninstallKeyboardMonitoring()
+
+        let app = UIApplication.shared
+        var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+        bgTaskID = app.beginBackgroundTask(withName: "ReaderCleanup") {
+            app.endBackgroundTask(bgTaskID)
+            bgTaskID = .invalid
+        }
+        Task { @MainActor in
+            await ReaderImagePipeline.shared.cancelPrefetchSession()
+            await session.close(using: vm)
+            await persistHistoryNow()
+            session.finishReadingSession(using: library)
+            app.endBackgroundTask(bgTaskID)
+            bgTaskID = .invalid
+        }
+    }
+
+    private func load() async {
+        await session.load(using: vm, readerMode: readerMode)
+        applyCurrentTranslationPreferences()
         preloadAroundCurrentPage()
         await persistHistoryNow()
     }

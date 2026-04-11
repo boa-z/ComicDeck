@@ -264,6 +264,27 @@ In `Settings` you can configure:
 - list or grid layouts for supported pages
 - reader cache maintenance
 
+### Page Translation
+
+In `Settings -> Translation` you can configure how ComicDeck translates reader pages.
+
+Available backends:
+
+- `Built-in`: uses the app's native page translation path
+- `Koharu`: sends translation work through a Koharu server
+
+Koharu-specific options:
+
+- set the Koharu server URL
+- choose the Koharu LLM mode: `Server default`, `Provider`, or `Local`
+- when using `Provider` or `Local`, optionally set provider ID, model ID, temperature, max tokens, and a custom system prompt
+
+Important limitation:
+
+- Koharu LLM settings update the Koharu server's global `/llm` state before page translation starts
+- ComicDeck does not send a private per-request LLM override for each translation job
+- changing these settings clears cached page translation state for new reader sessions that use the Koharu backend
+
 ### Debug Logs
 
 In `Settings -> Debug Logs` you can:

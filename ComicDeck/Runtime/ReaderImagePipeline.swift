@@ -45,10 +45,20 @@ actor ReaderImagePipeline {
     private let cache: HybridDataCache
     private var inFlight: [String: Task<Data, Error>] = [:]
     private var activeCount = 0
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-    private let maxConcurrent = 3
+    private var waiters: [(priority: LoadPriority, continuation: CheckedContinuation<Void, Never>)] = []
+    private let maxConcurrent = 6
+    private let maxVisibleSlots = 4
     private var metrics = ReaderImageCacheMetrics()
     private var prefetchGeneration = 0
+
+    enum LoadPriority: Int, Comparable {
+        case visible
+        case prefetch
+
+        static func < (lhs: LoadPriority, rhs: LoadPriority) -> Bool {
+            lhs.rawValue < rhs.rawValue
+        }
+    }
 
     init() {
         let config = URLSessionConfiguration.ephemeral
@@ -71,8 +81,10 @@ actor ReaderImagePipeline {
         )
     }
 
-    func loadData(for request: URLRequest) async throws -> Data {
-        if let url = request.url, url.isFileURL {
+    func loadData(for request: URLRequest, priority: LoadPriority = .visible) async throws -> Data {
+        let url = request.url
+        let isFileURL = url?.isFileURL == true || url?.scheme?.lowercased() == "file"
+        if isFileURL, let url {
             return try Data(contentsOf: url)
         }
 
@@ -87,14 +99,19 @@ actor ReaderImagePipeline {
             return hit.data
         }
 
-        if let task = inFlight[key] {
+        if let existingTask = inFlight[key] {
             metrics.inFlightHits += 1
-            return try await task.value
+            do {
+                return try await existingTask.value
+            } catch {
+                inFlight[key] = nil
+                throw error
+            }
         }
 
         metrics.misses += 1
         let task = Task<Data, Error> {
-            await self.acquireSlot()
+            await self.acquireSlot(priority: priority)
             defer { self.releaseSlot() }
             let (data, response) = try await self.session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
@@ -125,7 +142,7 @@ actor ReaderImagePipeline {
                 group.addTask {
                     guard await self.prefetchGeneration == generation else { return }
                     do {
-                        _ = try await self.loadData(for: request)
+                        _ = try await self.loadData(for: request, priority: .prefetch)
                     } catch {
                         return
                     }
@@ -167,28 +184,53 @@ actor ReaderImagePipeline {
         return snapshot
     }
 
-    private func acquireSlot() async {
+    private func acquireSlot(priority: LoadPriority = .visible) async {
         if activeCount < maxConcurrent {
+            if priority == .prefetch && activeCount >= maxVisibleSlots {
+                await waitForVisibleSlot()
+                return
+            }
             activeCount += 1
             return
         }
         await withCheckedContinuation { continuation in
-            waiters.append(continuation)
+            waiters.append((priority: priority, continuation: continuation))
+            waiters.sort { $0.priority < $1.priority }
         }
         activeCount += 1
+    }
+
+    private func waitForVisibleSlot() async {
+        while activeCount >= maxVisibleSlots {
+            await withCheckedContinuation { continuation in
+                waiters.append((priority: .prefetch, continuation: continuation))
+            }
+        }
     }
 
     private func releaseSlot() {
         activeCount = max(0, activeCount - 1)
         guard !waiters.isEmpty else { return }
-        let continuation = waiters.removeFirst()
-        continuation.resume()
+        let next = waiters.removeFirst()
+        next.continuation.resume()
     }
 }
 
 func buildURLRequest(from request: ImageRequest) -> URLRequest? {
     let normalizedURL = request.url.hasPrefix("//") ? "https:\(request.url)" : request.url
-    guard let url = URL(string: normalizedURL),
+    
+    let url: URL?
+    if normalizedURL.hasPrefix("file://") || normalizedURL.hasPrefix("/") {
+        if normalizedURL.hasPrefix("file://") {
+            url = URL(string: normalizedURL)
+        } else {
+            url = URL(fileURLWithPath: normalizedURL)
+        }
+    } else {
+        url = URL(string: normalizedURL)
+    }
+    
+    guard let url,
           let scheme = url.scheme?.lowercased(),
           scheme == "http" || scheme == "https" || scheme == "file"
     else {

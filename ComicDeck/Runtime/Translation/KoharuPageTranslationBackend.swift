@@ -71,6 +71,141 @@ private nonisolated struct KoharuTranslateRequest: Encodable, Sendable {
     let systemPrompt: String?
 }
 
+nonisolated enum KoharuLLMTargetKind: String, Encodable, Sendable {
+    case provider
+    case local
+}
+
+private nonisolated enum KoharuLLMCommandError: LocalizedError {
+    case missingProviderID
+    case missingModelID
+
+    var errorDescription: String? {
+        switch self {
+        case .missingProviderID:
+            return "Koharu provider LLM configuration requires a provider ID."
+        case .missingModelID:
+            return "Koharu LLM configuration requires a model ID."
+        }
+    }
+}
+
+nonisolated struct KoharuLLMCommand: Sendable {
+    struct Body: Encodable, Sendable {
+        struct Target: Encodable, Sendable {
+            let kind: KoharuLLMTargetKind
+            let providerID: String?
+            let modelID: String?
+
+            private enum CodingKeys: String, CodingKey {
+                case kind
+                case providerID = "providerId"
+                case modelID = "modelId"
+            }
+        }
+
+        struct Options: Encodable, Sendable {
+            let temperature: Double?
+            let maxTokens: Int?
+            let customSystemPrompt: String?
+
+            private enum CodingKeys: String, CodingKey {
+                case temperature
+                case maxTokens
+                case customSystemPrompt
+            }
+        }
+
+        let target: Target
+        let options: Options?
+    }
+
+    let method: String
+    let path: String
+    let body: Body?
+
+    static func make(from configuration: ReaderKoharuLLMConfiguration) throws -> KoharuLLMCommand {
+        switch configuration.mode {
+        case .serverDefault:
+            return KoharuLLMCommand(method: "DELETE", path: "llm", body: nil)
+        case .provider:
+            guard let providerID = configuration.providerID else {
+                throw KoharuLLMCommandError.missingProviderID
+            }
+            guard let modelID = configuration.modelID else {
+                throw KoharuLLMCommandError.missingModelID
+            }
+            return KoharuLLMCommand(
+                method: "PUT",
+                path: "llm",
+                body: Body(
+                    target: Body.Target(
+                        kind: .provider,
+                        providerID: providerID,
+                        modelID: modelID
+                    ),
+                    options: makeOptions(from: configuration)
+                )
+            )
+        case .local:
+            guard let modelID = configuration.modelID else {
+                throw KoharuLLMCommandError.missingModelID
+            }
+            return KoharuLLMCommand(
+                method: "PUT",
+                path: "llm",
+                body: Body(
+                    target: Body.Target(
+                        kind: .local,
+                        providerID: nil,
+                        modelID: modelID
+                    ),
+                    options: makeOptions(from: configuration)
+                )
+            )
+        }
+    }
+
+    private static func makeOptions(from configuration: ReaderKoharuLLMConfiguration) -> Body.Options? {
+        guard configuration.temperature != nil || configuration.maxTokens != nil || configuration.customSystemPrompt != nil else {
+            return nil
+        }
+        return Body.Options(
+            temperature: configuration.temperature,
+            maxTokens: configuration.maxTokens,
+            customSystemPrompt: configuration.customSystemPrompt
+        )
+    }
+}
+
+nonisolated enum KoharuProviderConfigurationFingerprint {
+    static func make(configuration: ReaderPageTranslationBackendConfiguration) throws -> String {
+        let normalizedBaseURL = try configuration.normalizedKoharuAPIBaseURL()
+        let normalizedLLM = configuration.koharuLLM
+        let rawValue = [
+            "baseURL=\(normalizedBaseURL.absoluteString)",
+            "mode=\(normalizedLLM.mode.rawValue)",
+            "providerID=\(normalizedLLM.providerID ?? "")",
+            "modelID=\(normalizedLLM.modelID ?? "")",
+            "temperature=\(normalizedLLM.temperature.map { String(describing: $0) } ?? "")",
+            "maxTokens=\(normalizedLLM.maxTokens.map { String($0) } ?? "")",
+            "customSystemPrompt=\(normalizedLLM.customSystemPrompt ?? "")"
+        ].joined(separator: "|")
+        return "koharu-\(ReaderPageTranslationBackendSupport.digest(rawValue))"
+    }
+
+    static func make(baseURL: URL, koharuLLM: ReaderKoharuLLMConfiguration) -> String {
+        let configuration = ReaderPageTranslationBackendConfiguration(
+            kind: .koharu,
+            koharuBaseURL: baseURL.absoluteString,
+            requestTimeoutSeconds: ReaderPageTranslationBackendConfiguration.minRequestTimeoutSeconds,
+            koharuLLM: koharuLLM
+        )
+        return (try? make(configuration: configuration))
+            ?? "koharu-\(ReaderPageTranslationBackendSupport.digest(baseURL.absoluteString))"
+    }
+}
+
 private nonisolated struct KoharuAPIError: Decodable, Sendable {
     let status: Int
     let message: String
@@ -218,10 +353,21 @@ actor KoharuClient {
     private let session: URLSession
     private let requestTimeoutSeconds: Int
 
-    init(baseURL: URL, requestTimeoutSeconds: Int, session: URLSession = .shared) {
+    init(baseURL: URL, requestTimeoutSeconds: Int, session: URLSession? = nil) {
         self.baseURL = baseURL
-        self.session = session
         self.requestTimeoutSeconds = ReaderPageTranslationBackendConfiguration.clampedRequestTimeoutSeconds(requestTimeoutSeconds)
+        if let session {
+            self.session = session
+        } else {
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.urlCache = nil
+            configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+            configuration.httpCookieStorage = HTTPCookieStorage.shared
+            configuration.httpCookieAcceptPolicy = .always
+            configuration.httpShouldSetCookies = true
+            configuration.waitsForConnectivity = true
+            self.session = URLSession(configuration: configuration)
+        }
     }
 
     private func logRequest(_ request: URLRequest, body: Data? = nil) {
@@ -270,7 +416,12 @@ actor KoharuClient {
         var request = URLRequest(url: endpointURL(path: "documents", queryItems: [URLQueryItem(name: "mode", value: "replace")]))
         request.httpMethod = "POST"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.httpBody = multipartBody(imageData: imageData, filename: filename, boundary: boundary)
+        request.httpBody = multipartBody(
+            imageData: imageData,
+            filename: filename,
+            mimeType: inferredImageMimeType(from: imageData),
+            boundary: boundary
+        )
         koharuDebugLog("import document filename=\(filename) imageBytes=\(imageData.count)", level: .info)
         let result: KoharuImportResult = try await decodeJSON(request)
         guard let documentID = result.documents.last?.id else {
@@ -295,6 +446,21 @@ actor KoharuClient {
         try await postNoContent(path: "documents/\(documentID)/recognize")
     }
 
+    func applyLLMConfiguration(_ configuration: ReaderKoharuLLMConfiguration) async throws {
+        let command = try KoharuLLMCommand.make(from: configuration)
+        var request = URLRequest(url: endpointURL(path: command.path))
+        request.httpMethod = command.method
+        if let body = command.body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(body)
+        } else {
+            request.httpBody = nil
+        }
+        koharuDebugLog("apply llm method=\(command.method) mode=\(configuration.mode.rawValue)", level: .info)
+        let (data, response) = try await send(request)
+        try validate(response: response, data: data)
+    }
+
     func translate(documentID: String, targetLanguage: String) async throws {
         var request = URLRequest(url: endpointURL(path: "documents/\(documentID)/translate"))
         request.httpMethod = "POST"
@@ -303,7 +469,8 @@ actor KoharuClient {
             KoharuTranslateRequest(textBlockId: nil, language: targetLanguage, systemPrompt: nil)
         )
         koharuDebugLog("translate documentID=\(documentID) targetLanguage=\(targetLanguage)", level: .info)
-        _ = try await send(request)
+        let (data, response) = try await send(request)
+        try validate(response: response, data: data)
     }
 
     func inpaint(documentID: String) async throws {
@@ -338,7 +505,8 @@ actor KoharuClient {
             request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         request.httpBody = body
-        _ = try await send(request)
+        let (data, response) = try await send(request)
+        try validate(response: response, data: data)
     }
 
     private func endpointURL(path: String, queryItems: [URLQueryItem] = []) -> URL {
@@ -387,14 +555,21 @@ actor KoharuClient {
         }
     }
 
-    private func multipartBody(imageData: Data, filename: String, boundary: String) -> Data {
+    private func multipartBody(imageData: Data, filename: String, mimeType: String, boundary: String) -> Data {
         var data = Data()
         data.append(Data("--\(boundary)\r\n".utf8))
         data.append(Data("Content-Disposition: form-data; name=\"files\"; filename=\"\(filename)\"\r\n".utf8))
-        data.append(Data("Content-Type: image/png\r\n\r\n".utf8))
+        data.append(Data("Content-Type: \(mimeType)\r\n\r\n".utf8))
         data.append(imageData)
         data.append(Data("\r\n--\(boundary)--\r\n".utf8))
         return data
+    }
+
+    private func inferredImageMimeType(from data: Data) -> String {
+        if data.starts(with: [0xFF, 0xD8, 0xFF]) {
+            return "image/jpeg"
+        }
+        return "image/png"
     }
 }
 
@@ -404,12 +579,30 @@ actor KoharuPageTranslationBackend: ReaderPageTranslationBackend {
     private let providerConfigHash: String
     private let workingDirectory: URL
     private let requestTimeoutSeconds: Int
+    private let koharuLLM: ReaderKoharuLLMConfiguration
 
-    init(database: SQLiteStore, baseURL: URL, workingDirectory: URL, requestTimeoutSeconds: Int) {
+    init(
+        database: SQLiteStore,
+        baseURL: URL,
+        workingDirectory: URL,
+        requestTimeoutSeconds: Int,
+        koharuLLM: ReaderKoharuLLMConfiguration = ReaderKoharuLLMConfiguration(),
+        session: URLSession? = nil
+    ) {
+        let normalizedRequestTimeoutSeconds = ReaderPageTranslationBackendConfiguration.clampedRequestTimeoutSeconds(requestTimeoutSeconds)
+        let fingerprintConfiguration = ReaderPageTranslationBackendConfiguration(
+            kind: .koharu,
+            koharuBaseURL: baseURL.absoluteString,
+            requestTimeoutSeconds: normalizedRequestTimeoutSeconds,
+            koharuLLM: koharuLLM
+        )
+
         self.database = database
-        self.requestTimeoutSeconds = ReaderPageTranslationBackendConfiguration.clampedRequestTimeoutSeconds(requestTimeoutSeconds)
-        self.client = KoharuClient(baseURL: baseURL, requestTimeoutSeconds: self.requestTimeoutSeconds)
-        self.providerConfigHash = "koharu-\(ReaderPageTranslationBackendSupport.digest(baseURL.absoluteString))"
+        self.requestTimeoutSeconds = normalizedRequestTimeoutSeconds
+        self.koharuLLM = fingerprintConfiguration.koharuLLM
+        self.client = KoharuClient(baseURL: baseURL, requestTimeoutSeconds: normalizedRequestTimeoutSeconds, session: session)
+        self.providerConfigHash = (try? KoharuProviderConfigurationFingerprint.make(configuration: fingerprintConfiguration))
+            ?? KoharuProviderConfigurationFingerprint.make(baseURL: baseURL, koharuLLM: koharuLLM)
         self.workingDirectory = workingDirectory
     }
 
@@ -467,6 +660,11 @@ actor KoharuPageTranslationBackend: ReaderPageTranslationBackend {
             try await client.recognize(documentID: documentID)
         } catch {
             throw koharuPipelineError(stage: "recognize", error: error)
+        }
+        do {
+            try await client.applyLLMConfiguration(koharuLLM)
+        } catch {
+            throw koharuPipelineError(stage: "llm", error: error)
         }
         do {
             try await client.translate(documentID: documentID, targetLanguage: targetLanguage.rawValue)
