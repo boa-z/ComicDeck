@@ -129,10 +129,9 @@ struct ComicDetailHeroSection: View {
                 let needsExpansion = expandedHeight > collapsedHeight + 1
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(descriptionText)
+                    RichTextContent(text: descriptionText, lineLimit: showFullDescription ? nil : 5)
                         .font(.subheadline)
                         .foregroundStyle(.primary)
-                        .lineLimit(showFullDescription ? nil : 5)
                         .fixedSize(horizontal: false, vertical: true)
                         .background {
                             Text(descriptionText)

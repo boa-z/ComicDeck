@@ -658,7 +658,7 @@ struct CommentPreviewRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Text(comment.content)
+            RichTextContent(text: comment.content)
                 .font(.subheadline)
                 .lineLimit(4)
                 .textSelection(.enabled)
@@ -903,7 +903,7 @@ private struct CommentItemRow: View {
                 Spacer()
             }
 
-            Text(comment.content)
+            RichTextContent(text: comment.content)
                 .font(.subheadline)
                 .textSelection(.enabled)
 
