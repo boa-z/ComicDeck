@@ -50,9 +50,17 @@ final class ReaderVerticalCoordinator {
         return clamped
     }
 
+    func pendingSettledLayoutUpdateDelay(now: Date = Date()) -> TimeInterval? {
+        guard !pageFrames.isEmpty else { return nil }
+        let elapsed = now.timeIntervalSince(lastProgrammaticScrollAt)
+        let remaining = Constants.settledScrollDelay - elapsed
+        guard remaining > 0 else { return nil }
+        return remaining
+    }
+
     func currentPageFromLayout(now: Date = Date()) -> Int? {
         guard !pageFrames.isEmpty else { return nil }
-        guard now.timeIntervalSince(lastProgrammaticScrollAt) > Constants.settledScrollDelay else {
+        guard pendingSettledLayoutUpdateDelay(now: now) == nil else {
             return nil
         }
 

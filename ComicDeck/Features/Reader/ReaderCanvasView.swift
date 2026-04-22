@@ -16,6 +16,7 @@ struct ReaderCanvasView: View {
 
     private let horizontalLoadRadius = 1
     private let verticalLoadRadius = 2
+    @State private var settledLayoutSyncTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { geo in
@@ -83,10 +84,9 @@ struct ReaderCanvasView: View {
                         withAnimation(.easeOut(duration: 0.15)) {
                             proxy.scrollTo(target, anchor: .top)
                         }
+                        scheduleSettledLayoutSyncIfNeeded()
                     }
-                    if let resolved = verticalCoordinator.currentPageFromLayout(), resolved != currentPage {
-                        currentPage = resolved
-                    }
+                    syncCurrentPageFromVerticalLayout()
                 }
                 .onChange(of: verticalCoordinator.scrollTarget) { _, target in
                     guard let target else { return }
@@ -98,18 +98,22 @@ struct ReaderCanvasView: View {
                     } else {
                         proxy.scrollTo(target, anchor: .top)
                     }
+                    scheduleSettledLayoutSyncIfNeeded()
                 }
                 .onAppear {
                     verticalCoordinator.updateViewportHeight(viewportHeight)
                 }
                 .onChange(of: viewportHeight) { _, value in
                     verticalCoordinator.updateViewportHeight(value)
-                    if let resolved = verticalCoordinator.currentPageFromLayout(), resolved != currentPage {
-                        currentPage = resolved
-                    }
+                    syncCurrentPageFromVerticalLayout()
                 }
                 .onChange(of: imageRequests.count) { _, _ in
+                    settledLayoutSyncTask?.cancel()
                     verticalCoordinator.prepareForContent(currentPage: currentPage)
+                }
+                .onDisappear {
+                    settledLayoutSyncTask?.cancel()
+                    settledLayoutSyncTask = nil
                 }
             }
             .background(Color.black)
@@ -123,6 +127,22 @@ struct ReaderCanvasView: View {
             return abs(index - centerPage) <= verticalLoadRadius
         }
         return abs(index - currentPage) <= horizontalLoadRadius
+    }
+
+    private func syncCurrentPageFromVerticalLayout(now: Date = Date()) {
+        if let resolved = verticalCoordinator.currentPageFromLayout(now: now), resolved != currentPage {
+            currentPage = resolved
+        }
+    }
+
+    private func scheduleSettledLayoutSyncIfNeeded(now: Date = Date()) {
+        settledLayoutSyncTask?.cancel()
+        guard let delay = verticalCoordinator.pendingSettledLayoutUpdateDelay(now: now) else { return }
+        settledLayoutSyncTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            syncCurrentPageFromVerticalLayout()
+        }
     }
 }
 

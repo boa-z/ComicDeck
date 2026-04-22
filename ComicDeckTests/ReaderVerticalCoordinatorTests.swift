@@ -116,4 +116,22 @@ final class ReaderVerticalCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.scrollToPage(-3, totalPages: 5, at: Date(timeIntervalSince1970: 11)), 0)
         XCTAssertEqual(coordinator.scrollTarget, 0)
     }
+
+    func testPendingSettledLayoutUpdateDelayReportsRemainingDelayAfterProgrammaticScroll() {
+        let coordinator = ReaderVerticalCoordinator()
+        coordinator.prepareForContent(currentPage: 0)
+        coordinator.updateViewportHeight(400)
+        coordinator.recordPageFrames([
+            0: CGRect(x: 0, y: -360, width: 320, height: 300),
+            1: CGRect(x: 0, y: -20, width: 320, height: 300),
+            2: CGRect(x: 0, y: 320, width: 320, height: 300)
+        ])
+        _ = coordinator.scrollToPage(2, totalPages: 3, at: Date(timeIntervalSince1970: 100))
+
+        let remainingDelay = coordinator.pendingSettledLayoutUpdateDelay(now: Date(timeIntervalSince1970: 100.05))
+
+        XCTAssertNotNil(remainingDelay)
+        XCTAssertEqual(remainingDelay ?? 0, 0.1, accuracy: 0.0001)
+        XCTAssertNil(coordinator.pendingSettledLayoutUpdateDelay(now: Date(timeIntervalSince1970: 100.3)))
+    }
 }

@@ -68,36 +68,41 @@ struct ReaderOverlayView: View {
         )
     }
 
-    @State private var isSliderDragging = false
-    @State private var sliderDragValue: Double = 0
+    @State private var sliderState = ReaderProgressSliderState()
+
+    private var resolvedSliderValue: Double {
+        ReaderProgressSliderMapper.displayValue(
+            currentPage: currentPage,
+            totalPages: totalPages,
+            readerMode: readerMode
+        )
+    }
 
     private var sliderValue: Binding<Double> {
         Binding(
             get: {
                 guard totalPages > 0 else { return 0 }
-                if isSliderDragging { return sliderDragValue }
-                if readerMode == .rtl {
-                    return Double(max(totalPages - 1 - currentPage, 0))
-                }
-                return Double(max(currentPage, 0))
+                return sliderState.displayValue(currentValue: resolvedSliderValue)
             },
             set: { newValue in
                 guard totalPages > 0 else { return }
-                sliderDragValue = newValue
-                if isSliderDragging { return }
+                sliderState.updateDragValue(newValue)
+                if sliderState.isDragging { return }
                 applySliderValue(newValue)
             }
         )
     }
 
     private func applySliderValue(_ newValue: Double) {
-        let clamped = max(0, min(safePageUpperBound, Int(newValue.rounded())))
+        let targetPage = ReaderProgressSliderMapper.currentPage(
+            for: newValue,
+            totalPages: totalPages,
+            readerMode: readerMode
+        )
         if readerMode == .vertical {
-            onJumpToVerticalPage(clamped)
-        } else if readerMode == .rtl {
-            currentPage = safePageUpperBound - clamped
+            onJumpToVerticalPage(targetPage)
         } else {
-            currentPage = clamped
+            currentPage = targetPage
         }
     }
 
@@ -236,9 +241,11 @@ struct ReaderOverlayView: View {
                             in: 0...Double(safePageUpperBound),
                             step: 1
                         ) { editing in
-                            isSliderDragging = editing
-                            if !editing {
-                                applySliderValue(sliderDragValue)
+                            if editing {
+                                sliderState.beginDragging(initialValue: resolvedSliderValue)
+                            } else {
+                                sliderState.endDragging()
+                                applySliderValue(sliderState.dragValue)
                             }
                         }
                         .id("reader-progress-\(totalPages)")
@@ -246,6 +253,12 @@ struct ReaderOverlayView: View {
                         .animation(animatePageTransitions ? .easeInOut(duration: 0.18) : nil, value: currentPage)
                         .accessibilityLabel(AppLocalization.text("reader.progress.label", "Reading progress"))
                         .accessibilityValue(progressSummaryText)
+                        .onAppear {
+                            sliderState.syncAfterExternalPageChange(currentValue: resolvedSliderValue)
+                        }
+                        .onChange(of: resolvedSliderValue) { _, value in
+                            sliderState.syncAfterExternalPageChange(currentValue: value)
+                        }
                     } else {
                         Capsule()
                             .fill(.white.opacity(0.18))
