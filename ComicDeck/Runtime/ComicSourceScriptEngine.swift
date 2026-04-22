@@ -73,12 +73,22 @@ nonisolated final class ComicSourceScriptEngine {
     private let context: JSContext
     private var storageKey: String = "default"
     private var readerPageRequestSessions: [String: ReaderPageRequestSessionState] = [:]
+    private let sharedSession: URLSession
+
+    private static func makeSharedSession() -> URLSession {
+        let config = URLSessionConfiguration.default
+        config.httpMaximumConnectionsPerHost = 6
+        config.httpShouldSetCookies = true
+        config.urlCache = nil
+        return URLSession(configuration: config, delegate: RedirectBlockingDelegate(), delegateQueue: nil)
+    }
 
     init(script: String) throws {
         guard let ctx = JSContext() else {
             throw ScriptEngineError.buildContextFailed
         }
         self.context = ctx
+        self.sharedSession = Self.makeSharedSession()
         try setupRuntime(on: ctx)
         jsDebugLog("Evaluating plain script runtime", level: .info)
 
@@ -92,6 +102,11 @@ nonisolated final class ComicSourceScriptEngine {
 
     private init(context: JSContext) {
         self.context = context
+        self.sharedSession = Self.makeSharedSession()
+    }
+
+    deinit {
+        sharedSession.invalidateAndCancel()
     }
 
     func setStorageKey(_ key: String) {
@@ -2909,7 +2924,7 @@ nonisolated final class ComicSourceScriptEngine {
     }
 
     private func awaitPromise(_ promise: JSValue) throws -> Any {
-        var done = false
+        let semaphore = DispatchSemaphore(value: 0)
         var resolved: Any?
         var rejected: String?
 
@@ -2919,11 +2934,11 @@ nonisolated final class ComicSourceScriptEngine {
             } else {
                 resolved = value.toObject()
             }
-            done = true
+            semaphore.signal()
         }
         let reject: @convention(block) (JSValue) -> Void = { error in
             rejected = error.toString()
-            done = true
+            semaphore.signal()
         }
 
         let resolveObj: AnyObject = bridgeBlock(resolve)
@@ -2932,12 +2947,8 @@ nonisolated final class ComicSourceScriptEngine {
         promise.invokeMethod("then", withArguments: [resolveObj])
         promise.invokeMethod("catch", withArguments: [rejectObj])
 
-        let timeout = Date().addingTimeInterval(20)
-        while !done && Date() < timeout {
-            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.005))
-        }
-
-        if !done {
+        let waitResult = semaphore.wait(timeout: .now() + 20)
+        if waitResult == .timedOut {
             jsDebugLog("awaitPromise timeout", level: .error)
             throw ScriptEngineError.timeout("Promise is not resolved in time")
         }
@@ -3338,28 +3349,33 @@ nonisolated final class ComicSourceScriptEngine {
 
         let network = JSValue(newObjectIn: ctx)!
 
-        let sendRequest: @convention(block) (String, String, [String: Any]?, Any?) -> [String: Any] = {
-            method, url, headers, data in
-            Self.performRequest(method: method, url: url, headers: headers, bodyLike: data)
+        let sendRequest: @convention(block) (String, String, [String: Any]?, Any?) -> [String: Any] = { [weak self] method, url, headers, data in
+            self?.performRequest(method: method, url: url, headers: headers, bodyLike: data)
+                ?? ["status": 0, "headers": [:], "body": "", "error": "engine deallocated"]
         }
-        let fetchBytes: @convention(block) (String, String, [String: Any]?, Any?) -> [String: Any] = {
-            method, url, headers, data in
-            Self.performRequestBytes(method: method, url: url, headers: headers, bodyLike: data)
+        let fetchBytes: @convention(block) (String, String, [String: Any]?, Any?) -> [String: Any] = { [weak self] method, url, headers, data in
+            self?.performRequestBytes(method: method, url: url, headers: headers, bodyLike: data)
+                ?? ["status": 0, "headers": [:], "body": [Int](), "error": "engine deallocated"]
         }
-        let get: @convention(block) (String, [String: Any]?) -> [String: Any] = { url, headers in
-            Self.performRequest(method: "GET", url: url, headers: headers, bodyLike: nil)
+        let get: @convention(block) (String, [String: Any]?) -> [String: Any] = { [weak self] url, headers in
+            self?.performRequest(method: "GET", url: url, headers: headers, bodyLike: nil)
+                ?? ["status": 0, "headers": [:], "body": "", "error": "engine deallocated"]
         }
-        let post: @convention(block) (String, [String: Any]?, Any?) -> [String: Any] = { url, headers, data in
-            Self.performRequest(method: "POST", url: url, headers: headers, bodyLike: data)
+        let post: @convention(block) (String, [String: Any]?, Any?) -> [String: Any] = { [weak self] url, headers, data in
+            self?.performRequest(method: "POST", url: url, headers: headers, bodyLike: data)
+                ?? ["status": 0, "headers": [:], "body": "", "error": "engine deallocated"]
         }
-        let put: @convention(block) (String, [String: Any]?, Any?) -> [String: Any] = { url, headers, data in
-            Self.performRequest(method: "PUT", url: url, headers: headers, bodyLike: data)
+        let put: @convention(block) (String, [String: Any]?, Any?) -> [String: Any] = { [weak self] url, headers, data in
+            self?.performRequest(method: "PUT", url: url, headers: headers, bodyLike: data)
+                ?? ["status": 0, "headers": [:], "body": "", "error": "engine deallocated"]
         }
-        let patch: @convention(block) (String, [String: Any]?, Any?) -> [String: Any] = { url, headers, data in
-            Self.performRequest(method: "PATCH", url: url, headers: headers, bodyLike: data)
+        let patch: @convention(block) (String, [String: Any]?, Any?) -> [String: Any] = { [weak self] url, headers, data in
+            self?.performRequest(method: "PATCH", url: url, headers: headers, bodyLike: data)
+                ?? ["status": 0, "headers": [:], "body": "", "error": "engine deallocated"]
         }
-        let del: @convention(block) (String, [String: Any]?) -> [String: Any] = { url, headers in
-            Self.performRequest(method: "DELETE", url: url, headers: headers, bodyLike: nil)
+        let del: @convention(block) (String, [String: Any]?) -> [String: Any] = { [weak self] url, headers in
+            self?.performRequest(method: "DELETE", url: url, headers: headers, bodyLike: nil)
+                ?? ["status": 0, "headers": [:], "body": "", "error": "engine deallocated"]
         }
 
         let getCookies: @convention(block) (String) -> [[String: Any]] = { urlStr in
@@ -3615,13 +3631,13 @@ nonisolated final class ComicSourceScriptEngine {
         ctx.setObject(html, forKeyedSubscript: "Html" as NSString)
     }
 
-    private static func performRequest(
+    private func performRequest(
         method: String,
         url: String,
         headers: [String: Any]?,
         bodyLike: Any?
     ) -> [String: Any] {
-        let sanitizedURL = sanitizeRequestURL(url)
+        let sanitizedURL = Self.sanitizeRequestURL(url)
         jsDebugLog("HTTP request: method=\(method), url=\(sanitizedURL)")
         guard let urlObj = URL(string: sanitizedURL) else {
             return ["status": 0, "headers": [:], "body": "invalid url"]
@@ -3661,10 +3677,10 @@ nonisolated final class ComicSourceScriptEngine {
             }
         }
 
-        if methodAllowsRequestBody(method),
+        if Self.methodAllowsRequestBody(method),
            let bodyData = encodeRequestBody(bodyLike: bodyLike, contentType: request.value(forHTTPHeaderField: "Content-Type")) {
             request.httpBody = bodyData
-        } else if !methodAllowsRequestBody(method) {
+        } else if !Self.methodAllowsRequestBody(method) {
             request.httpBody = nil
             request.setValue(nil, forHTTPHeaderField: "Content-Length")
         }
@@ -3734,13 +3750,13 @@ nonisolated final class ComicSourceScriptEngine {
         return result
     }
 
-    private static func performRequestBytes(
+    private func performRequestBytes(
         method: String,
         url: String,
         headers: [String: Any]?,
         bodyLike: Any?
     ) -> [String: Any] {
-        let sanitizedURL = sanitizeRequestURL(url)
+        let sanitizedURL = Self.sanitizeRequestURL(url)
         guard let urlObj = URL(string: sanitizedURL) else {
             return ["status": 0, "headers": [String: Any](), "body": [Int]()]
         }
@@ -3753,10 +3769,10 @@ nonisolated final class ComicSourceScriptEngine {
                 request.setValue(String(describing: v), forHTTPHeaderField: k)
             }
         }
-        if methodAllowsRequestBody(method),
+        if Self.methodAllowsRequestBody(method),
            let bodyData = encodeRequestBody(bodyLike: bodyLike, contentType: request.value(forHTTPHeaderField: "Content-Type")) {
             request.httpBody = bodyData
-        } else if !methodAllowsRequestBody(method) {
+        } else if !Self.methodAllowsRequestBody(method) {
             request.httpBody = nil
             request.setValue(nil, forHTTPHeaderField: "Content-Length")
         }
@@ -3838,7 +3854,7 @@ nonisolated final class ComicSourceScriptEngine {
         return normalized != "GET" && normalized != "HEAD"
     }
 
-    private static func executeDataRequestWithRetry(
+    private func executeDataRequestWithRetry(
         request: URLRequest,
         method: String,
         url: String
@@ -3871,7 +3887,7 @@ nonisolated final class ComicSourceScriptEngine {
 
             if responseErr == nil,
                let httpResponse = responseObj as? HTTPURLResponse,
-               let redirected = makeRedirectedRequest(
+               let redirected = Self.makeRedirectedRequest(
                     from: currentRequest,
                     response: httpResponse,
                     maxRedirects: maxRedirects,
@@ -3901,37 +3917,30 @@ nonisolated final class ComicSourceScriptEngine {
         }
     }
 
-    private static func performDataRequestWithoutRedirects(
+    private func performDataRequestWithoutRedirects(
         request: URLRequest,
         method: String,
         url: String,
         waitSeconds: TimeInterval
     ) -> (data: Data?, response: URLResponse?, error: Error?) {
-        let session = URLSession(
-            configuration: .default,
-            delegate: RedirectBlockingDelegate(),
-            delegateQueue: nil
-        )
         let semaphore = DispatchSemaphore(value: 0)
         var responseData: Data?
         var responseObj: URLResponse?
         var responseErr: Error?
-        var task: URLSessionDataTask?
 
-        task = session.dataTask(with: request) { data, response, error in
+        let task = sharedSession.dataTask(with: request) { data, response, error in
             responseData = data
             responseObj = response
             responseErr = error
             semaphore.signal()
         }
-        task?.resume()
+        task.resume()
         let waitResult = semaphore.wait(timeout: .now() + waitSeconds)
         if waitResult == .timedOut {
-            task?.cancel()
+            task.cancel()
             responseErr = URLError(.timedOut)
             jsDebugLog("HTTP request semaphore timeout: method=\(method), url=\(url), wait=\(waitSeconds)s", level: .warn)
         }
-        session.finishTasksAndInvalidate()
         return (responseData, responseObj, responseErr)
     }
 
@@ -3968,7 +3977,7 @@ nonisolated final class ComicSourceScriptEngine {
         return redirected
     }
 
-    private static func performRequestViaDownload(request: URLRequest) -> (data: Data?, response: URLResponse?, error: Error?) {
+    private func performRequestViaDownload(request: URLRequest) -> (data: Data?, response: URLResponse?, error: Error?) {
         let waitSeconds = max(20.0, request.timeoutInterval + 8.0)
         let semaphore = DispatchSemaphore(value: 0)
         var outData: Data?
@@ -3976,7 +3985,7 @@ nonisolated final class ComicSourceScriptEngine {
         var outError: Error?
         var task: URLSessionDownloadTask?
 
-        task = URLSession.shared.downloadTask(with: request) { localURL, response, error in
+        task = sharedSession.downloadTask(with: request) { localURL, response, error in
             defer { semaphore.signal() }
             outResponse = response
             if let error {

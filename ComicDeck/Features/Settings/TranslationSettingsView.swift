@@ -18,46 +18,44 @@ struct TranslationSettingsView: View {
     private let autoDetectSourceLanguageTag = "settings.translation.source.auto"
 
     private var translationBackendKind: ReaderTranslationBackendKind {
-        get { ReaderTranslationBackendKind(rawValue: translationBackendRaw) ?? .builtIn }
+        get { currentTranslationPreferences.backendConfiguration.kind }
         nonmutating set { translationBackendRaw = newValue.rawValue }
     }
 
     private var translationKoharuLLMMode: ReaderKoharuLLMMode {
-        get { ReaderKoharuLLMMode(rawValue: translationKoharuLLMModeRaw) ?? .serverDefault }
+        get { currentTranslationPreferences.backendConfiguration.koharuLLM.mode }
         nonmutating set { translationKoharuLLMModeRaw = newValue.rawValue }
     }
 
-    private var translationKoharuLLMTemperature: Double? {
-        let trimmed = translationKoharuLLMTemperatureRaw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return Double(trimmed)
-    }
-
-    private var translationKoharuLLMMaxTokens: Int? {
-        let trimmed = translationKoharuLLMMaxTokensRaw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return Int(trimmed)
-    }
-
     private var translationKoharuLLMConfiguration: ReaderKoharuLLMConfiguration {
-        ReaderKoharuLLMConfiguration(
-            mode: translationKoharuLLMMode,
-            providerID: translationKoharuLLMProviderID,
-            modelID: translationKoharuLLMModelID,
-            temperature: translationKoharuLLMTemperature,
-            maxTokens: translationKoharuLLMMaxTokens,
-            customSystemPrompt: translationKoharuLLMSystemPrompt
-        )
+        currentTranslationPreferences.backendConfiguration.koharuLLM
     }
 
     private var translationSourceLanguage: ReaderTranslationLanguage? {
-        get { ReaderTranslationLanguage(rawValue: translationSourceLanguageRaw) }
+        get { currentTranslationPreferences.sourceLanguage }
         nonmutating set { translationSourceLanguageRaw = newValue?.rawValue ?? "" }
     }
 
     private var translationTargetLanguage: ReaderTranslationLanguage {
-        get { ReaderTranslationLanguage(rawValue: translationTargetLanguageRaw) ?? .chineseSimplified }
+        get { currentTranslationPreferences.targetLanguage }
         nonmutating set { translationTargetLanguageRaw = newValue.rawValue }
+    }
+
+    private var currentTranslationPreferences: ReaderTranslationPreferences {
+        ReaderTranslationPreferences.fromStorage(
+            enabled: translationEnabled,
+            backendRaw: translationBackendRaw,
+            koharuBaseURL: translationKoharuBaseURL,
+            requestTimeoutSeconds: translationRequestTimeoutSeconds,
+            koharuLLMModeRaw: translationKoharuLLMModeRaw,
+            koharuLLMProviderID: translationKoharuLLMProviderID,
+            koharuLLMModelID: translationKoharuLLMModelID,
+            koharuLLMTemperatureRaw: translationKoharuLLMTemperatureRaw,
+            koharuLLMMaxTokensRaw: translationKoharuLLMMaxTokensRaw,
+            koharuLLMSystemPrompt: translationKoharuLLMSystemPrompt,
+            sourceLanguageRaw: translationSourceLanguageRaw,
+            targetLanguageRaw: translationTargetLanguageRaw
+        )
     }
 
     private var translationTimeoutBinding: Binding<Int> {

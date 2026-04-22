@@ -65,35 +65,82 @@ final class ReaderSession {
     var showControls = true
     var reloadNonce = 0
 
-    var translationEnabled = false
-    var translationShowOriginal = false
-    var translationBackendKind: ReaderTranslationBackendKind = .builtIn
-    var translationKoharuBaseURL = ""
-    var translationRequestTimeoutSeconds = 60
-    var translationKoharuLLM = ReaderKoharuLLMConfiguration()
-    var translationSourceLanguage: ReaderTranslationLanguage?
-    var translationTargetLanguage: ReaderTranslationLanguage = .chineseSimplified
-    var translationPageStates: [Int: ReaderPageTranslationStatus] = [:]
-    var translationPageDocuments: [Int: ReaderPageTranslationDocument] = [:]
-    var translationErrorText: [Int: String] = [:]
-    var translationUnsupportedReason = ""
+    var translationController = ReaderTranslationController()
+    var progressTracker = ReaderProgressTracker()
     var pagePresentationStates: [Int: ReaderPagePresentationState] = [:]
 
+    var translationEnabled: Bool {
+        get { translationController.enabled }
+        set { translationController.enabled = newValue }
+    }
+
+    var translationShowOriginal: Bool {
+        get { translationController.showOriginal }
+        set { translationController.showOriginal = newValue }
+    }
+
+    var translationBackendKind: ReaderTranslationBackendKind {
+        get { translationController.backendKind }
+        set { translationController.backendKind = newValue }
+    }
+
+    var translationKoharuBaseURL: String {
+        get { translationController.koharuBaseURL }
+        set { translationController.koharuBaseURL = newValue }
+    }
+
+    var translationRequestTimeoutSeconds: Int {
+        get { translationController.requestTimeoutSeconds }
+        set { translationController.requestTimeoutSeconds = newValue }
+    }
+
+    var translationKoharuLLM: ReaderKoharuLLMConfiguration {
+        get { translationController.koharuLLM }
+        set { translationController.koharuLLM = newValue }
+    }
+
+    var translationSourceLanguage: ReaderTranslationLanguage? {
+        get { translationController.sourceLanguage }
+        set { translationController.sourceLanguage = newValue }
+    }
+
+    var translationTargetLanguage: ReaderTranslationLanguage {
+        get { translationController.targetLanguage }
+        set { translationController.targetLanguage = newValue }
+    }
+
+    var translationPageStates: [Int: ReaderPageTranslationStatus] {
+        get { translationController.pageStates }
+        set { translationController.pageStates = newValue }
+    }
+
+    var translationPageDocuments: [Int: ReaderPageTranslationDocument] {
+        get { translationController.pageDocuments }
+        set { translationController.pageDocuments = newValue }
+    }
+
+    var translationErrorText: [Int: String] {
+        get { translationController.errorText }
+        set { translationController.errorText = newValue }
+    }
+
+    var translationUnsupportedReason: String {
+        get { translationController.unsupportedReason }
+        set { translationController.unsupportedReason = newValue }
+    }
+
     var translationPageBlocks: [Int: [ReaderTextBlock]] {
-        translationPageDocuments.mapValues { $0.blocks }
+        translationController.pageBlocks
     }
 
     var translationRenderedAssets: [Int: ReaderRenderedPageAsset] {
-        translationPageDocuments.compactMapValues(\.renderedAsset)
+        translationController.renderedAssets
     }
 
-    private var readingSessionStartedAt: Date?
     private var loadGeneration = 0
     private var pendingPageIndexes: Set<Int> = []
     private var readerPageRequestSessionHandle: ReaderPageRequestSessionHandle?
     private var backgroundLoadTask: Task<Void, Never>?
-    private var translationGeneration = 0
-    private var translationTasks: [Int: Task<Void, Never>] = [:]
 
     init(
         item: ComicSummary,
@@ -278,6 +325,10 @@ final class ReaderSession {
         queueBackgroundResolution(using: vm, readerMode: readerMode)
     }
 
+    func applyTranslationPreferences(_ preferences: ReaderTranslationPreferences) {
+        translationController.applyPreferences(preferences)
+    }
+
     func applyTranslationPreferences(
         enabled: Bool,
         backendKind: ReaderTranslationBackendKind,
@@ -287,56 +338,35 @@ final class ReaderSession {
         targetLanguage: ReaderTranslationLanguage,
         koharuLLM: ReaderKoharuLLMConfiguration = ReaderKoharuLLMConfiguration()
     ) {
-        let normalizedBackendConfiguration = ReaderPageTranslationBackendConfiguration(
-            kind: backendKind,
-            koharuBaseURL: koharuBaseURL,
-            requestTimeoutSeconds: requestTimeoutSeconds,
-            koharuLLM: koharuLLM
+        applyTranslationPreferences(
+            ReaderTranslationPreferences(
+                enabled: enabled,
+                backendConfiguration: ReaderPageTranslationBackendConfiguration(
+                    kind: backendKind,
+                    koharuBaseURL: koharuBaseURL,
+                    requestTimeoutSeconds: requestTimeoutSeconds,
+                    koharuLLM: koharuLLM
+                ),
+                sourceLanguage: sourceLanguage,
+                targetLanguage: targetLanguage
+            )
         )
-        let existingBackendConfiguration = ReaderPageTranslationBackendConfiguration(
-            kind: translationBackendKind,
-            koharuBaseURL: translationKoharuBaseURL,
-            requestTimeoutSeconds: translationRequestTimeoutSeconds,
-            koharuLLM: translationKoharuLLM
-        )
-        let preferencesChanged = existingBackendConfiguration != normalizedBackendConfiguration
-            || translationSourceLanguage != sourceLanguage
-            || translationTargetLanguage != targetLanguage
-        translationEnabled = enabled
-        translationShowOriginal = false
-        translationBackendKind = backendKind
-        translationKoharuBaseURL = koharuBaseURL
-        translationRequestTimeoutSeconds = normalizedBackendConfiguration.requestTimeoutSeconds
-        translationKoharuLLM = normalizedBackendConfiguration.koharuLLM
-        translationSourceLanguage = sourceLanguage
-        translationTargetLanguage = targetLanguage
-        if preferencesChanged {
-            translationGeneration += 1
-            translationTasks.values.forEach { $0.cancel() }
-            translationTasks.removeAll()
-            translationPageStates.removeAll()
-            translationPageDocuments.removeAll()
-            translationErrorText.removeAll()
-            translationUnsupportedReason = ""
-        }
     }
 
     func toggleTranslationShowOriginal() {
-        translationShowOriginal.toggle()
+        translationController.toggleShowOriginal()
     }
 
     func translationStatus(for pageIndex: Int) -> ReaderPageTranslationStatus {
-        translationPageStates[pageIndex] ?? .idle
+        translationController.status(for: pageIndex)
     }
 
     func translationBlocks(for pageIndex: Int) -> [ReaderTextBlock] {
-        guard !translationShowOriginal else { return [] }
-        return translationPageDocuments[pageIndex]?.blocks ?? []
+        translationController.blocks(for: pageIndex)
     }
 
     func translationError(for pageIndex: Int) -> String? {
-        guard !translationShowOriginal else { return nil }
-        return translationErrorText[pageIndex]
+        translationController.error(for: pageIndex)
     }
 
     func translateCurrentPage(using vm: ReaderViewModel) {
@@ -345,13 +375,7 @@ final class ReaderSession {
         let pageIndex = currentPage
         let sourceLanguage = translationSourceLanguage
         let targetLanguage = translationTargetLanguage
-        translationUnsupportedReason = ""
-        translationGeneration += 1
-        let generation = translationGeneration
-        translationTasks[pageIndex]?.cancel()
-        translationPageStates[pageIndex] = .processing
-        translationErrorText[pageIndex] = nil
-        translationTasks[pageIndex] = Task { [weak self] in
+        translationController.startTranslation(pageIndex: pageIndex) { [weak self] generation in
             await self?.translatePage(
                 at: pageIndex,
                 request: request,
@@ -407,9 +431,7 @@ final class ReaderSession {
 
     func reloadCurrentPage() {
         reloadNonce += 1
-        translationPageStates[currentPage] = .idle
-        translationPageDocuments[currentPage] = nil
-        translationErrorText[currentPage] = nil
+        translationController.reloadPage(currentPage)
     }
 
     func jumpToPage(_ target: Int, readerMode: ReaderMode) {
@@ -423,54 +445,57 @@ final class ReaderSession {
     }
 
     func persistHistory(using library: LibraryViewModel, readerMode: ReaderMode) async {
-        guard totalPages > 0 else { return }
-        guard canRenderReader else { return }
-        let chapterValue = chapterTitle.isEmpty ? chapterID : chapterTitle
-        await library.recordReadingHistory(
-            comicID: item.id,
-            sourceKey: item.sourceKey,
-            title: item.title,
-            coverURL: item.coverURL,
-            author: item.author,
-            tags: item.tags,
+        guard let payload = progressTracker.historyPayload(
+            item: item,
             chapterID: chapterID,
-            chapter: chapterValue,
-            page: max(1, displayedPageIndex(readerMode: readerMode))
+            chapterTitle: chapterTitle,
+            totalPages: totalPages,
+            canRenderReader: canRenderReader,
+            displayedPage: displayedPageIndex(readerMode: readerMode)
+        ) else {
+            return
+        }
+
+        await library.recordReadingHistory(
+            comicID: payload.comicID,
+            sourceKey: payload.sourceKey,
+            title: payload.title,
+            coverURL: payload.coverURL,
+            author: payload.author,
+            tags: payload.tags,
+            chapterID: payload.chapterID,
+            chapter: payload.chapter,
+            page: payload.page
         )
     }
 
     func markVisible() {
-        if readingSessionStartedAt == nil {
-            readingSessionStartedAt = Date()
-        }
+        progressTracker.markVisible()
     }
 
     func finishReadingSession(using library: LibraryViewModel) {
-        guard let readingSessionStartedAt else { return }
-        self.readingSessionStartedAt = nil
-        guard totalPages > 0 else { return }
-        library.addReadingDuration(Date().timeIntervalSince(readingSessionStartedAt))
+        guard let duration = progressTracker.finishReadingSession(totalPages: totalPages) else { return }
+        library.addReadingDuration(duration)
     }
 
     func completedChapterProgress(readerMode: ReaderMode) -> (progress: Int, status: TrackerReadingStatus)? {
-        guard totalPages > 0 else { return nil }
-        guard resolvedPageCount >= totalPages else { return nil }
-        guard imageRequests.indices.contains(lastAbsolutePageIndex(readerMode: readerMode)) else { return nil }
-        guard imageRequests[lastAbsolutePageIndex(readerMode: readerMode)] != nil else { return nil }
-        guard displayedPageIndex(readerMode: readerMode) >= totalPages else { return nil }
-        guard let currentChapterIndex else { return nil }
-        let progress = currentChapterIndex + 1
-        let status: TrackerReadingStatus = progress >= chapterSequence.count ? .completed : .current
-        return (progress, status)
+        let lastPageIndex = lastAbsolutePageIndex(readerMode: readerMode)
+        let lastPageIsResolved = imageRequests.indices.contains(lastPageIndex) && imageRequests[lastPageIndex] != nil
+        return progressTracker.completedChapterProgress(
+            totalPages: totalPages,
+            resolvedPageCount: resolvedPageCount,
+            lastDisplayedPage: displayedPageIndex(readerMode: readerMode),
+            lastPageIsResolved: lastPageIsResolved,
+            currentChapterIndex: currentChapterIndex,
+            chapterCount: chapterSequence.count
+        )
     }
 
     func close(using vm: ReaderViewModel) async {
         loadGeneration += 1
-        translationGeneration += 1
+        translationController.invalidate(resetCachedState: false)
         backgroundLoadTask?.cancel()
         backgroundLoadTask = nil
-        translationTasks.values.forEach { $0.cancel() }
-        translationTasks.removeAll()
         await disposeReaderPageRequestSession(using: vm)
         pendingPageIndexes.removeAll()
         isLoadingMore = false
@@ -488,12 +513,7 @@ final class ReaderSession {
         isLoadingMore = false
         readerPageRequestSessionHandle = nil
         currentPage = 0
-        translationTasks.values.forEach { $0.cancel() }
-        translationTasks.removeAll()
-        translationPageStates.removeAll()
-        translationPageDocuments.removeAll()
-        translationErrorText.removeAll()
-        translationUnsupportedReason = ""
+        translationController.invalidate(resetCachedState: true)
         pagePresentationStates.removeAll()
     }
 
@@ -503,15 +523,15 @@ final class ReaderSession {
     }
 
     func translationGenerationForTests() -> Int {
-        translationGeneration
+        translationController.translationGenerationForTests()
     }
 
     func primeTranslationTaskForTests(pageIndex: Int = 0) {
-        translationTasks[pageIndex] = Task {}
+        translationController.primeTranslationTaskForTests(pageIndex: pageIndex)
     }
 
     func translationTaskCountForTests() -> Int {
-        translationTasks.count
+        translationController.translationTaskCountForTests()
     }
     #endif
 
@@ -608,16 +628,13 @@ final class ReaderSession {
         targetLanguage: ReaderTranslationLanguage,
         generation: Int
     ) async {
-        guard generation == translationGeneration, !Task.isCancelled else { return }
+        guard translationController.isCurrentGeneration(generation), !Task.isCancelled else { return }
+
+        let backendConfiguration = translationController.backendConfiguration
 
         do {
             let backend = try await vm.getReaderPageTranslationBackend(
-                configuration: ReaderPageTranslationBackendConfiguration(
-                    kind: translationBackendKind,
-                    koharuBaseURL: translationKoharuBaseURL,
-                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
-                    koharuLLM: translationKoharuLLM
-                )
+                configuration: backendConfiguration
             )
             let record = try await backend.translatePage(
                 item: item,
@@ -627,30 +644,24 @@ final class ReaderSession {
                 sourceLanguage: sourceLanguage,
                 targetLanguage: targetLanguage
             )
-            guard generation == translationGeneration, !Task.isCancelled else { return }
-            translationPageStates[pageIndex] = record.status
-            translationPageDocuments[pageIndex] = record
-            translationErrorText[pageIndex] = record.errorText
+            guard translationController.isCurrentGeneration(generation), !Task.isCancelled else { return }
+            translationController.recordSuccess(record, pageIndex: pageIndex)
             readerDebugLog(
                 "translation ready: page=\(pageIndex), status=\(record.status.rawValue), blocks=\(record.blocks.count), source=\(sourceLanguage?.rawValue ?? "auto"), target=\(targetLanguage.rawValue)",
                 level: .info
             )
         } catch {
-            guard generation == translationGeneration, !Task.isCancelled else { return }
+            guard translationController.isCurrentGeneration(generation), !Task.isCancelled else { return }
             let message = error.localizedDescription
-            translationPageStates[pageIndex] = .failed
-            translationPageDocuments[pageIndex] = nil
-            translationErrorText[pageIndex] = message
+            let isUnsupported: Bool
             if case ReaderPageTranslationBackendConfigurationError.invalidKoharuBaseURL = error {
-                translationUnsupportedReason = message
+                isUnsupported = true
+            } else {
+                isUnsupported = false
             }
+            translationController.recordFailure(message: message, pageIndex: pageIndex, isUnsupported: isUnsupported)
             if let backend = try? await vm.getReaderPageTranslationBackend(
-                configuration: ReaderPageTranslationBackendConfiguration(
-                    kind: translationBackendKind,
-                    koharuBaseURL: translationKoharuBaseURL,
-                    requestTimeoutSeconds: translationRequestTimeoutSeconds,
-                    koharuLLM: translationKoharuLLM
-                )
+                configuration: backendConfiguration
             ) {
                 await backend.saveFailure(
                     item: item,

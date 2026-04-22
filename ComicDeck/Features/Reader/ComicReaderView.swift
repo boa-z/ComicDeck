@@ -182,46 +182,28 @@ struct ComicReaderView: View {
     }
 
     private var translationBackendKind: ReaderTranslationBackendKind {
-        get { ReaderTranslationBackendKind(rawValue: translationBackendRaw) ?? .builtIn }
-        nonmutating set { translationBackendRaw = newValue.rawValue }
-    }
-
-    private var translationKoharuLLMMode: ReaderKoharuLLMMode {
-        get { ReaderKoharuLLMMode(rawValue: translationKoharuLLMModeRaw) ?? .serverDefault }
-        nonmutating set { translationKoharuLLMModeRaw = newValue.rawValue }
-    }
-
-    private var translationKoharuLLMTemperature: Double? {
-        let trimmed = translationKoharuLLMTemperatureRaw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return Double(trimmed)
-    }
-
-    private var translationKoharuLLMMaxTokens: Int? {
-        let trimmed = translationKoharuLLMMaxTokensRaw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        return Int(trimmed)
-    }
-
-    private var translationKoharuLLMConfiguration: ReaderKoharuLLMConfiguration {
-        ReaderKoharuLLMConfiguration(
-            mode: translationKoharuLLMMode,
-            providerID: translationKoharuLLMProviderID,
-            modelID: translationKoharuLLMModelID,
-            temperature: translationKoharuLLMTemperature,
-            maxTokens: translationKoharuLLMMaxTokens,
-            customSystemPrompt: translationKoharuLLMSystemPrompt
-        )
-    }
-
-    private var translationSourceLanguage: ReaderTranslationLanguage? {
-        get { ReaderTranslationLanguage(rawValue: translationSourceLanguageRaw) }
-        nonmutating set { translationSourceLanguageRaw = newValue?.rawValue ?? "" }
+        currentTranslationPreferences.backendConfiguration.kind
     }
 
     private var translationTargetLanguage: ReaderTranslationLanguage {
-        get { ReaderTranslationLanguage(rawValue: translationTargetLanguageRaw) ?? .chineseSimplified }
-        nonmutating set { translationTargetLanguageRaw = newValue.rawValue }
+        currentTranslationPreferences.targetLanguage
+    }
+
+    private var currentTranslationPreferences: ReaderTranslationPreferences {
+        ReaderTranslationPreferences.fromStorage(
+            enabled: translationEnabled,
+            backendRaw: translationBackendRaw,
+            koharuBaseURL: translationKoharuBaseURL,
+            requestTimeoutSeconds: translationRequestTimeoutSeconds,
+            koharuLLMModeRaw: translationKoharuLLMModeRaw,
+            koharuLLMProviderID: translationKoharuLLMProviderID,
+            koharuLLMModelID: translationKoharuLLMModelID,
+            koharuLLMTemperatureRaw: translationKoharuLLMTemperatureRaw,
+            koharuLLMMaxTokensRaw: translationKoharuLLMMaxTokensRaw,
+            koharuLLMSystemPrompt: translationKoharuLLMSystemPrompt,
+            sourceLanguageRaw: translationSourceLanguageRaw,
+            targetLanguageRaw: translationTargetLanguageRaw
+        )
     }
 
     private var resolvedReaderBackground: Color {
@@ -328,40 +310,7 @@ struct ComicReaderView: View {
 
     private func translationPreferenceObservingView<Content: View>(_ content: Content) -> some View {
         content
-            .onChange(of: translationEnabled) { _, _ in
-                applyCurrentTranslationPreferences()
-            }
-            .onChange(of: translationSourceLanguageRaw) { _, _ in
-                applyCurrentTranslationPreferences()
-            }
-            .onChange(of: translationBackendKind) { _, _ in
-                applyCurrentTranslationPreferences()
-            }
-            .onChange(of: translationKoharuBaseURL) { _, _ in
-                applyCurrentTranslationPreferences()
-            }
-            .onChange(of: translationRequestTimeoutSeconds) { _, _ in
-                applyCurrentTranslationPreferences()
-            }
-            .onChange(of: translationTargetLanguage) { _, _ in
-                applyCurrentTranslationPreferences()
-            }
-            .onChange(of: translationKoharuLLMModeRaw) { _, _ in
-                applyCurrentTranslationPreferences()
-            }
-            .onChange(of: translationKoharuLLMProviderID) { _, _ in
-                applyCurrentTranslationPreferences()
-            }
-            .onChange(of: translationKoharuLLMModelID) { _, _ in
-                applyCurrentTranslationPreferences()
-            }
-            .onChange(of: translationKoharuLLMTemperatureRaw) { _, _ in
-                applyCurrentTranslationPreferences()
-            }
-            .onChange(of: translationKoharuLLMMaxTokensRaw) { _, _ in
-                applyCurrentTranslationPreferences()
-            }
-            .onChange(of: translationKoharuLLMSystemPrompt) { _, _ in
+            .onChange(of: currentTranslationPreferences) { _, _ in
                 applyCurrentTranslationPreferences()
             }
     }
@@ -683,15 +632,7 @@ struct ComicReaderView: View {
     }
 
     private func applyCurrentTranslationPreferences() {
-        session.applyTranslationPreferences(
-            enabled: translationEnabled,
-            backendKind: translationBackendKind,
-            koharuBaseURL: translationKoharuBaseURL,
-            requestTimeoutSeconds: translationRequestTimeoutSeconds,
-            sourceLanguage: translationSourceLanguage,
-            targetLanguage: translationTargetLanguage,
-            koharuLLM: translationKoharuLLMConfiguration
-        )
+        session.applyTranslationPreferences(currentTranslationPreferences)
     }
 
     private func handleInitialTask() async {
@@ -771,7 +712,7 @@ struct ComicReaderView: View {
         let distance = max(1, min(preloadDistance, 4))
         let direction = session.currentPage == lastPrefetchedPage ? 0 : (session.currentPage > lastPrefetchedPage ? 1 : -1)
         lastPrefetchedPage = session.currentPage
-        let requests = preferredPrefetchIndexes(
+        let requests = ReaderPrefetchPlanner.preferredPrefetchIndexes(
             current: session.currentPage,
             total: session.totalPages,
             distance: distance,
@@ -780,24 +721,6 @@ struct ComicReaderView: View {
             .compactMap { idx in session.imageRequests[idx] }
             .compactMap(buildURLRequest(from:))
         prefetcher.preload(requests: requests, generation: prefetchGeneration)
-    }
-
-    private func preferredPrefetchIndexes(current: Int, total: Int, distance: Int, direction: Int) -> [Int] {
-        guard total > 0 else { return [] }
-        var indexes: [Int] = []
-        let forwardFirst = direction >= 0
-        for step in 1...distance {
-            let forward = current + step
-            let backward = current - step
-            if forwardFirst {
-                if forward < total { indexes.append(forward) }
-                if backward >= 0 { indexes.append(backward) }
-            } else {
-                if backward >= 0 { indexes.append(backward) }
-                if forward < total { indexes.append(forward) }
-            }
-        }
-        return indexes
     }
 
     private func scheduleHistorySave() {
