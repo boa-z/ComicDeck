@@ -22,7 +22,7 @@ actor ComicDownloadManager {
     }
 
     /// How often to flush progress to the database (every N pages).
-    private let progressFlushInterval = 1
+    private let progressFlushInterval = 5
     /// Max number of retry attempts for a single image download.
     private let maxRetries = 3
 
@@ -165,17 +165,27 @@ actor ComicDownloadManager {
             }
             await postUpdate(item: downloadingItem)
 
+            let maxPageConcurrency = 4
             var downloaded = 0
-            for (index, imageRequest) in payload.requests.enumerated() {
-                let pageFileURL = chapterDir.appendingPathComponent(fileName(for: imageRequest, index: index))
-                if !fileManager.fileExists(atPath: pageFileURL.path) {
-                    // Exponential backoff retry: 1s, 2s, 4s
-                    try await downloadWithRetry(request: imageRequest, to: pageFileURL)
+            let pages = Array(payload.requests.enumerated())
+            for batch in pages.chunked(size: maxPageConcurrency) {
+                let pendingDownloads: [(ImageRequest, URL)] = batch.compactMap { index, imageRequest in
+                    let pageFileURL = chapterDir.appendingPathComponent(fileName(for: imageRequest, index: index))
+                    return fileManager.fileExists(atPath: pageFileURL.path) ? nil : (imageRequest, pageFileURL)
                 }
-                downloaded += 1
+                if !pendingDownloads.isEmpty {
+                    try await withThrowingTaskGroup(of: Void.self) { group in
+                        for (imageRequest, pageFileURL) in pendingDownloads {
+                            group.addTask {
+                                try await self.downloadWithRetry(request: imageRequest, to: pageFileURL)
+                            }
+                        }
+                        try await group.waitForAll()
+                    }
+                }
+                downloaded += batch.count
 
-                // Throttle progress updates: flush every N pages or on the last page.
-                let isLastPage = downloaded == payload.requests.count
+                let isLastPage = downloaded >= payload.requests.count
                 if downloaded % progressFlushInterval == 0 || isLastPage {
                     try await database.updateDownloadProgress(
                         sourceKey: payload.sourceKey,
@@ -329,7 +339,7 @@ actor ComicDownloadManager {
         try data.write(to: directory.appendingPathComponent("metadata.json"), options: .atomic)
     }
 
-    private func fileName(for request: ImageRequest, index: Int) -> String {
+    nonisolated private func fileName(for request: ImageRequest, index: Int) -> String {
         let normalizedURL = request.url.hasPrefix("//") ? "https:\(request.url)" : request.url
         let ext: String
         if let url = URL(string: normalizedURL) {
@@ -462,6 +472,14 @@ actor ComicDownloadManager {
         runtimeQueueItems.values.sorted { lhs, rhs in
             if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
             return lhs.id > rhs.id
+        }
+    }
+}
+
+private extension Array {
+    func chunked(size: Int) -> [[Element]] {
+        stride(from: 0, to: count, by: size).map {
+            Array(self[$0 ..< Swift.min($0 + size, count)])
         }
     }
 }
