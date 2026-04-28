@@ -26,6 +26,7 @@ struct AppPreferencesBackup: Codable, Hashable {
     let readerInvertTapZones: Bool?
     let readerPreloadDistance: Int?
     let readerTapZones: String?
+    let readerTapTurnMargin: Double?
     let readerAnimatePageTransitions: Bool?
     let readerBackgroundColor: String?
     let readerKeepScreenOn: Bool?

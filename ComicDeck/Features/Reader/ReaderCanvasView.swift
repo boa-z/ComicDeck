@@ -9,6 +9,14 @@ struct ReaderCanvasView: View {
     let translationShowOriginal: Bool
     let translationBlocks: [Int: [ReaderTextBlock]]
     let translationRenderedAssets: [Int: ReaderRenderedPageAsset]
+    let resolvedPageCount: Int
+    let totalPages: Int
+    let isLoadingMore: Bool
+    let reloadPageAction: (Int) -> Void
+    let translatePageAction: ((Int) -> Void)?
+    let toggleTranslationAction: (() -> Void)?
+    let onLongPressZoomStart: ((CGPoint) -> Void)?
+    let onLongPressZoomEnd: (() -> Void)?
     @Binding var currentPage: Int
     let verticalCoordinator: ReaderVerticalCoordinator
 
@@ -39,7 +47,15 @@ struct ReaderCanvasView: View {
                     translationEnabled: translationEnabled,
                     translationShowOriginal: translationShowOriginal,
                     overlays: translationBlocks[idx] ?? [],
-                    renderedAsset: translationRenderedAssets[idx]
+                    renderedAsset: translationRenderedAssets[idx],
+                    resolvedPageCount: resolvedPageCount,
+                    totalPages: totalPages,
+                    isLoadingMore: isLoadingMore,
+                    reloadPageAction: { reloadPageAction(idx) },
+                    translatePageAction: translationEnabled ? { translatePageAction?(idx) } : nil,
+                    toggleTranslationAction: translationEnabled ? toggleTranslationAction : nil,
+                    onLongPressZoomStart: onLongPressZoomStart,
+                    onLongPressZoomEnd: onLongPressZoomEnd
                 )
                     .tag(idx)
             }
@@ -63,7 +79,15 @@ struct ReaderCanvasView: View {
                             translationEnabled: translationEnabled,
                             translationShowOriginal: translationShowOriginal,
                             overlays: translationBlocks[idx] ?? [],
-                            renderedAsset: translationRenderedAssets[idx]
+                            renderedAsset: translationRenderedAssets[idx],
+                            resolvedPageCount: resolvedPageCount,
+                            totalPages: totalPages,
+                            isLoadingMore: isLoadingMore,
+                            reloadPageAction: { reloadPageAction(idx) },
+                            translatePageAction: translationEnabled ? { translatePageAction?(idx) } : nil,
+                            toggleTranslationAction: translationEnabled ? toggleTranslationAction : nil,
+                            onLongPressZoomStart: nil,
+                            onLongPressZoomEnd: nil
                         )
                             .id(idx)
                             .background(

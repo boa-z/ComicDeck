@@ -232,7 +232,17 @@ Key files:
 - `ReaderSession.swift`
 - `ReaderCanvasView.swift`
 - `ReaderChromeView.swift`
+- `ReaderPageView.swift`
+- `ReaderGestureInteraction.swift`
 - `ReaderImagePipeline.swift`
+
+Reader interaction model:
+
+- `ReaderGestureInteraction.swift` centralizes single-tap, double-tap, and long-press disambiguation with a delayed single-tap dispatch to avoid conflicts with double-tap zoom
+- tap zones use an edge-biased resolver: horizontal mode defaults to left/center/right regions (30%/40%/30%) and stores a user-configurable horizontal turn margin; vertical mode uses narrow edge zones with center tap toggling chrome
+- long press on a page temporarily zooms to 1.75x centered on the press point; releasing restores the original scale
+- top chrome uses a single `More` menu instead of multiple trailing buttons
+- bottom status bar shows priority-based information (loading state > translation status > offline indicator)
 
 Design intent:
 
@@ -242,6 +252,7 @@ Design intent:
 - installed source scripts keep the same `comic.loadEp(...)` and optional `comic.onImageLoad(...)` contract for both eager and progressive paths
 - downloads and offline flows still use the existing eager full-request resolution path, while the reader uses the additive progressive request-session path
 - image caching and page-byte loading stay outside the view tree in `ReaderImagePipeline`; progressive loading only changes how `ImageRequest` values are generated
+- current-page export loads the selected page through `ReaderImagePipeline`, decodes with the shared decoded-image store, and renders translation overlays when the translated view is active
 
 ### Reader Translation
 

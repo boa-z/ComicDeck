@@ -10,6 +10,7 @@ enum AppBackupService {
         static let readerInvertTapZones = "reader_invert_tap_zones"
         static let readerPreloadDistance = "reader_preload_distance"
         static let readerTapZones = "Reader.tapZones"
+        static let readerTapTurnMargin = "Reader.tapTurnMargin"
         static let readerAnimatePageTransitions = "Reader.animatePageTransitions"
         static let readerBackgroundColor = "Reader.backgroundColor"
         static let readerKeepScreenOn = "Reader.keepScreenOn"
@@ -40,6 +41,7 @@ enum AppBackupService {
             readerInvertTapZones: defaults.object(forKey: DefaultsKey.readerInvertTapZones) as? Bool,
             readerPreloadDistance: defaults.object(forKey: DefaultsKey.readerPreloadDistance) as? Int,
             readerTapZones: defaults.string(forKey: DefaultsKey.readerTapZones),
+            readerTapTurnMargin: defaults.object(forKey: DefaultsKey.readerTapTurnMargin) as? Double,
             readerAnimatePageTransitions: defaults.object(forKey: DefaultsKey.readerAnimatePageTransitions) as? Bool,
             readerBackgroundColor: defaults.string(forKey: DefaultsKey.readerBackgroundColor),
             readerKeepScreenOn: defaults.object(forKey: DefaultsKey.readerKeepScreenOn) as? Bool
@@ -124,6 +126,7 @@ enum AppBackupService {
         set(preferences.readerInvertTapZones, forKey: DefaultsKey.readerInvertTapZones, in: defaults)
         set(preferences.readerPreloadDistance, forKey: DefaultsKey.readerPreloadDistance, in: defaults)
         set(preferences.readerTapZones, forKey: DefaultsKey.readerTapZones, in: defaults)
+        set(preferences.readerTapTurnMargin, forKey: DefaultsKey.readerTapTurnMargin, in: defaults)
         set(preferences.readerAnimatePageTransitions, forKey: DefaultsKey.readerAnimatePageTransitions, in: defaults)
         set(preferences.readerBackgroundColor, forKey: DefaultsKey.readerBackgroundColor, in: defaults)
         set(preferences.readerKeepScreenOn, forKey: DefaultsKey.readerKeepScreenOn, in: defaults)
@@ -164,6 +167,12 @@ enum AppBackupService {
     }
 
     private static func set(_ value: Int?, forKey key: String, in defaults: UserDefaults) {
+        if let value {
+            defaults.set(value, forKey: key)
+        }
+    }
+
+    private static func set(_ value: Double?, forKey key: String, in defaults: UserDefaults) {
         if let value {
             defaults.set(value, forKey: key)
         }

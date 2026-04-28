@@ -25,6 +25,9 @@ struct ReaderOverlayView: View {
     let onOpenModeMenu: ((ReaderMode) -> Void)?
     let onOpenSettings: () -> Void
     let onReload: () -> Void
+    let onShareCurrentPage: (() -> Void)?
+    let onSaveCurrentPage: (() -> Void)?
+    let isExportingCurrentPage: Bool
     let onOpenPreviousChapter: () -> Void
     let onOpenNextChapter: () -> Void
     let onJumpToVerticalPage: (Int) -> Void
@@ -47,25 +50,36 @@ struct ReaderOverlayView: View {
         )
     }
 
-    private var readyStatusText: String? {
-        guard totalPages > 0, resolvedPageCount < totalPages else { return nil }
-        return AppLocalization.format(
-            "reader.status.ready",
-            "%1$lld/%2$lld ready",
-            Int64(resolvedPageCount),
-            Int64(totalPages)
-        )
+
+    private var loadingStatusText: String? {
+        guard isLoadingMore else { return nil }
+        return AppLocalization.text("reader.status.loading_more", "Loading more pages")
     }
 
-    private var pagesLeftText: String? {
-        guard totalPages > 0 else { return nil }
-        let pagesLeft = max(totalPages - normalizedDisplayedPageIndex, 0)
-        guard pagesLeft > 0 else { return nil }
-        return AppLocalization.format(
-            "reader.status.pages_left",
-            "%lld left",
-            Int64(pagesLeft)
-        )
+    private var secondaryStatusText: String? {
+        if let loadingStatusText {
+            return loadingStatusText
+        }
+        if translationEnabled, let translationStatusText, !translationStatusText.isEmpty {
+            return translationStatusText
+        }
+        if !offlineStatusText.isEmpty {
+            return offlineStatusText
+        }
+        return nil
+    }
+
+    private var secondaryStatusIcon: String? {
+        if isLoadingMore {
+            return "arrow.down.circle"
+        }
+        if translationEnabled, let translationStatusText, !translationStatusText.isEmpty {
+            return "text.bubble"
+        }
+        if !offlineStatusText.isEmpty {
+            return "checkmark.circle"
+        }
+        return nil
     }
 
     @State private var sliderState = ReaderProgressSliderState()
@@ -93,6 +107,25 @@ struct ReaderOverlayView: View {
         )
     }
 
+    private var sliderDragPageText: String {
+        let targetPage = ReaderProgressSliderMapper.currentPage(
+            for: sliderState.dragValue,
+            totalPages: totalPages,
+            readerMode: readerMode
+        )
+        let displayPage = ReaderProgressSliderMapper.displayValue(
+            currentPage: targetPage,
+            totalPages: totalPages,
+            readerMode: readerMode
+        ) + 1
+        return AppLocalization.format(
+            "reader.pages",
+            "%lld/%lld pages",
+            Int64(displayPage),
+            Int64(totalPages)
+        )
+    }
+
     private func applySliderValue(_ newValue: Double) {
         let targetPage = ReaderProgressSliderMapper.currentPage(
             for: newValue,
@@ -108,6 +141,94 @@ struct ReaderOverlayView: View {
 
     private var canRenderSlider: Bool {
         totalPages > 1
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            Section(AppLocalization.text("reader.chrome.mode", "Mode")) {
+                ForEach(ReaderMode.allCases) { mode in
+                    Button {
+                        onOpenModeMenu?(mode)
+                    } label: {
+                        Label(mode.title, systemImage: mode.icon)
+                    }
+                }
+            }
+
+            Button {
+                onOpenSettings()
+            } label: {
+                Label(
+                    AppLocalization.text("reader.settings.navigation_title", "Reader Settings"),
+                    systemImage: "slider.horizontal.3"
+                )
+            }
+
+            Section(AppLocalization.text("reader.chrome.page", "Page")) {
+                if let onShareCurrentPage {
+                    Button(action: onShareCurrentPage) {
+                        Label(
+                            AppLocalization.text("reader.action.share_current_page", "Share current page"),
+                            systemImage: "square.and.arrow.up"
+                        )
+                    }
+                    .disabled(isExportingCurrentPage)
+                }
+
+                if let onSaveCurrentPage {
+                    Button(action: onSaveCurrentPage) {
+                        Label(
+                            AppLocalization.text("reader.action.save_current_page", "Save current page"),
+                            systemImage: "square.and.arrow.down"
+                        )
+                    }
+                    .disabled(isExportingCurrentPage)
+                }
+
+                Button {
+                    onReload()
+                } label: {
+                    Label(
+                        AppLocalization.text("reader.action.reload_page", "Reload current page"),
+                        systemImage: "arrow.clockwise"
+                    )
+                }
+            }
+
+            if translationEnabled, let onTranslateCurrentPage {
+                Button(action: onTranslateCurrentPage) {
+                    Label(
+                        AppLocalization.text(
+                            translationBackendKind == .koharu
+                                ? "reader.translation.action.current_page.koharu"
+                                : "reader.translation.action.current_page",
+                            translationBackendKind == .koharu ? "Translate current page with Koharu" : "Translate current page"
+                        ),
+                        systemImage: translationShowOriginal ? "text.word.spacing" : "character.book.closed"
+                    )
+                }
+                .disabled(isTranslatingCurrentPage)
+            }
+
+            if translationEnabled, let onToggleTranslationShowOriginal {
+                Button(action: onToggleTranslationShowOriginal) {
+                    Label(
+                        AppLocalization.text(
+                            "reader.translation.toggle",
+                            translationShowOriginal ? "Show translated" : "Show original"
+                        ),
+                        systemImage: translationShowOriginal ? "eye" : "eye.slash"
+                    )
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.headline)
+                .padding(10)
+                .background(AppSurface.readerOverlay, in: Circle())
+        }
+        .accessibilityLabel(AppLocalization.text("common.more", "More"))
+        .accessibilityValue(readerMode.title)
     }
 
     var body: some View {
@@ -132,83 +253,7 @@ struct ReaderOverlayView: View {
 
                 Spacer()
 
-                Menu {
-                    ForEach(ReaderMode.allCases) { mode in
-                        Button {
-                            onOpenModeMenu?(mode)
-                        } label: {
-                            Label(mode.title, systemImage: mode.icon)
-                        }
-                    }
-                } label: {
-                    Image(systemName: "text.justify")
-                        .font(.headline)
-                        .padding(10)
-                        .background(AppSurface.readerOverlay, in: Circle())
-                }
-                .accessibilityLabel(AppLocalization.text("reader.chrome.mode", "Mode"))
-                .accessibilityValue(readerMode.title)
-
-                Button(AppLocalization.text("reader.settings.navigation_title", "Reader Settings"), systemImage: "slider.horizontal.3", action: onOpenSettings)
-                    .labelStyle(.iconOnly)
-                    .font(.headline)
-                    .padding(10)
-                    .background(AppSurface.readerOverlay, in: Circle())
-                    .accessibilityLabel(AppLocalization.text("reader.settings.navigation_title", "Reader Settings"))
-
-                if translationEnabled, let onTranslateCurrentPage {
-                    Button(
-                        AppLocalization.text(
-                            translationBackendKind == .koharu
-                                ? "reader.translation.action.current_page.koharu"
-                                : "reader.translation.action.current_page",
-                            translationBackendKind == .koharu ? "Translate current page with Koharu" : "Translate current page"
-                        ),
-                        systemImage: translationShowOriginal ? "text.word.spacing" : "character.book.closed",
-                        action: onTranslateCurrentPage
-                    )
-                    .labelStyle(.iconOnly)
-                    .font(.headline)
-                    .padding(10)
-                    .background(AppSurface.readerOverlay, in: Circle())
-                    .disabled(isTranslatingCurrentPage)
-                    .accessibilityLabel(
-                        AppLocalization.text(
-                            translationBackendKind == .koharu
-                                ? "reader.translation.action.current_page.koharu"
-                                : "reader.translation.action.current_page",
-                            translationBackendKind == .koharu ? "Translate current page with Koharu" : "Translate current page"
-                        )
-                    )
-                }
-
-                if translationEnabled, let onToggleTranslationShowOriginal {
-                    Button(
-                        AppLocalization.text(
-                            "reader.translation.toggle",
-                            translationShowOriginal ? "Show translated" : "Show original"
-                        ),
-                        systemImage: translationShowOriginal ? "eye" : "eye.slash",
-                        action: onToggleTranslationShowOriginal
-                    )
-                    .labelStyle(.iconOnly)
-                    .font(.headline)
-                    .padding(10)
-                    .background(AppSurface.readerOverlay, in: Circle())
-                    .accessibilityLabel(
-                        AppLocalization.text(
-                            "reader.translation.toggle",
-                            translationShowOriginal ? "Show translated" : "Show original"
-                        )
-                    )
-                }
-
-                Button(AppLocalization.text("reader.action.reload_page", "Reload current page"), systemImage: "arrow.clockwise", action: onReload)
-                    .labelStyle(.iconOnly)
-                    .font(.headline)
-                    .padding(10)
-                    .background(AppSurface.readerOverlay, in: Circle())
-                    .accessibilityLabel(AppLocalization.text("reader.action.reload_page", "Reload current page"))
+                moreMenu
             }
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
@@ -236,29 +281,42 @@ struct ReaderOverlayView: View {
                     }
 
                     if canRenderSlider {
-                        Slider(
-                            value: sliderValue,
-                            in: 0...Double(safePageUpperBound),
-                            step: 1
-                        ) { editing in
-                            if editing {
-                                sliderState.beginDragging(initialValue: resolvedSliderValue)
-                            } else {
-                                sliderState.endDragging()
-                                applySliderValue(sliderState.dragValue)
+                        ZStack(alignment: .top) {
+                            if sliderState.isDragging {
+                                Text(sliderDragPageText)
+                                    .font(.caption2.monospacedDigit().weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(AppSurface.readerOverlay, in: Capsule())
+                                    .offset(y: -30)
+                                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                                    .accessibilityHidden(true)
+                            }
+
+                            Slider(
+                                value: sliderValue,
+                                in: 0...Double(safePageUpperBound),
+                                step: 1
+                            ) { editing in
+                                if editing {
+                                    sliderState.beginDragging(initialValue: resolvedSliderValue)
+                                } else {
+                                    sliderState.endDragging()
+                                    applySliderValue(sliderState.dragValue)
+                                }
+                            }
+                            .id("reader-progress-\(totalPages)")
+                            .tint(.white)
+                            .animation(animatePageTransitions ? .easeInOut(duration: 0.18) : nil, value: currentPage)
+                            .accessibilityLabel(AppLocalization.text("reader.progress.label", "Reading progress"))
+                            .accessibilityValue(progressSummaryText)
+                            .onChange(of: resolvedSliderValue) { _, value in
+                                sliderState.syncAfterExternalPageChange(currentValue: value)
                             }
                         }
-                        .id("reader-progress-\(totalPages)")
-                        .tint(.white)
-                        .animation(animatePageTransitions ? .easeInOut(duration: 0.18) : nil, value: currentPage)
-                        .accessibilityLabel(AppLocalization.text("reader.progress.label", "Reading progress"))
-                        .accessibilityValue(progressSummaryText)
-                        .onAppear {
-                            sliderState.syncAfterExternalPageChange(currentValue: resolvedSliderValue)
-                        }
-                        .onChange(of: resolvedSliderValue) { _, value in
-                            sliderState.syncAfterExternalPageChange(currentValue: value)
-                        }
+                        .frame(maxWidth: .infinity)
+                        .animation(animatePageTransitions ? .easeInOut(duration: 0.16) : nil, value: sliderState.isDragging)
                     } else {
                         Capsule()
                             .fill(.white.opacity(0.18))
@@ -285,37 +343,24 @@ struct ReaderOverlayView: View {
                 HStack(spacing: 6) {
                     Text(progressSummaryText)
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.85))
-                    if !offlineStatusText.isEmpty {
-                        Text("• \(offlineStatusText)")
+                        .foregroundStyle(.white.opacity(0.88))
+
+                    if let secondaryStatusText {
+                        Text("•")
                             .font(.caption2)
-                            .foregroundStyle(.green.opacity(0.9))
-                    }
-                    if let readyStatusText {
-                        Text("• \(readyStatusText)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.white.opacity(0.7))
-                    }
-                    if let pagesLeftText {
-                        Text("• \(pagesLeftText)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.white.opacity(0.7))
-                    }
-                    if translationEnabled, let translationStatusText, !translationStatusText.isEmpty {
-                        Text("• \(translationStatusText)")
+                            .foregroundStyle(.white.opacity(0.45))
+                        if let secondaryStatusIcon {
+                            Image(systemName: secondaryStatusIcon)
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.68))
+                        }
+                        Text(secondaryStatusText)
                             .font(.caption2)
                             .foregroundStyle(.white.opacity(0.72))
                             .lineLimit(1)
                     }
+
                     Spacer()
-                    if isLoadingMore {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(.white.opacity(0.75))
-                    }
-                    Text(readerMode.title)
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.7))
                 }
             }
             .padding(.horizontal, 14)
@@ -379,6 +424,7 @@ struct ReaderSettingsSheet: View {
     @Binding var invertTapZones: Bool
     @Binding var preloadDistance: Int
     @Binding var tapZonePreset: TapZonePreset
+    @Binding var tapTurnMargin: Double
     @Binding var animatePageTransitions: Bool
     @Binding var readerBackgroundMode: ReaderBackgroundMode
     @Binding var keepScreenOn: Bool
@@ -411,6 +457,19 @@ struct ReaderSettingsSheet: View {
                             Text(item.title).tag(item)
                         }
                     }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(AppLocalization.text("reader.settings.tap_turn_margin", "Turn margin"))
+                            Spacer()
+                            Text(AppLocalization.format("reader.settings.tap_turn_margin.value", "%lld%%", Int64((tapTurnMargin * 100).rounded())))
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $tapTurnMargin, in: 0.20...0.45, step: 0.05)
+                    }
+                    Text(AppLocalization.text("reader.settings.tap_turn_margin.footer", "Controls how much of each screen edge turns pages in Automatic and Edge-Biased horizontal tap zones."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section(AppLocalization.text("reader.settings.appearance", "Appearance")) {

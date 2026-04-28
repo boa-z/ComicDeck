@@ -48,6 +48,7 @@ enum TapZonePreset: String, CaseIterable, Identifiable {
     case lShaped = "l-shaped"
     case kindle
     case edge
+    case edgeBiased = "edge-biased"
     case disabled
 
     var id: String { rawValue }
@@ -59,6 +60,7 @@ enum TapZonePreset: String, CaseIterable, Identifiable {
         case .lShaped: return AppLocalization.text("reader.tap.l_shaped", "L-shaped")
         case .kindle: return AppLocalization.text("reader.tap.kindle", "Kindle")
         case .edge: return AppLocalization.text("reader.tap.edge", "Edge")
+        case .edgeBiased: return AppLocalization.text("reader.tap.edge_biased", "Edge-Biased")
         case .disabled: return AppLocalization.text("reader.tap.disabled", "Disabled")
         }
     }

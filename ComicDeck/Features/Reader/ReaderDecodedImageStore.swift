@@ -69,7 +69,18 @@ final class ReaderDecodedImageStore {
 
         let pixelWidth = max(Int((max(targetSize.width, 1) * scale).rounded(.up)), 1)
         let pixelHeight = max(Int((max(targetSize.height, 1) * scale).rounded(.up)), 1)
-        let maxPixelSize = max(allowOriginalSize ? max(pixelWidth, pixelHeight) * 2 : max(pixelWidth, pixelHeight), 1)
+
+        let maxPixelSize: Int
+        if allowOriginalSize, targetSize == .zero {
+            guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+                  let srcWidth = properties[kCGImagePropertyPixelWidth] as? Int,
+                  let srcHeight = properties[kCGImagePropertyPixelHeight] as? Int else {
+                return UIImage(data: data)
+            }
+            maxPixelSize = max(srcWidth, srcHeight)
+        } else {
+            maxPixelSize = max(allowOriginalSize ? max(pixelWidth, pixelHeight) * 2 : max(pixelWidth, pixelHeight), 1)
+        }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,

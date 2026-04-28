@@ -195,9 +195,9 @@ final class ReaderSession {
 
         loading = true
         loadingProgress = 0.05
-        loadingMessage = "Loading chapter..."
+        loadingMessage = AppLocalization.text("reader.loading.chapter", "Loading chapter...")
         errorText = ""
-        offlineStatusText = isOfflineReading ? "Offline" : ""
+        offlineStatusText = isOfflineReading ? AppLocalization.text("reader.status.offline.loading", "Opening downloaded chapter") : ""
         readerDebugLog("load start: comicID=\(item.id), chapterID=\(chapterID)", level: .info)
 
         do {
@@ -211,15 +211,15 @@ final class ReaderSession {
                 if readerMode == .vertical {
                 }
                 loadingProgress = 1
-                loadingMessage = "Done"
-                offlineStatusText = "Offline • \(totalPages) pages downloaded"
+                loadingMessage = AppLocalization.text("reader.loading.done", "Done")
+                offlineStatusText = AppLocalization.format("reader.status.offline.ready", "%lld pages offline", Int64(totalPages))
                 loading = false
                 readerDebugLog("load local success: imageRequests=\(totalPages), path=\(localChapterDirectory)", level: .info)
                 return
             }
 
             loadingProgress = 0.2
-            loadingMessage = "Resolving image requests..."
+            loadingMessage = AppLocalization.text("reader.loading.resolving_requests", "Resolving image requests...")
             let prepared = try await vm.prepareReaderPageRequestSession(item, chapterID: chapterID)
             guard generation == loadGeneration, !Task.isCancelled else {
                 await vm.disposeReaderPageRequestSession(prepared.handle, item: item)
@@ -238,7 +238,7 @@ final class ReaderSession {
             currentPage = preferredInitialPageIndex(total: totalPages, readerMode: readerMode)
 
             loadingProgress = 0.55
-            loadingMessage = "Preparing reader..."
+            loadingMessage = AppLocalization.text("reader.loading.preparing_reader", "Preparing reader...")
             try await resolvePageIndexes(
                 prioritizedIndexes(around: currentPage, radius: ReaderLoadConstants.initialBatchRadius),
                 using: vm,
@@ -253,7 +253,7 @@ final class ReaderSession {
             }
 
             loadingProgress = 1
-            loadingMessage = "Done"
+            loadingMessage = AppLocalization.text("reader.loading.done", "Done")
             loading = false
             readerDebugLog("load progressive success: totalPages=\(totalPages), resolved=\(resolvedPageCount)", level: .info)
             queueBackgroundResolution(using: vm, readerMode: readerMode)
@@ -683,7 +683,7 @@ final class ReaderSession {
         readerMode: ReaderMode
     ) async throws {
         loadingProgress = 0.65
-        loadingMessage = "Falling back to direct links..."
+        loadingMessage = AppLocalization.text("reader.loading.fallback_direct_links", "Falling back to direct links...")
         var requests = try await vm.loadComicPageRequests(item, chapterID: chapterID)
         guard generation == loadGeneration, !Task.isCancelled else { return }
         if requests.isEmpty {
@@ -699,7 +699,7 @@ final class ReaderSession {
         applyLoadedRequests(requests)
         currentPage = preferredInitialPageIndex(total: totalPages, readerMode: readerMode)
         loadingProgress = 1
-        loadingMessage = "Done"
+        loadingMessage = AppLocalization.text("reader.loading.done", "Done")
         loading = false
         readerDebugLog("load fallback success: totalPages=\(totalPages)", level: .warn)
     }

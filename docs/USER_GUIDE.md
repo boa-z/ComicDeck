@@ -73,12 +73,16 @@ Resume behavior:
 
 Inside the reader you can:
 
-- move between pages
+- move between pages by tapping the left or right edge of the screen (horizontal mode) or the center area toggles the chrome overlay
+- double tap to zoom into a page around the tap location; double tap again to zoom out
+- long press a page to temporarily zoom to 1.75x centered on the press point; release to snap back
 - switch chapters with `Prev` and `Next`
-- scrub with the progress slider
-- open reader settings
+- scrub with the progress slider; a floating page indicator appears while dragging
+- open the `More` menu (top-right ellipsis) for mode switching, reader settings, reload, translation controls, and current-page share/save actions
 
-If an offline chapter is incomplete or missing, the reader shows an explicit offline error instead of silently switching back to network loading.
+Tap zones in horizontal mode use an edge-biased layout by default: the left 30% navigates backward, the right 30% navigates forward, and the center 40% toggles the control overlay. Reader Settings can change the horizontal turn margin from 20% to 45%; vertical mode keeps conservative center-only chrome toggling with narrow edges reserved for system gestures.
+
+While a chapter is still resolving, unresolved pages show static preparing placeholders and may show how many pages are ready. Downloaded chapters show offline status in the bottom reader chrome. If an offline chapter is incomplete or missing, the reader shows an explicit offline error instead of silently switching back to network loading.
 
 ## Library Management
 

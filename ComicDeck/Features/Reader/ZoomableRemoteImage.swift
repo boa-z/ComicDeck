@@ -5,6 +5,8 @@ struct ZoomableRemoteImage: UIViewRepresentable {
     let request: URLRequest
     let overlays: [ReaderTextBlock]
     var displayScale: CGFloat = 2.0
+    var onLongPressZoomStart: ((CGPoint) -> Void)?
+    var onLongPressZoomEnd: (() -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(displayScale: displayScale)
@@ -14,6 +16,8 @@ struct ZoomableRemoteImage: UIViewRepresentable {
         let view = ZoomingImageScrollView()
         context.coordinator.attach(view)
         view.setOverlays(overlays)
+        view.onLongPressZoomStart = onLongPressZoomStart
+        view.onLongPressZoomEnd = onLongPressZoomEnd
         context.coordinator.load(request)
         return view
     }
@@ -21,6 +25,8 @@ struct ZoomableRemoteImage: UIViewRepresentable {
     func updateUIView(_ uiView: ZoomingImageScrollView, context: Context) {
         context.coordinator.attach(uiView)
         uiView.setOverlays(overlays)
+        uiView.onLongPressZoomStart = onLongPressZoomStart
+        uiView.onLongPressZoomEnd = onLongPressZoomEnd
         context.coordinator.updateRenderedImageIfNeeded()
         context.coordinator.load(request)
     }
@@ -34,6 +40,8 @@ struct ZoomableRemoteImage: UIViewRepresentable {
         private var loadTask: Task<Void, Never>?
         private var currentKey = ""
         private var currentRequest: URLRequest?
+        private var lastRenderedBaseImage: UIImage?
+        private var lastRenderedOverlays: [ReaderTextBlock]?
         private let displayScale: CGFloat
 
         init(displayScale: CGFloat) {
@@ -80,7 +88,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
                 } catch {
                     guard !Task.isCancelled else { return }
                     await MainActor.run {
-                        self?.view?.setError("Failed to load image")
+                        self?.view?.setError(AppLocalization.text("reader.error.image_load_failed", "Failed to load image"))
                     }
                     readerDebugLog(
                         "image request error: \(error.localizedDescription), url=\(request.url?.absoluteString ?? "")",
@@ -99,6 +107,10 @@ struct ZoomableRemoteImage: UIViewRepresentable {
         func updateRenderedImageIfNeeded() {
             guard let view, let baseImage = view.baseImage else { return }
             let overlays = view.currentOverlays
+            guard lastRenderedBaseImage !== baseImage || lastRenderedOverlays != overlays || view.imageView.image == nil else { return }
+            lastRenderedBaseImage = baseImage
+            lastRenderedOverlays = overlays
+
             let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
             view.setImage(image)
             readerDebugLog(
@@ -109,21 +121,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
 
         @objc private func handleDoubleTap(_ recognizer: UITapGestureRecognizer) {
             guard let view else { return }
-            if view.zoomScale > view.minimumZoomScale + 0.01 {
-                view.setZoomScale(view.minimumZoomScale, animated: true)
-                return
-            }
-
-            let targetScale = min(view.maximumZoomScale, 2.5)
-            let point = recognizer.location(in: view.imageView)
-            let zoomRect = zoomRect(for: targetScale, center: point, in: view)
-            view.zoom(to: zoomRect, animated: true)
-        }
-
-        private func zoomRect(for scale: CGFloat, center: CGPoint, in view: ZoomingImageScrollView) -> CGRect {
-            let width = view.bounds.width / scale
-            let height = view.bounds.height / scale
-            return CGRect(x: center.x - width * 0.5, y: center.y - height * 0.5, width: width, height: height)
+            view.toggleZoom(at: recognizer.location(in: view.imageView))
         }
     }
 }
@@ -131,11 +129,16 @@ struct ZoomableRemoteImage: UIViewRepresentable {
 final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     let imageView = UIImageView()
     let doubleTapRecognizer = UITapGestureRecognizer()
+    private let longPressRecognizer = UILongPressGestureRecognizer()
     private let loadingIndicator = UIActivityIndicatorView(style: .medium)
+    private let loadingLabel = UILabel()
     private let errorLabel = UILabel()
     var currentOverlays: [ReaderTextBlock] = []
     var baseImage: UIImage?
     private var lastBoundsSize: CGSize = .zero
+    var onLongPressZoomStart: ((CGPoint) -> Void)?
+    var onLongPressZoomEnd: (() -> Void)?
+    private var isLongPressZoomed = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -158,7 +161,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
         showsHorizontalScrollIndicator = false
         showsVerticalScrollIndicator = false
         contentInsetAdjustmentBehavior = .never
-        isScrollEnabled = false
+        isScrollEnabled = true
 
         imageView.contentMode = .scaleToFill
         imageView.isUserInteractionEnabled = true
@@ -167,6 +170,13 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
         loadingIndicator.color = .white
         loadingIndicator.hidesWhenStopped = true
         addSubview(loadingIndicator)
+
+        loadingLabel.text = AppLocalization.text("reader.loading.image", "Loading image...")
+        loadingLabel.textColor = UIColor.white.withAlphaComponent(0.56)
+        loadingLabel.font = .preferredFont(forTextStyle: .caption2)
+        loadingLabel.textAlignment = .center
+        loadingLabel.isHidden = true
+        addSubview(loadingLabel)
 
         errorLabel.textColor = .white
         errorLabel.font = .preferredFont(forTextStyle: .caption1)
@@ -177,6 +187,10 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
 
         doubleTapRecognizer.numberOfTapsRequired = 2
         addGestureRecognizer(doubleTapRecognizer)
+
+        longPressRecognizer.minimumPressDuration = 0.25
+        longPressRecognizer.addTarget(self, action: #selector(handleLongPress(_:)))
+        addGestureRecognizer(longPressRecognizer)
     }
 
     override func layoutSubviews() {
@@ -185,7 +199,8 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
             lastBoundsSize = bounds.size
             recalculateZoomScales(resetToMinimum: false)
         }
-        loadingIndicator.center = CGPoint(x: bounds.midX, y: bounds.midY)
+        loadingIndicator.center = CGPoint(x: bounds.midX, y: bounds.midY - 12)
+        loadingLabel.frame = CGRect(x: 20, y: bounds.midY + 8, width: max(0, bounds.width - 40), height: 24)
         errorLabel.frame = CGRect(x: 20, y: bounds.midY - 20, width: max(0, bounds.width - 40), height: 40)
         centerImageIfNeeded()
     }
@@ -193,9 +208,11 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     func setLoading(_ loading: Bool) {
         if loading {
             errorLabel.isHidden = true
+            loadingLabel.isHidden = false
             loadingIndicator.startAnimating()
         } else {
             loadingIndicator.stopAnimating()
+            loadingLabel.isHidden = true
         }
     }
 
@@ -215,7 +232,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     func setError(_ text: String) {
         setLoading(false)
         imageView.image = nil
-        errorLabel.text = text
+        errorLabel.text = text.isEmpty ? AppLocalization.text("reader.error.image_load_failed", "Failed to load image") : text
         errorLabel.isHidden = false
         contentOffset = .zero
         contentInset = .zero
@@ -238,11 +255,15 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
             return
         }
 
+        imageView.transform = .identity
+        imageView.frame = CGRect(origin: .zero, size: image.size)
+        contentSize = image.size
+
         let widthScale = bounds.width / image.size.width
         let heightScale = bounds.height / image.size.height
         let fitScale = min(widthScale, heightScale)
         let minScale = min(max(fitScale, 0.05), 1)
-        let maxScale = max(minScale + 0.01, 4)
+        let maxScale = max(minScale * 4, minScale + 0.01)
 
         minimumZoomScale = minScale
         maximumZoomScale = maxScale
@@ -251,23 +272,19 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
         } else {
             zoomScale = min(max(zoomScale, minScale), maxScale)
         }
-        contentSize = image.size
-        isScrollEnabled = zoomScale > minimumZoomScale + 0.01
+        isScrollEnabled = true
         centerImageIfNeeded()
     }
 
     func centerImageIfNeeded() {
-        guard let image = imageView.image, image.size.width > 0, image.size.height > 0 else {
+        guard imageView.image != nil else {
             imageView.frame = bounds
             return
         }
 
-        let scaledSize = CGSize(width: image.size.width * zoomScale, height: image.size.height * zoomScale)
-        let horizontalInset = max(0, (bounds.width - scaledSize.width) / 2)
-        let verticalInset = max(0, (bounds.height - scaledSize.height) / 2)
+        let horizontalInset = max(0, (bounds.width - contentSize.width) / 2)
+        let verticalInset = max(0, (bounds.height - contentSize.height) / 2)
         contentInset = UIEdgeInsets(top: verticalInset, left: horizontalInset, bottom: verticalInset, right: horizontalInset)
-
-        imageView.frame = CGRect(origin: .zero, size: image.size)
     }
 
     func viewForZooming(in scrollView: UIScrollView) -> UIView? {
@@ -275,7 +292,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     }
 
     func scrollViewDidZoom(_ scrollView: UIScrollView) {
-        isScrollEnabled = zoomScale > minimumZoomScale + 0.01
+        isScrollEnabled = true
         centerImageIfNeeded()
     }
 
@@ -285,5 +302,42 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
             "zoom translated image payload updated: overlays=\(overlays.count)",
             level: .info
         )
+    }
+
+    func toggleZoom(at point: CGPoint) {
+        guard imageView.image != nil else { return }
+        if zoomScale > minimumZoomScale + 0.01 {
+            setZoomScale(minimumZoomScale, animated: true)
+        } else {
+            zoom(to: zoomRect(for: targetZoomScale(multiplier: 2.0), center: point), animated: true)
+        }
+    }
+
+    private func targetZoomScale(multiplier: CGFloat) -> CGFloat {
+        min(maximumZoomScale, max(minimumZoomScale * multiplier, minimumZoomScale + 0.01))
+    }
+
+    @objc private func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
+        switch recognizer.state {
+        case .began:
+            guard !isLongPressZoomed else { return }
+            isLongPressZoomed = true
+            let point = recognizer.location(in: imageView)
+            zoom(to: zoomRect(for: targetZoomScale(multiplier: 1.75), center: point), animated: true)
+            onLongPressZoomStart?(point)
+        case .ended, .cancelled, .failed:
+            guard isLongPressZoomed else { return }
+            isLongPressZoomed = false
+            setZoomScale(minimumZoomScale, animated: true)
+            onLongPressZoomEnd?()
+        default:
+            break
+        }
+    }
+
+    private func zoomRect(for scale: CGFloat, center: CGPoint) -> CGRect {
+        let width = bounds.width / scale
+        let height = bounds.height / scale
+        return CGRect(x: center.x - width * 0.5, y: center.y - height * 0.5, width: width, height: height)
     }
 }

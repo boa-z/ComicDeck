@@ -22,7 +22,7 @@ struct PlainRemoteImage: View {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
                         .foregroundStyle(.yellow)
-                    Text("Failed to load image")
+                    Text(AppLocalization.text("reader.error.image_load_failed", "Failed to load image"))
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.85))
                     Text(errorText)
@@ -32,14 +32,7 @@ struct PlainRemoteImage: View {
                 }
                 .padding()
             } else {
-                VStack(spacing: 10) {
-                    ProgressView()
-                        .tint(.white)
-                    Text(AppLocalization.text("reader.loading.image", "Loading image..."))
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.8))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                imageSkeleton
             }
         }
         .frame(maxWidth: .infinity)
@@ -53,6 +46,30 @@ struct PlainRemoteImage: View {
                     }
             }
         }
+    }
+
+    private var imageSkeleton: some View {
+        VStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.white.opacity(0.08))
+                .frame(width: 104, height: 144)
+                .overlay(alignment: .bottom) {
+                    VStack(spacing: 5) {
+                        Capsule()
+                            .fill(.white.opacity(0.12))
+                            .frame(width: 68, height: 6)
+                        Capsule()
+                            .fill(.white.opacity(0.09))
+                            .frame(width: 46, height: 6)
+                    }
+                    .padding(.bottom, 18)
+                }
+
+            Text(AppLocalization.text("reader.loading.image", "Loading image..."))
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.46))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func loadTaskKey(containerWidth: CGFloat) -> String {
