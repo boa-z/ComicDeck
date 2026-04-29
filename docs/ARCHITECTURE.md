@@ -182,6 +182,7 @@ Examples:
 - per-comic tracker bindings
 - pending sync queue state
 - one-way progress sync dispatch
+- on-demand provider manga-list loading for Library tracking workspaces
 
 ## Source Script HTML Runtime
 
@@ -366,6 +367,9 @@ Design intent:
 - failed sync attempts stay queued for the next flush while the app is active
 - tracker tokens stay in Keychain rather than SQLite backup payloads
 - AniList OAuth client IDs are stored in user defaults because they are public configuration, while AniList access tokens and client secrets stay in Keychain
+- tracker library workspaces fetch remote manga lists on demand through `TrackerViewModel` and provider clients instead of persisting a separate remote-list cache
+- AniList lists come from `AniListTrackerClient` GraphQL collection loading; Bangumi lists come from `BangumiTrackerClient` collection loading
+- local multi-source progress display is derived from existing `tracker_bindings` rows grouped by `sourceKey` and `comicID`
 - local library shelves organize bookmarks at the app layer
 - category membership is many-to-many, so a comic can appear in multiple shelves
 - shelf order is persisted through `sort_order`

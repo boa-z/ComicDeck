@@ -124,6 +124,8 @@ In comic detail you can:
 - manually sync current progress
 - unlink an existing tracker entry
 
+Open `Library -> AniList Library` or `Library -> Bangumi Library` to view the connected provider's manga list. Each tracker library workspace loads remote list entries on demand, shows only confirmed local source bindings, and displays progress for every tracker provider already bound to the same local comic. Unbound rows can launch a manual search in the currently selected source. Use comic detail for linking, syncing, and unlinking; tracker library pages do not recommend comics, automatically match sources, or write remote list data to a separate cache in v1.
+
 Reader behavior:
 
 - when you finish a linked chapter, ComicDeck queues a tracker sync

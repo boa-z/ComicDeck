@@ -14,6 +14,13 @@ public enum TrackerProvider: String, Codable, Sendable, Hashable, CaseIterable, 
             return "Bangumi"
         }
     }
+
+    public var supportsMangaListWorkspace: Bool {
+        switch self {
+        case .aniList, .bangumi:
+            return true
+        }
+    }
 }
 
 public enum TrackerReadingStatus: String, Codable, Sendable, Hashable, CaseIterable {
@@ -159,5 +166,45 @@ public struct TrackerSearchResult: Codable, Sendable, Identifiable, Hashable {
         self.statusText = statusText
         self.chapterCount = chapterCount
         self.siteURL = siteURL
+    }
+}
+
+public struct TrackerListEntry: Codable, Sendable, Identifiable, Hashable {
+    public let id: String
+    public let provider: TrackerProvider
+    public let mediaID: String
+    public let title: String
+    public let subtitle: String?
+    public let coverURL: String?
+    public let status: TrackerReadingStatus?
+    public let progress: Int
+    public let chapterCount: Int?
+    public let siteURL: String?
+    public let updatedAt: Int64?
+
+    public nonisolated init(
+        id: String,
+        provider: TrackerProvider,
+        mediaID: String,
+        title: String,
+        subtitle: String?,
+        coverURL: String?,
+        status: TrackerReadingStatus?,
+        progress: Int,
+        chapterCount: Int?,
+        siteURL: String?,
+        updatedAt: Int64?
+    ) {
+        self.id = id
+        self.provider = provider
+        self.mediaID = mediaID
+        self.title = title
+        self.subtitle = subtitle
+        self.coverURL = coverURL
+        self.status = status
+        self.progress = progress
+        self.chapterCount = chapterCount
+        self.siteURL = siteURL
+        self.updatedAt = updatedAt
     }
 }

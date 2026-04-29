@@ -57,7 +57,7 @@ final class TrackerViewModel {
             refreshed = TrackerAccount(
                 provider: .bangumi,
                 displayName: remote.nickname.isEmpty ? remote.username : remote.nickname,
-                remoteUserID: remote.id,
+                remoteUserID: remote.username,
                 updatedAt: Int64(Date().timeIntervalSince1970)
             )
         }
@@ -70,6 +70,20 @@ final class TrackerViewModel {
 
     func binding(for item: ComicSummary, provider: TrackerProvider) -> TrackerBinding? {
         bindings[bindingKey(sourceKey: item.sourceKey, comicID: item.id)]?[provider]
+    }
+
+    func bindingGroups(provider: TrackerProvider, remoteMediaID: String) -> [[TrackerProvider: TrackerBinding]] {
+        bindings.values
+            .filter { providerBindings in
+                providerBindings[provider]?.remoteMediaID == remoteMediaID
+            }
+            .sorted { lhs, rhs in
+                guard let left = lhs[provider], let right = rhs[provider] else { return false }
+                if left.sourceKey != right.sourceKey {
+                    return left.sourceKey.localizedStandardCompare(right.sourceKey) == .orderedAscending
+                }
+                return left.comicID.localizedStandardCompare(right.comicID) == .orderedAscending
+            }
     }
 
     func connectAniList(accessToken: String) async throws {
@@ -100,7 +114,7 @@ final class TrackerViewModel {
             viewer = TrackerAccount(
                 provider: .bangumi,
                 displayName: remote.nickname.isEmpty ? remote.username : remote.nickname,
-                remoteUserID: remote.id,
+                remoteUserID: remote.username,
                 updatedAt: Int64(Date().timeIntervalSince1970)
             )
         }
@@ -122,6 +136,46 @@ final class TrackerViewModel {
     func searchAniList(query: String) async throws -> [TrackerSearchResult] {
         let token = try accessToken(for: .aniList)
         return try await aniListClient.searchManga(title: query, accessToken: token)
+    }
+
+    func loadMangaList(provider: TrackerProvider) async throws -> [TrackerListEntry] {
+        guard let account = account(for: provider) else {
+            throw TrackerError.missingAccessToken(provider)
+        }
+        let token = try accessToken(for: provider)
+        let entries: [TrackerListEntry]
+        switch provider {
+        case .aniList:
+            entries = try await aniListClient.listMangaList(userID: account.remoteUserID, accessToken: token)
+        case .bangumi:
+            entries = try await loadBangumiMangaList(account: account, accessToken: token)
+        }
+        status = AppLocalization.format(
+            "tracking.subscriptions.loaded_status_format",
+            "Loaded %@ %@ manga",
+            String(entries.count),
+            provider.title
+        )
+        return entries
+    }
+
+    private func loadBangumiMangaList(account: TrackerAccount, accessToken: String) async throws -> [TrackerListEntry] {
+        do {
+            return try await bangumiClient.listMangaList(username: account.remoteUserID, accessToken: accessToken)
+        } catch {
+            let remote = try await bangumiClient.validateAccessToken(accessToken)
+            guard remote.username != account.remoteUserID else { throw error }
+            let refreshed = TrackerAccount(
+                provider: .bangumi,
+                displayName: remote.nickname.isEmpty ? remote.username : remote.nickname,
+                remoteUserID: remote.username,
+                updatedAt: Int64(Date().timeIntervalSince1970)
+            )
+            guard let database else { throw TrackerError.notPrepared }
+            try await database.upsertTrackerAccount(refreshed)
+            accounts[.bangumi] = refreshed
+            return try await bangumiClient.listMangaList(username: remote.username, accessToken: accessToken)
+        }
     }
 
     func searchBangumi(query: String) async throws -> [TrackerSearchResult] {

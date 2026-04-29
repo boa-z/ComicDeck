@@ -115,6 +115,28 @@ struct LibraryHomeView: View {
                 }
                 .buttonStyle(.plain)
 
+                ForEach(TrackerProvider.allCases.filter { $0.supportsMangaListWorkspace }) { provider in
+                    NavigationLink {
+                        TrackerSubscriptionsView(vm: vm, sourceManager: sourceManager, provider: provider)
+                    } label: {
+                        workspaceCard(
+                            title: AppLocalization.format(
+                                "library.workspace.tracker.title_format",
+                                "%@ Library",
+                                provider.title
+                            ),
+                            subtitle: AppLocalization.text(
+                                "library.workspace.tracker.subtitle",
+                                "View manga and local progress bindings"
+                            ),
+                            value: vm.tracker.account(for: provider)?.displayName ?? AppLocalization.text("library.workspace.tracker.disconnected", "Connect"),
+                            systemImage: "rectangle.stack.badge.person.crop",
+                            tint: AppTint.accent
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 NavigationLink {
                     FavoritesView(vm: vm, sourceManager: sourceManager, onTagSearchRequested: onTagSearchRequested)
                 } label: {

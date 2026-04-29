@@ -150,6 +150,103 @@ struct AniListTrackerClient {
         } ?? []
     }
 
+    func listMangaList(userID: String, accessToken: String) async throws -> [TrackerListEntry] {
+        struct Response: Decodable {
+            struct DataBody: Decodable {
+                struct Collection: Decodable {
+                    struct List: Decodable {
+                        struct Entry: Decodable {
+                            struct Media: Decodable {
+                                struct Title: Decodable {
+                                    let romaji: String?
+                                    let english: String?
+                                    let native: String?
+                                    let userPreferred: String?
+                                }
+                                struct CoverImage: Decodable {
+                                    let large: String?
+                                    let medium: String?
+                                }
+                                let id: Int
+                                let title: Title
+                                let chapters: Int?
+                                let siteUrl: String?
+                                let coverImage: CoverImage?
+                            }
+                            let id: Int
+                            let status: String?
+                            let progress: Int?
+                            let updatedAt: Int?
+                            let media: Media
+                        }
+                        let entries: [Entry]
+                    }
+                    let lists: [List]
+                }
+                let mediaListCollection: Collection?
+
+                enum CodingKeys: String, CodingKey {
+                    case mediaListCollection = "MediaListCollection"
+                }
+            }
+            let data: DataBody?
+            let errors: [GraphQLError]?
+        }
+
+        guard let userID = Int(userID) else {
+            throw TrackerError.invalidConfiguration("AniList account ID is invalid.")
+        }
+        let response: Response = try await perform(
+            query: "query ($userId: Int!) { MediaListCollection(userId: $userId, type: MANGA, sort: UPDATED_TIME_DESC) { lists { entries { id status progress updatedAt media { id title { romaji english native userPreferred } chapters siteUrl coverImage { large medium } } } } } }",
+            variables: ["userId": userID],
+            accessToken: accessToken
+        )
+        if let message = response.errors?.first?.message {
+            throw TrackerError.remoteFailure(message)
+        }
+        guard let collection = response.data?.mediaListCollection else {
+            throw TrackerError.remoteFailure("AniList did not return a manga list.")
+        }
+
+        let sortedEntries = collection.lists.flatMap(\.entries).map { entry in
+            let preferred = entry.media.title.userPreferred
+                ?? entry.media.title.romaji
+                ?? entry.media.title.english
+                ?? entry.media.title.native
+                ?? String(entry.media.id)
+            let subtitle = [entry.media.title.native, entry.media.title.english]
+                .compactMap { value in
+                    guard let value, !value.isEmpty, value != preferred else { return nil }
+                    return value
+                }
+                .joined(separator: " · ")
+            return TrackerListEntry(
+                id: String(entry.id),
+                provider: .aniList,
+                mediaID: String(entry.media.id),
+                title: preferred,
+                subtitle: subtitle.isEmpty ? nil : subtitle,
+                coverURL: entry.media.coverImage?.large ?? entry.media.coverImage?.medium,
+                status: entry.status.flatMap(trackerStatus),
+                progress: entry.progress ?? 0,
+                chapterCount: entry.media.chapters,
+                siteURL: entry.media.siteUrl,
+                updatedAt: entry.updatedAt.map(Int64.init)
+            )
+        }
+            .sorted { lhs, rhs in
+                if lhs.updatedAt != rhs.updatedAt {
+                    return (lhs.updatedAt ?? 0) > (rhs.updatedAt ?? 0)
+                }
+                return lhs.title.localizedStandardCompare(rhs.title) == .orderedAscending
+            }
+
+        var seenMediaIDs = Set<String>()
+        return sortedEntries.filter { entry in
+            seenMediaIDs.insert(entry.mediaID).inserted
+        }
+    }
+
     func saveProgress(
         mediaID: String,
         progress: Int,
