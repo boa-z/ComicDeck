@@ -136,6 +136,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     var currentOverlays: [ReaderTextBlock] = []
     var baseImage: UIImage?
     private var lastBoundsSize: CGSize = .zero
+    private var shouldResetZoomOnNextLayout = false
     var onLongPressZoomStart: ((CGPoint) -> Void)?
     var onLongPressZoomEnd: (() -> Void)?
     private var isLongPressZoomed = false
@@ -196,8 +197,9 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     override func layoutSubviews() {
         super.layoutSubviews()
         if bounds.size != lastBoundsSize {
+            let shouldStayFitted = shouldResetZoomOnNextLayout || abs(zoomScale - minimumZoomScale) < 0.01
             lastBoundsSize = bounds.size
-            recalculateZoomScales(resetToMinimum: false)
+            recalculateZoomScales(resetToMinimum: shouldStayFitted)
         }
         loadingIndicator.center = CGPoint(x: bounds.midX, y: bounds.midY - 12)
         loadingLabel.frame = CGRect(x: 20, y: bounds.midY + 8, width: max(0, bounds.width - 40), height: 24)
@@ -222,6 +224,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
         setLoading(false)
         contentOffset = .zero
         contentInset = .zero
+        shouldResetZoomOnNextLayout = true
         recalculateZoomScales(resetToMinimum: true)
     }
 
@@ -254,6 +257,12 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
             isScrollEnabled = false
             return
         }
+        guard bounds.width > 0, bounds.height > 0 else {
+            imageView.frame = CGRect(origin: .zero, size: image.size)
+            contentSize = image.size
+            shouldResetZoomOnNextLayout = true
+            return
+        }
 
         imageView.transform = .identity
         imageView.frame = CGRect(origin: .zero, size: image.size)
@@ -262,13 +271,14 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
         let widthScale = bounds.width / image.size.width
         let heightScale = bounds.height / image.size.height
         let fitScale = min(widthScale, heightScale)
-        let minScale = min(max(fitScale, 0.05), 1)
+        let minScale = max(fitScale, 0.001)
         let maxScale = max(minScale * 4, minScale + 0.01)
 
         minimumZoomScale = minScale
         maximumZoomScale = maxScale
         if resetToMinimum {
             zoomScale = minScale
+            shouldResetZoomOnNextLayout = false
         } else {
             zoomScale = min(max(zoomScale, minScale), maxScale)
         }
