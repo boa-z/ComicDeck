@@ -174,14 +174,16 @@ Examples:
 
 - library categories
 - favorite-to-category memberships
-- backup payload generation for library organization data
+- backup payload generation for library organization data and tracker backup state
 
 `TrackerViewModel` owns:
 
 - connected tracker accounts
 - per-comic tracker bindings
 - pending sync queue state
-- one-way progress sync dispatch
+- configurable automatic and manual sync direction preferences
+- local-to-remote progress dispatch across all bound providers
+- best-effort remote-to-local pull through confirmed bindings and loaded local chapter lists
 - on-demand provider manga-list loading for Library tracking workspaces
 
 ## Source Script HTML Runtime
@@ -345,14 +347,15 @@ Storage tables:
 
 ## Tracking
 
-Phase 1 tracking is intentionally narrow:
+Tracking is intentionally binding-first:
 
 - provider support: `AniList`, `Bangumi`
 - auth model:
   - `AniList`: OAuth authorization code flow with the `comicdeck://anilist-auth` callback
   - `Bangumi`: personal access token entered in Settings
-- sync direction: local reader progress -> remote tracker
-- sync trigger: chapter completion and manual sync from detail
+- sync directions: local-to-remote push, remote-to-local pull, and two-way comparison
+- sync triggers: reader chapter completion, manual sync from comic detail, and manual sync from tracker library detail
+- reader completion calls `TrackerViewModel.recordChapterCompletion(...)`, which respects automatic sync settings and dispatches to every bound provider instead of hardcoding a single tracker
 
 Persistent tracker state is split into:
 
@@ -362,14 +365,18 @@ Persistent tracker state is split into:
 
 Design intent:
 
-- local reading remains the source of truth
-- remote tracker progress is updated asynchronously
-- failed sync attempts stay queued for the next flush while the app is active
-- tracker tokens stay in Keychain rather than SQLite backup payloads
-- AniList OAuth client IDs are stored in user defaults because they are public configuration, while AniList access tokens and client secrets stay in Keychain
+- local reader completion is a local-to-remote event and never triggers an automatic pull
+- manual pull and two-way sync only operate through confirmed `tracker_bindings`
+- remote pulls load the provider manga list, match the existing remote media ID, refresh binding metadata, and update local `history` only when the local chapter sequence is available
+- automatic bidirectional sync must not lower local history; manual pull can let the remote value win while clamping to the local chapter list
+- failed push attempts stay queued for the next flush while the app is active
+- tracker tokens stay in Keychain during normal runtime and are copied into app backup JSON so local/WebDAV restores can recover tracker sign-in state
+- AniList OAuth client IDs are stored in user defaults because they are public configuration, while AniList access tokens and client secrets stay in Keychain during normal runtime
 - tracker library workspaces fetch remote manga lists on demand through `TrackerViewModel` and provider clients instead of persisting a separate remote-list cache
 - AniList lists come from `AniListTrackerClient` GraphQL collection loading; Bangumi lists come from `BangumiTrackerClient` collection loading
+- tracker library list pages stay remote-entry focused; local multi-source progress display is deferred to detail pages
 - local multi-source progress display is derived from existing `tracker_bindings` rows grouped by `sourceKey` and `comicID`
+- tracker library detail pages show all confirmed bindings side-by-side and can add more source bindings to the same remote tracker entry through explicit user-selected source search, but do not recommend comics or automatically match sources
 - local library shelves organize bookmarks at the app layer
 - category membership is many-to-many, so a comic can appear in multiple shelves
 - shelf order is persisted through `sort_order`
@@ -388,11 +395,15 @@ Included:
 - reader preferences
 - source runtime preferences
 - source settings store
+- tracker accounts, bindings, sync preferences, and access tokens
 
 Excluded:
 - offline files
 - active download queue
+- pending tracker sync events
 - transient runtime cache
+
+Backup JSON can contain plaintext tracker access tokens. WebDAV remains a transport layer over `AppBackupPayload`; it does not read tracker storage directly.
 
 WebDAV sync currently supports:
 - connection verification

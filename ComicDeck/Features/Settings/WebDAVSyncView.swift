@@ -4,6 +4,7 @@ import SwiftUI
 struct WebDAVSyncView: View {
     @Environment(LibraryViewModel.self) private var library
     @Environment(SourceManagerViewModel.self) private var sourceManager
+    @Environment(TrackerViewModel.self) private var tracker
     @Bindable var model: SettingsScreenModel
 
     var body: some View {
@@ -48,7 +49,7 @@ struct WebDAVSyncView: View {
                 .disabled(model.webDAVActionsDisabled)
 
                 Button {
-                    Task { await model.uploadBackupToWebDAV(using: library) }
+                    Task { await model.uploadBackupToWebDAV(using: library, tracker: tracker) }
                 } label: {
                     HStack {
                         Label("Upload Backup", systemImage: "arrow.up.doc")
@@ -61,7 +62,7 @@ struct WebDAVSyncView: View {
                 .disabled(model.webDAVActionsDisabled)
 
                 Button {
-                    Task { await model.restoreBackupFromWebDAV(using: library, sourceManager: sourceManager) }
+                    Task { await model.restoreBackupFromWebDAV(using: library, sourceManager: sourceManager, tracker: tracker) }
                 } label: {
                     HStack {
                         Label("Restore Configured Backup", systemImage: "arrow.down.doc")
@@ -74,7 +75,7 @@ struct WebDAVSyncView: View {
                 .disabled(model.webDAVActionsDisabled)
 
                 Button {
-                    Task { await model.restoreLatestBackupFromWebDAV(using: library, sourceManager: sourceManager) }
+                    Task { await model.restoreLatestBackupFromWebDAV(using: library, sourceManager: sourceManager, tracker: tracker) }
                 } label: {
                     Label("Restore Latest Remote Backup", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
                 }
@@ -105,7 +106,8 @@ struct WebDAVSyncView: View {
                                 await model.restoreBackupFromWebDAVEntry(
                                     entry,
                                     using: library,
-                                    sourceManager: sourceManager
+                                    sourceManager: sourceManager,
+                                    tracker: tracker
                                 )
                             }
                         } label: {
@@ -140,7 +142,7 @@ struct WebDAVSyncView: View {
                 LabeledContent("Status", value: model.webDAVStatus)
                     .foregroundStyle(.secondary)
             } footer: {
-                Text("Use an existing WebDAV directory. Restore from a specific remote backup or keep using the configured latest backup file. Offline files and active download queue are not uploaded.")
+                Text(AppLocalization.text("webdav.hint", "Use an existing WebDAV directory. Backups include tracker bindings and plaintext tracker access tokens. Offline files, active download queue, and pending tracker sync events are not uploaded."))
             }
         }
         .navigationTitle("WebDAV Sync")

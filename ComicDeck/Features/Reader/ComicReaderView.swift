@@ -862,12 +862,11 @@ struct ComicReaderView: View {
 
     private func persistHistoryNow() async {
         await session.persistHistory(using: library, readerMode: readerMode)
-        if let completion = session.completedChapterProgress(readerMode: readerMode) {
-            try? await vm.tracker.syncNow(
-                item,
-                progress: completion.progress,
-                status: completion.status,
-                provider: .aniList
+        if session.completedChapterProgress(readerMode: readerMode) != nil {
+            await vm.tracker.recordChapterCompletion(
+                item: item,
+                chapterSequence: session.chapterSequence,
+                chapterID: session.chapterID
             )
         }
     }

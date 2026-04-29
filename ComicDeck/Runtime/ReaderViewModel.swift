@@ -127,6 +127,11 @@ final class ReaderViewModel {
 
     // MARK: - Search
 
+    struct SearchConfiguration: Hashable {
+        let options: [String]
+        let profile: SearchFeatureProfile
+    }
+
     func executeSearch(
         sourceKey: String,
         keyword: String,
@@ -142,6 +147,11 @@ final class ReaderViewModel {
             page: page,
             nextToken: nextToken
         )
+    }
+
+    func loadSearchConfiguration(sourceKey: String) async throws -> SearchConfiguration {
+        await prepareIfNeeded()
+        return try await requireSourceRuntime().loadSearchConfiguration(sourceKey: sourceKey)
     }
 
     func currentRuntimeDownloadQueueItems() async -> [DownloadChapterItem] {

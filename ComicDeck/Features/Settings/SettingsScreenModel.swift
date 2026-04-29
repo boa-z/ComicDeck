@@ -80,11 +80,11 @@ final class SettingsScreenModel {
         sharingLog = false
     }
 
-    func prepareBackupShare(using library: LibraryViewModel) {
+    func prepareBackupShare(using library: LibraryViewModel, tracker: TrackerViewModel) {
         sharingBackup = true
         backupError = nil
         do {
-            let payload = library.createBackupPayload()
+            let payload = library.createBackupPayload(tracker: tracker)
             sharedBackupURL = try AppBackupService.writePayload(payload)
         } catch {
             backupError = error.localizedDescription
@@ -95,7 +95,8 @@ final class SettingsScreenModel {
     func restoreBackup(
         from url: URL,
         using library: LibraryViewModel,
-        sourceManager: SourceManagerViewModel
+        sourceManager: SourceManagerViewModel,
+        tracker: TrackerViewModel
     ) async {
         restoringBackup = true
         backupError = nil
@@ -104,8 +105,8 @@ final class SettingsScreenModel {
 
         do {
             let payload = try AppBackupService.readPayload(from: url)
-            try await library.restore(from: payload, sourceManager: sourceManager)
-            backupSuccessMessage = "Backup restored. Preferences and library data have been reloaded."
+            try await library.restore(from: payload, sourceManager: sourceManager, tracker: tracker)
+            backupSuccessMessage = AppLocalization.text("settings.backup.restored_message", "Backup restored. Preferences, library data, and tracker settings have been reloaded.")
         } catch {
             backupError = error.localizedDescription
         }
@@ -152,7 +153,7 @@ final class SettingsScreenModel {
         }
     }
 
-    func uploadBackupToWebDAV(using library: LibraryViewModel) async {
+    func uploadBackupToWebDAV(using library: LibraryViewModel, tracker: TrackerViewModel) async {
         uploadingWebDAV = true
         webDAVError = nil
         webDAVSuccessMessage = nil
@@ -160,7 +161,7 @@ final class SettingsScreenModel {
 
         do {
             saveWebDAVConfiguration()
-            let payload = library.createBackupPayload()
+            let payload = library.createBackupPayload(tracker: tracker)
             try await webDAVService.uploadBackup(payload, configuration: currentWebDAVConfiguration())
             if webDAVUploadSnapshots {
                 _ = try await webDAVService.uploadSnapshotBackup(payload, configuration: currentWebDAVConfiguration())
@@ -180,7 +181,8 @@ final class SettingsScreenModel {
 
     func restoreBackupFromWebDAV(
         using library: LibraryViewModel,
-        sourceManager: SourceManagerViewModel
+        sourceManager: SourceManagerViewModel,
+        tracker: TrackerViewModel
     ) async {
         downloadingWebDAV = true
         webDAVError = nil
@@ -190,7 +192,7 @@ final class SettingsScreenModel {
         do {
             saveWebDAVConfiguration()
             let payload = try await webDAVService.downloadBackup(configuration: currentWebDAVConfiguration())
-            try await library.restore(from: payload, sourceManager: sourceManager)
+            try await library.restore(from: payload, sourceManager: sourceManager, tracker: tracker)
             webDAVStatus = "Downloaded and restored backup"
             webDAVSuccessMessage = "Backup downloaded from WebDAV and restored."
             updateWebDAVSyncMetadata(summary: "Restored from WebDAV")
@@ -203,7 +205,8 @@ final class SettingsScreenModel {
 
     func restoreLatestBackupFromWebDAV(
         using library: LibraryViewModel,
-        sourceManager: SourceManagerViewModel
+        sourceManager: SourceManagerViewModel,
+        tracker: TrackerViewModel
     ) async {
         downloadingWebDAV = true
         webDAVError = nil
@@ -213,7 +216,7 @@ final class SettingsScreenModel {
         do {
             saveWebDAVConfiguration()
             let payload = try await webDAVService.downloadLatestBackup(configuration: currentWebDAVConfiguration())
-            try await library.restore(from: payload, sourceManager: sourceManager)
+            try await library.restore(from: payload, sourceManager: sourceManager, tracker: tracker)
             webDAVStatus = "Restored latest remote backup"
             webDAVSuccessMessage = "Latest WebDAV backup restored."
             updateWebDAVSyncMetadata(summary: "Restored latest backup")
@@ -244,7 +247,8 @@ final class SettingsScreenModel {
     func restoreBackupFromWebDAVEntry(
         _ entry: WebDAVRemoteBackup,
         using library: LibraryViewModel,
-        sourceManager: SourceManagerViewModel
+        sourceManager: SourceManagerViewModel,
+        tracker: TrackerViewModel
     ) async {
         downloadingWebDAV = true
         webDAVError = nil
@@ -254,7 +258,7 @@ final class SettingsScreenModel {
         do {
             saveWebDAVConfiguration()
             let payload = try await webDAVService.downloadBackup(from: entry.url, configuration: currentWebDAVConfiguration())
-            try await library.restore(from: payload, sourceManager: sourceManager)
+            try await library.restore(from: payload, sourceManager: sourceManager, tracker: tracker)
             webDAVStatus = "Restored \(entry.name)"
             webDAVSuccessMessage = "Backup restored from \(entry.name)."
             updateWebDAVSyncMetadata(summary: "Restored \(entry.name)")

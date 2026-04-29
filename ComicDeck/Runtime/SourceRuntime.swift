@@ -46,6 +46,23 @@ final class SourceRuntime {
         return ReaderViewModel.SearchExecutionResponse(sourceName: source.name, pageResult: pageResult)
     }
 
+    func loadSearchConfiguration(sourceKey: String) async throws -> ReaderViewModel.SearchConfiguration {
+        let (_, engine) = try await sourceEngine(sourceKey: sourceKey)
+        return try await withTimeout(seconds: 10) {
+            try await self.runEngine {
+                let groups = try engine.getSearchOptionGroups()
+                let options = groups.map { group in
+                    if let defaultValue = group.defaultValue, !defaultValue.isEmpty { return defaultValue }
+                    return group.options.first?.value ?? ""
+                }
+                return ReaderViewModel.SearchConfiguration(
+                    options: options,
+                    profile: try engine.getSearchFeatureProfile()
+                )
+            }
+        }
+    }
+
     func loadCategoryPageProfile(sourceKey: String) async throws -> CategoryPageProfile {
         let (_, engine) = try await sourceEngine(sourceKey: sourceKey)
         return try await withTimeout(seconds: 25) {

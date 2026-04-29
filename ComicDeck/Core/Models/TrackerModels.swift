@@ -41,6 +41,14 @@ public enum TrackerReadingStatus: String, Codable, Sendable, Hashable, CaseItera
     }
 }
 
+public enum TrackerSyncDirection: String, Codable, Sendable, Hashable, CaseIterable, Identifiable {
+    case localToRemote
+    case remoteToLocal
+    case bidirectional
+
+    public var id: String { rawValue }
+}
+
 public enum TrackerSyncEventState: String, Codable, Sendable, Hashable {
     case pending
     case failed
@@ -69,6 +77,8 @@ public struct TrackerBinding: Codable, Sendable, Identifiable, Hashable {
     public let remoteMediaID: String
     public let remoteTitle: String
     public let remoteCoverURL: String?
+    public let sourceTitle: String?
+    public let sourceCoverURL: String?
     public let lastSyncedProgress: Int
     public let lastSyncedStatus: TrackerReadingStatus?
     public let updatedAt: Int64
@@ -81,6 +91,8 @@ public struct TrackerBinding: Codable, Sendable, Identifiable, Hashable {
         remoteMediaID: String,
         remoteTitle: String,
         remoteCoverURL: String?,
+        sourceTitle: String? = nil,
+        sourceCoverURL: String? = nil,
         lastSyncedProgress: Int,
         lastSyncedStatus: TrackerReadingStatus?,
         updatedAt: Int64
@@ -92,6 +104,8 @@ public struct TrackerBinding: Codable, Sendable, Identifiable, Hashable {
         self.remoteMediaID = remoteMediaID
         self.remoteTitle = remoteTitle
         self.remoteCoverURL = remoteCoverURL
+        self.sourceTitle = sourceTitle
+        self.sourceCoverURL = sourceCoverURL
         self.lastSyncedProgress = lastSyncedProgress
         self.lastSyncedStatus = lastSyncedStatus
         self.updatedAt = updatedAt
@@ -166,6 +180,34 @@ public struct TrackerSearchResult: Codable, Sendable, Identifiable, Hashable {
         self.statusText = statusText
         self.chapterCount = chapterCount
         self.siteURL = siteURL
+    }
+}
+
+public struct TrackerSyncSummary: Codable, Sendable, Hashable {
+    public let provider: TrackerProvider
+    public let direction: TrackerSyncDirection
+    public let progress: Int
+    public let status: TrackerReadingStatus?
+    public let updatedLocalHistory: Bool
+    public let pushedRemote: Bool
+    public let pulledRemote: Bool
+
+    public nonisolated init(
+        provider: TrackerProvider,
+        direction: TrackerSyncDirection,
+        progress: Int,
+        status: TrackerReadingStatus?,
+        updatedLocalHistory: Bool,
+        pushedRemote: Bool,
+        pulledRemote: Bool
+    ) {
+        self.provider = provider
+        self.direction = direction
+        self.progress = progress
+        self.status = status
+        self.updatedLocalHistory = updatedLocalHistory
+        self.pushedRemote = pushedRemote
+        self.pulledRemote = pulledRemote
     }
 }
 

@@ -12,12 +12,16 @@ struct ComicTrackerProviderState: Identifiable, Hashable {
 
 struct ComicTrackerSection: View {
     let providers: [ComicTrackerProviderState]
+    let manualDefaultDirection: TrackerSyncDirection
     let onLink: (TrackerProvider) -> Void
-    let onSync: (TrackerProvider) -> Void
+    let onSync: (TrackerProvider, TrackerSyncDirection) -> Void
     let onUnlink: (TrackerProvider) -> Void
 
     var body: some View {
-        ComicDetailSectionCard(title: "Tracking", subtitle: "Sync reading progress to external services") {
+        ComicDetailSectionCard(
+            title: AppLocalization.text("tracking.section.title", "Tracking"),
+            subtitle: AppLocalization.text("tracking.section.subtitle", "Sync reading progress to external services")
+        ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 ForEach(providers) { provider in
                     providerRow(provider)
@@ -41,7 +45,7 @@ struct ComicTrackerSection: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Not connected")
+                    Text(AppLocalization.text("tracking.not_connected", "Not connected"))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -52,7 +56,11 @@ struct ComicTrackerSection: View {
                     Text(binding.remoteTitle)
                         .font(.headline)
                     HStack(spacing: 8) {
-                        Text("Progress \(binding.lastSyncedProgress)")
+                        Text(AppLocalization.format(
+                            "tracking.progress_format",
+                            "Progress %@",
+                            String(binding.lastSyncedProgress)
+                        ))
                         if let status = binding.lastSyncedStatus {
                             Text(status.title)
                         }
@@ -62,26 +70,47 @@ struct ComicTrackerSection: View {
                 }
 
                 HStack(spacing: 10) {
-                    Button(state.syncing ? "Syncing..." : "Sync Now") {
-                        onSync(state.provider)
+                    Button(state.syncing ? AppLocalization.text("tracking.sync.syncing", "Syncing...") : syncDirectionTitle(manualDefaultDirection)) {
+                        onSync(state.provider, manualDefaultDirection)
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(state.syncing)
 
-                    Button("Unlink", role: .destructive) {
+                    Menu {
+                        Button(syncDirectionTitle(.localToRemote)) {
+                            onSync(state.provider, .localToRemote)
+                        }
+                        Button(syncDirectionTitle(.remoteToLocal)) {
+                            onSync(state.provider, .remoteToLocal)
+                        }
+                        Button(syncDirectionTitle(.bidirectional)) {
+                            onSync(state.provider, .bidirectional)
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(state.syncing)
+                    .accessibilityLabel(AppLocalization.text("tracking.sync.more_actions", "More sync actions"))
+
+                    Button(AppLocalization.text("tracking.unlink", "Unlink"), role: .destructive) {
                         onUnlink(state.provider)
                     }
                     .buttonStyle(.bordered)
                     .disabled(state.syncing)
                 }
             } else if state.account != nil {
-                Button("Link \(state.provider.title) Entry") {
+                Button(AppLocalization.format("tracking.link_entry", "Link %@ Entry", state.provider.title)) {
                     onLink(state.provider)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(state.syncing)
             } else {
-                Text("Connect \(state.provider.title) in Settings before linking this comic.")
+                Text(AppLocalization.format(
+                    "tracking.connect_before_link_format",
+                    "Connect %@ in Settings before linking this comic.",
+                    state.provider.title
+                ))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -91,6 +120,17 @@ struct ComicTrackerSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private func syncDirectionTitle(_ direction: TrackerSyncDirection) -> String {
+        switch direction {
+        case .localToRemote:
+            return AppLocalization.text("tracking.sync.direction.local_to_remote", "Push Local Progress")
+        case .remoteToLocal:
+            return AppLocalization.text("tracking.sync.direction.remote_to_local", "Pull Tracker Progress")
+        case .bidirectional:
+            return AppLocalization.text("tracking.sync.direction.bidirectional", "Two-way Sync")
         }
     }
 }

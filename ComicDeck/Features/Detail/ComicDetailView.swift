@@ -351,8 +351,11 @@ struct ComicDetailView: View {
                     statusText: vm.tracker.status
                 )
             },
+            manualDefaultDirection: vm.tracker.manualSyncDefaultDirection,
             onLink: { trackerSearchProvider = $0 },
-            onSync: { syncTrackerBinding(detail: detail, provider: $0) },
+            onSync: { provider, direction in
+                syncTrackerBinding(detail: detail, provider: provider, direction: direction)
+            },
             onUnlink: { unlinkTrackerBinding(provider: $0) }
         )
 
@@ -449,25 +452,50 @@ struct ComicDetailView: View {
         return item.title
     }
 
-    private func syncTrackerBinding(detail: ComicDetail, provider: TrackerProvider) {
-        let progress: Int
-        let targetStatus: TrackerReadingStatus
-        if let history = library.latestHistoryForComic(sourceKey: item.sourceKey, comicID: item.id),
-           let chapterID = history.chapterID,
-           let index = detail.chapters.firstIndex(where: { $0.id == chapterID }) {
-            progress = index + 1
-            targetStatus = progress >= detail.chapters.count ? .completed : .current
-        } else {
-            progress = 0
-            targetStatus = .planning
-        }
+    private func syncTrackerBinding(detail: ComicDetail, provider: TrackerProvider, direction: TrackerSyncDirection) {
         Task {
             do {
-                try await vm.tracker.syncNow(item, progress: progress, status: targetStatus, provider: provider)
+                let summary = try await vm.tracker.sync(
+                    item: item,
+                    chapterSequence: detail.chapters,
+                    provider: provider,
+                    direction: direction,
+                    library: library,
+                    allowLocalRegression: direction == .remoteToLocal
+                )
+                vm.tracker.status = trackerSyncStatusText(summary)
             } catch {
                 vm.tracker.status = error.localizedDescription
             }
         }
+    }
+
+    private func trackerSyncStatusText(_ summary: TrackerSyncSummary) -> String {
+        if summary.pushedRemote {
+            return AppLocalization.format(
+                "tracking.sync.status.pushed_format",
+                "Pushed %@ progress %@",
+                summary.provider.title,
+                String(summary.progress)
+            )
+        }
+        if summary.updatedLocalHistory {
+            return AppLocalization.format(
+                "tracking.sync.status.pulled_history_format",
+                "Pulled %@ progress %@ to local history",
+                summary.provider.title,
+                String(summary.progress)
+            )
+        }
+        if summary.pulledRemote {
+            return AppLocalization.format(
+                "tracking.sync.status.pulled_metadata_format",
+                "Pulled %@ progress %@",
+                summary.provider.title,
+                String(summary.progress)
+            )
+        }
+        return AppLocalization.text("tracking.sync.status.complete", "Tracker sync complete")
     }
 
     private func unlinkTrackerBinding(provider: TrackerProvider) {

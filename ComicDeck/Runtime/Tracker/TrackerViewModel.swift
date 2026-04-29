@@ -6,22 +6,93 @@ import Observation
 final class TrackerViewModel {
     private enum PersistKey {
         static let tokenService = "boa.ComicDeck.Tracker"
+        static let automaticSyncEnabled = "tracking.sync.automatic.enabled"
+        static let automaticSyncDirection = "tracking.sync.automatic.direction"
+        static let manualSyncDefaultDirection = "tracking.sync.manual.defaultDirection"
+
+        static func automaticProviderSyncEnabled(_ provider: TrackerProvider) -> String {
+            "tracking.sync.automatic.provider.\(provider.rawValue).enabled"
+        }
     }
 
     var accounts: [TrackerProvider: TrackerAccount] = [:]
     var bindings: [String: [TrackerProvider: TrackerBinding]] = [:]
     var pendingEvents: [TrackerSyncEvent] = []
-    var status = "Ready"
+    var status = AppLocalization.text("tracking.status.ready", "Ready")
     var syncing = false
+    var automaticSyncEnabled: Bool {
+        didSet { UserDefaults.standard.set(automaticSyncEnabled, forKey: PersistKey.automaticSyncEnabled) }
+    }
+    var automaticSyncDirection: TrackerSyncDirection {
+        didSet { UserDefaults.standard.set(automaticSyncDirection.rawValue, forKey: PersistKey.automaticSyncDirection) }
+    }
+    var manualSyncDefaultDirection: TrackerSyncDirection {
+        didSet { UserDefaults.standard.set(manualSyncDefaultDirection.rawValue, forKey: PersistKey.manualSyncDefaultDirection) }
+    }
+    var automaticProviderSyncEnabled: [TrackerProvider: Bool]
 
     private var database: SQLiteStore?
     private let aniListClient = AniListTrackerClient()
     private let bangumiClient = BangumiTrackerClient()
 
+    init(userDefaults: UserDefaults = .standard) {
+        automaticSyncEnabled = Self.automaticSyncEnabled(from: userDefaults)
+        automaticSyncDirection = Self.syncDirection(
+            from: userDefaults.string(forKey: PersistKey.automaticSyncDirection),
+            defaultValue: .localToRemote
+        )
+        manualSyncDefaultDirection = Self.syncDirection(
+            from: userDefaults.string(forKey: PersistKey.manualSyncDefaultDirection),
+            defaultValue: .localToRemote
+        )
+        automaticProviderSyncEnabled = Self.automaticProviderSyncEnabled(from: userDefaults)
+    }
+
+    func reloadSyncPreferences(userDefaults: UserDefaults = .standard) {
+        automaticSyncEnabled = Self.automaticSyncEnabled(from: userDefaults)
+        automaticSyncDirection = Self.syncDirection(
+            from: userDefaults.string(forKey: PersistKey.automaticSyncDirection),
+            defaultValue: .localToRemote
+        )
+        manualSyncDefaultDirection = Self.syncDirection(
+            from: userDefaults.string(forKey: PersistKey.manualSyncDefaultDirection),
+            defaultValue: .localToRemote
+        )
+        automaticProviderSyncEnabled = Self.automaticProviderSyncEnabled(from: userDefaults)
+    }
+
     func prepare(database: SQLiteStore) async throws {
         self.database = database
         try await reload()
         await flushPendingSync()
+    }
+
+    func setAutomaticSyncEnabled(_ enabled: Bool, for provider: TrackerProvider) {
+        automaticProviderSyncEnabled[provider] = enabled
+        UserDefaults.standard.set(enabled, forKey: PersistKey.automaticProviderSyncEnabled(provider))
+    }
+
+    func automaticSyncEnabled(for provider: TrackerProvider) -> Bool {
+        automaticProviderSyncEnabled[provider] ?? true
+    }
+
+    private static func automaticSyncEnabled(from userDefaults: UserDefaults) -> Bool {
+        userDefaults.object(forKey: PersistKey.automaticSyncEnabled) == nil
+            ? true
+            : userDefaults.bool(forKey: PersistKey.automaticSyncEnabled)
+    }
+
+    private static func automaticProviderSyncEnabled(from userDefaults: UserDefaults) -> [TrackerProvider: Bool] {
+        Dictionary(uniqueKeysWithValues: TrackerProvider.allCases.map { provider in
+            let key = PersistKey.automaticProviderSyncEnabled(provider)
+            let enabled = userDefaults.object(forKey: key) == nil ? true : userDefaults.bool(forKey: key)
+            return (provider, enabled)
+        })
+    }
+
+    private static func syncDirection(from rawValue: String?, defaultValue: TrackerSyncDirection) -> TrackerSyncDirection {
+        guard let rawValue, let direction = TrackerSyncDirection(rawValue: rawValue) else { return defaultValue }
+        return direction
     }
 
     func reload() async throws {
@@ -192,7 +263,13 @@ final class TrackerViewModel {
         }
     }
 
-    func bind(_ item: ComicSummary, provider: TrackerProvider, result: TrackerSearchResult) async throws {
+    func bind(
+        _ item: ComicSummary,
+        provider: TrackerProvider,
+        result: TrackerSearchResult,
+        initialProgress: Int = 0,
+        initialStatus: TrackerReadingStatus? = nil
+    ) async throws {
         guard let database else { throw TrackerError.notPrepared }
         let binding = try await database.upsertTrackerBinding(
             provider: provider,
@@ -201,12 +278,14 @@ final class TrackerViewModel {
             remoteMediaID: result.id,
             remoteTitle: result.title,
             remoteCoverURL: result.coverURL,
-            lastSyncedProgress: 0,
-            lastSyncedStatus: nil
+            sourceTitle: item.title,
+            sourceCoverURL: item.coverURL,
+            lastSyncedProgress: initialProgress,
+            lastSyncedStatus: initialStatus
         )
         let key = bindingKey(sourceKey: item.sourceKey, comicID: item.id)
         bindings[key, default: [:]][provider] = binding
-        status = "Linked to \(provider.title)"
+        status = AppLocalization.format("tracking.binding.status.linked_format", "Linked to %@", provider.title)
     }
 
     func unbind(_ item: ComicSummary, provider: TrackerProvider) async throws {
@@ -218,15 +297,18 @@ final class TrackerViewModel {
             bindings[key] = nil
         }
         pendingEvents.removeAll { $0.provider == provider && $0.sourceKey == item.sourceKey && $0.comicID == item.id }
-        status = "Unlinked from \(provider.title)"
+        status = AppLocalization.format("tracking.binding.status.unlinked_format", "Unlinked from %@", provider.title)
     }
 
     func syncNow(_ item: ComicSummary, progress: Int, status targetStatus: TrackerReadingStatus?, provider: TrackerProvider) async throws {
+        guard !syncing else {
+            throw TrackerError.invalidConfiguration(AppLocalization.text("tracking.sync.error.already_running", "Tracker sync is already running."))
+        }
         guard let binding = binding(for: item, provider: provider) else {
-            throw TrackerError.invalidConfiguration("No tracker binding exists yet.")
+            throw TrackerError.invalidConfiguration(AppLocalization.text("tracking.sync.error.no_binding", "No tracker binding exists yet."))
         }
         guard let database else { throw TrackerError.notPrepared }
-        _ = try await database.enqueueTrackerSyncEvent(
+        let event = try await database.enqueueTrackerSyncEvent(
             provider: provider,
             sourceKey: item.sourceKey,
             comicID: item.id,
@@ -235,10 +317,22 @@ final class TrackerViewModel {
             targetStatus: targetStatus
         )
         pendingEvents = try await database.listTrackerSyncEvents(limit: 200)
-        await flushPendingSync()
+        syncing = true
+        defer { syncing = false }
+        do {
+            try await process(event)
+            try await database.deleteTrackerSyncEvent(id: event.id)
+            try await reload()
+        } catch {
+            try? await database.markTrackerSyncEventFailed(id: event.id, errorMessage: error.localizedDescription)
+            pendingEvents = try await database.listTrackerSyncEvents(limit: 200)
+            status = AppLocalization.format("tracking.sync.status.failed_format", "Tracker sync failed: %@", error.localizedDescription)
+            throw error
+        }
     }
 
     func recordChapterCompletion(item: ComicSummary, chapterSequence: [ComicChapter], chapterID: String) async {
+        guard automaticSyncEnabled, automaticSyncDirection != .remoteToLocal else { return }
         guard !chapterSequence.isEmpty else { return }
         let progress = (chapterSequence.firstIndex(where: { $0.id == chapterID }) ?? -1) + 1
         guard progress > 0 else { return }
@@ -246,6 +340,7 @@ final class TrackerViewModel {
         do {
             guard let database else { throw TrackerError.notPrepared }
             for provider in TrackerProvider.allCases {
+                guard account(for: provider) != nil, automaticSyncEnabled(for: provider) else { continue }
                 guard let binding = binding(for: item, provider: provider) else { continue }
                 _ = try await database.enqueueTrackerSyncEvent(
                     provider: provider,
@@ -263,6 +358,154 @@ final class TrackerViewModel {
         }
     }
 
+    func sync(
+        item: ComicSummary,
+        chapterSequence: [ComicChapter],
+        provider: TrackerProvider,
+        direction: TrackerSyncDirection,
+        library: LibraryViewModel,
+        allowLocalRegression: Bool
+    ) async throws -> TrackerSyncSummary {
+        guard let binding = binding(for: item, provider: provider) else {
+            throw TrackerError.invalidConfiguration(AppLocalization.text("tracking.sync.error.no_binding", "No tracker binding exists yet."))
+        }
+
+        switch direction {
+        case .localToRemote:
+            let local = localProgress(item: item, chapterSequence: chapterSequence, library: library)
+            try await syncNow(item, progress: local.progress, status: local.status, provider: provider)
+            return TrackerSyncSummary(
+                provider: provider,
+                direction: direction,
+                progress: local.progress,
+                status: local.status,
+                updatedLocalHistory: false,
+                pushedRemote: true,
+                pulledRemote: false
+            )
+        case .remoteToLocal:
+            let remote = try await remoteEntry(for: binding, provider: provider)
+            _ = try await updateBindingMetadata(from: remote, binding: binding)
+            let updatedHistory = await applyRemoteProgress(
+                remote,
+                to: item,
+                binding: binding,
+                chapterSequence: chapterSequence,
+                library: library,
+                allowLocalRegression: allowLocalRegression
+            )
+            return TrackerSyncSummary(
+                provider: provider,
+                direction: direction,
+                progress: remote.progress,
+                status: remote.status,
+                updatedLocalHistory: updatedHistory,
+                pushedRemote: false,
+                pulledRemote: true
+            )
+        case .bidirectional:
+            let local = localProgress(item: item, chapterSequence: chapterSequence, library: library)
+            let remote = try await remoteEntry(for: binding, provider: provider)
+            if local.progress > remote.progress {
+                try await syncNow(item, progress: local.progress, status: local.status, provider: provider)
+                return TrackerSyncSummary(
+                    provider: provider,
+                    direction: direction,
+                    progress: local.progress,
+                    status: local.status,
+                    updatedLocalHistory: false,
+                    pushedRemote: true,
+                    pulledRemote: false
+                )
+            }
+
+            _ = try await updateBindingMetadata(from: remote, binding: binding)
+            let updatedHistory = await applyRemoteProgress(
+                remote,
+                to: item,
+                binding: binding,
+                chapterSequence: chapterSequence,
+                library: library,
+                allowLocalRegression: allowLocalRegression
+            )
+            return TrackerSyncSummary(
+                provider: provider,
+                direction: direction,
+                progress: remote.progress,
+                status: remote.status,
+                updatedLocalHistory: updatedHistory,
+                pushedRemote: false,
+                pulledRemote: true
+            )
+        }
+    }
+
+    private func localProgress(item: ComicSummary, chapterSequence: [ComicChapter], library: LibraryViewModel) -> (progress: Int, status: TrackerReadingStatus) {
+        guard let history = library.latestHistoryForComic(sourceKey: item.sourceKey, comicID: item.id),
+              let chapterID = history.chapterID,
+              let index = chapterSequence.firstIndex(where: { $0.id == chapterID }) else {
+            return (0, .planning)
+        }
+        let progress = index + 1
+        return (progress, progress >= chapterSequence.count ? .completed : .current)
+    }
+
+    private func remoteEntry(for binding: TrackerBinding, provider: TrackerProvider) async throws -> TrackerListEntry {
+        let entries = try await loadMangaList(provider: provider)
+        guard let entry = entries.first(where: { $0.mediaID == binding.remoteMediaID }) else {
+            throw TrackerError.remoteFailure(AppLocalization.format(
+                "tracking.sync.error.remote_entry_missing_format",
+                "Could not find remote tracker entry in %@ library.",
+                provider.title
+            ))
+        }
+        return entry
+    }
+
+    private func updateBindingMetadata(from entry: TrackerListEntry, binding: TrackerBinding) async throws -> TrackerBinding {
+        guard let database else { throw TrackerError.notPrepared }
+        let updated = try await database.upsertTrackerBinding(
+            provider: binding.provider,
+            sourceKey: binding.sourceKey,
+            comicID: binding.comicID,
+            remoteMediaID: binding.remoteMediaID,
+            remoteTitle: entry.title,
+            remoteCoverURL: entry.coverURL,
+            lastSyncedProgress: entry.progress,
+            lastSyncedStatus: entry.status
+        )
+        bindings[bindingKey(sourceKey: binding.sourceKey, comicID: binding.comicID), default: [:]][binding.provider] = updated
+        return updated
+    }
+
+    private func applyRemoteProgress(
+        _ entry: TrackerListEntry,
+        to item: ComicSummary,
+        binding: TrackerBinding,
+        chapterSequence: [ComicChapter],
+        library: LibraryViewModel,
+        allowLocalRegression: Bool
+    ) async -> Bool {
+        guard !chapterSequence.isEmpty, entry.progress > 0 else { return false }
+        let local = localProgress(item: item, chapterSequence: chapterSequence, library: library)
+        guard entry.progress != local.progress else { return false }
+        guard allowLocalRegression || entry.progress > local.progress else { return false }
+        let index = min(max(entry.progress, 1), chapterSequence.count) - 1
+        let chapter = chapterSequence[index]
+        await library.recordReadingHistory(
+            comicID: binding.comicID,
+            sourceKey: binding.sourceKey,
+            title: item.title,
+            coverURL: item.coverURL,
+            author: item.author,
+            tags: item.tags,
+            chapterID: chapter.id,
+            chapter: chapter.title.isEmpty ? chapter.id : chapter.title,
+            page: 1
+        )
+        return true
+    }
+
     func flushPendingSync() async {
         guard !syncing else { return }
         guard let database else { return }
@@ -277,12 +520,12 @@ final class TrackerViewModel {
                     try await database.deleteTrackerSyncEvent(id: event.id)
                 } catch {
                     try? await database.markTrackerSyncEventFailed(id: event.id, errorMessage: error.localizedDescription)
-                    status = "Tracker sync failed: \(error.localizedDescription)"
+                    status = AppLocalization.format("tracking.sync.status.failed_format", "Tracker sync failed: %@", error.localizedDescription)
                 }
             }
             try await reload()
             if pendingEvents.isEmpty {
-                status = "Tracker sync complete"
+                status = AppLocalization.text("tracking.sync.status.complete", "Tracker sync complete")
             }
         } catch {
             status = error.localizedDescription

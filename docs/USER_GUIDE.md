@@ -118,19 +118,35 @@ AniList setup:
 3. Copy the AniList client ID and client secret into `Settings -> Tracking`.
 4. Tap `Authorize AniList` and finish the browser flow.
 
+Sync behavior settings let you:
+
+- enable or disable automatic tracker sync
+- choose the automatic direction; reader completion only pushes local progress and skips tracker pulls
+- choose a default manual sync direction
+- enable or disable automatic sync per provider
+
 In comic detail you can:
 
 - link the local comic to an AniList or Bangumi entry
-- manually sync current progress
+- push local progress to the tracker
+- pull tracker progress into confirmed local history when ComicDeck can load the local chapter list
+- run two-way sync, which pushes local progress when local is ahead and pulls tracker progress when remote is ahead
 - unlink an existing tracker entry
 
-Open `Library -> AniList Library` or `Library -> Bangumi Library` to view the connected provider's manga list. Each tracker library workspace loads remote list entries on demand, shows only confirmed local source bindings, and displays progress for every tracker provider already bound to the same local comic. Unbound rows can launch a manual search in the currently selected source. Use comic detail for linking, syncing, and unlinking; tracker library pages do not recommend comics, automatically match sources, or write remote list data to a separate cache in v1.
+Open `Library -> AniList Library` or `Library -> Bangumi Library` to view the connected provider's manga list. Each tracker library workspace keeps the list page focused on remote entries only. Tap a remote entry to open its tracker detail page, where the remote entry and all confirmed local/provider bindings are shown side-by-side. Use `Add source binding` from the detail page to choose an installed source, search it, and bind another local comic to the same tracker entry.
+
+Tracker pull behavior is intentionally conservative:
+
+- pulls only apply to confirmed bindings; ComicDeck does not infer matches across sources
+- remote tracker progress is numeric, so local history updates are approximate and clamped to the available local chapter list
+- if the chapter list cannot be loaded, ComicDeck updates binding metadata but does not rewrite local history
+- tracker library pages do not recommend comics, automatically match sources, or write remote list data to a separate cache in v1
 
 Reader behavior:
 
-- when you finish a linked chapter, ComicDeck queues a tracker sync
+- when you finish a linked chapter, ComicDeck queues tracker sync for every bound provider allowed by automatic sync settings
 - pending syncs are retried when the app becomes active again
-- tracker tokens stay on-device and are not included in backup exports
+- tracker tokens are stored locally in Keychain and are included in ComicDeck backup exports so WebDAV restores can recover tracker sign-in state
 - AniList OAuth uses the callback URL `comicdeck://anilist-auth`; register it in your AniList app before authorizing
 - AniList client secrets are stored locally in Keychain and are not included in backup exports
 
@@ -223,11 +239,15 @@ Included in backups:
 - app and reader preferences
 - source runtime preferences
 - source settings
+- tracker accounts, bindings, sync preferences, and access tokens
 
 Not included:
 
 - offline chapter files
 - active download queue
+- pending tracker sync events
+
+Backup JSON files can contain tracker access tokens in plaintext. Keep local exports private and use a trusted WebDAV server.
 
 ### WebDAV Sync
 

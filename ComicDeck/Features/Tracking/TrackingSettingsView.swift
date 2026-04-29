@@ -24,6 +24,8 @@ struct TrackingSettingsView: View {
                 }
             }
 
+            syncBehaviorSection
+
             Section("Status") {
                 Text(tracker.status)
                     .foregroundStyle(.secondary)
@@ -46,6 +48,65 @@ struct TrackingSettingsView: View {
         }
         .task {
             aniListClientSecret = (try? SecureStore.read(service: "boa.ComicDeck.Tracker", account: PersistKey.aniListClientSecretAccount)) ?? ""
+        }
+    }
+
+    private var syncBehaviorSection: some View {
+        Section(AppLocalization.text("tracking.settings.sync_behavior.title", "Sync Behavior")) {
+            Toggle(
+                AppLocalization.text("tracking.settings.sync_behavior.automatic", "Automatic Sync"),
+                isOn: Binding(
+                    get: { tracker.automaticSyncEnabled },
+                    set: { tracker.automaticSyncEnabled = $0 }
+                )
+            )
+
+            Picker(
+                AppLocalization.text("tracking.settings.sync_behavior.automatic_direction", "Automatic Direction"),
+                selection: Binding(
+                    get: { tracker.automaticSyncDirection },
+                    set: { tracker.automaticSyncDirection = $0 }
+                )
+            ) {
+                ForEach(TrackerSyncDirection.allCases) { direction in
+                    Text(syncDirectionTitle(direction)).tag(direction)
+                }
+            }
+            .disabled(!tracker.automaticSyncEnabled)
+
+            Picker(
+                AppLocalization.text("tracking.settings.sync_behavior.manual_default", "Manual Sync Default"),
+                selection: Binding(
+                    get: { tracker.manualSyncDefaultDirection },
+                    set: { tracker.manualSyncDefaultDirection = $0 }
+                )
+            ) {
+                ForEach(TrackerSyncDirection.allCases) { direction in
+                    Text(syncDirectionTitle(direction)).tag(direction)
+                }
+            }
+
+            ForEach(TrackerProvider.allCases) { provider in
+                Toggle(
+                    AppLocalization.format(
+                        "tracking.settings.sync_behavior.provider_auto_format",
+                        "Sync %@ automatically",
+                        provider.title
+                    ),
+                    isOn: Binding(
+                        get: { tracker.automaticSyncEnabled(for: provider) },
+                        set: { tracker.setAutomaticSyncEnabled($0, for: provider) }
+                    )
+                )
+                .disabled(!tracker.automaticSyncEnabled)
+            }
+
+            Text(AppLocalization.text(
+                "tracking.settings.sync_behavior.help",
+                "Pull and two-way sync only use confirmed bindings. Local history is updated only when a local chapter list is available."
+            ))
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 
@@ -156,6 +217,17 @@ struct TrackingSettingsView: View {
                     aniListClientSecret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 )
             }
+        }
+    }
+
+    private func syncDirectionTitle(_ direction: TrackerSyncDirection) -> String {
+        switch direction {
+        case .localToRemote:
+            return AppLocalization.text("tracking.sync.direction.local_to_remote", "Push Local Progress")
+        case .remoteToLocal:
+            return AppLocalization.text("tracking.sync.direction.remote_to_local", "Pull Tracker Progress")
+        case .bidirectional:
+            return AppLocalization.text("tracking.sync.direction.bidirectional", "Two-way Sync")
         }
     }
 

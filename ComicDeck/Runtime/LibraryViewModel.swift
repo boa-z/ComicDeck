@@ -390,16 +390,18 @@ final class LibraryViewModel {
         }
     }
 
-    func createBackupPayload() -> AppBackupPayload {
+    func createBackupPayload(tracker: TrackerViewModel) -> AppBackupPayload {
         AppBackupService.makePayload(
             favorites: favorites,
             categories: favoriteCategories,
             categoryMemberships: favoriteCategoryMemberships,
-            history: history
+            history: history,
+            trackerAccounts: Array(tracker.accounts.values),
+            trackerBindings: tracker.bindings.values.flatMap { Array($0.values) }
         )
     }
 
-    func restore(from payload: AppBackupPayload, sourceManager: SourceManagerViewModel) async throws {
+    func restore(from payload: AppBackupPayload, sourceManager: SourceManagerViewModel, tracker: TrackerViewModel) async throws {
         guard let core else {
             throw SQLiteStoreError.execute("Library store is not initialized")
         }
@@ -416,6 +418,9 @@ final class LibraryViewModel {
 
         AppBackupService.applyPreferences(payload.preferences)
         AppBackupService.applySourceRuntime(payload.sourceRuntime, to: sourceManager)
+        try await AppBackupService.applyTracker(payload.tracker, to: core.database)
+        tracker.reloadSyncPreferences()
+        try await tracker.reload()
 
         favorites = payload.library.favorites.sorted { $0.createdAt > $1.createdAt }
         favoriteCategories = payload.library.categories.sorted {

@@ -69,8 +69,8 @@ final class TrackerSubscriptionsScreenModel {
                 return TrackerSubscriptionLocalGroup(
                     sourceKey: providerBinding.sourceKey,
                     comicID: providerBinding.comicID,
-                    title: localComic?.title ?? providerBinding.remoteTitle,
-                    coverURL: localComic?.coverURL ?? providerBinding.remoteCoverURL,
+                    title: localComic?.title ?? providerBinding.sourceTitle ?? providerBinding.remoteTitle,
+                    coverURL: localComic?.coverURL ?? providerBinding.sourceCoverURL ?? providerBinding.remoteCoverURL,
                     bindings: bindings
                 )
             }
@@ -117,9 +117,7 @@ struct TrackerSubscriptionsView: View {
 
     @Environment(TrackerViewModel.self) private var tracker
     @Environment(LibraryViewModel.self) private var library
-    @Environment(\.openURL) private var openURL
     @State private var model = TrackerSubscriptionsScreenModel()
-    @State private var sourceSearchRoute: TrackerSourceSearchRoute?
 
     var body: some View {
         ScrollView {
@@ -168,12 +166,6 @@ struct TrackerSubscriptionsView: View {
         }
         .refreshable {
             await loadIfConnected()
-        }
-        .sheet(item: $sourceSearchRoute) { route in
-            NavigationStack {
-                SourceScopedSearchView(vm: vm, sourceKey: route.sourceKey, initialKeyword: route.keyword)
-                    .environment(library)
-            }
         }
         .task {
             await loadIfConnected()
@@ -303,7 +295,15 @@ struct TrackerSubscriptionsView: View {
     }
 
     private func subscriptionCard(_ row: TrackerSubscriptionRow) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
+        NavigationLink {
+            TrackerSubscriptionDetailView(
+                vm: vm,
+                sourceManager: sourceManager,
+                provider: provider,
+                row: row
+            )
+            .environment(library)
+        } label: {
             HStack(alignment: .top, spacing: AppSpacing.md) {
                 CoverArtworkView(urlString: row.entry.coverURL, width: 72, height: 104)
                     .frame(width: 72, height: 104)
@@ -311,6 +311,7 @@ struct TrackerSubscriptionsView: View {
                 VStack(alignment: .leading, spacing: AppSpacing.xs) {
                     Text(row.entry.title)
                         .font(.headline)
+                        .foregroundStyle(.primary)
                         .lineLimit(2)
                     if let subtitle = row.entry.subtitle {
                         Text(subtitle)
@@ -321,124 +322,21 @@ struct TrackerSubscriptionsView: View {
                     Text(remoteProgressText(row.entry))
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTint.accent)
-
-                    if let siteURL = row.entry.siteURL, let url = URL(string: siteURL) {
-                        Button {
-                            openURL(url)
-                        } label: {
-                            Label(
-                                AppLocalization.format(
-                                    "tracking.subscriptions.open_remote_format",
-                                    "Open %@",
-                                    provider.title
-                                ),
-                                systemImage: "safari"
-                            )
-                        }
-                        .font(.caption.weight(.semibold))
-                        .buttonStyle(.bordered)
-                    }
                 }
                 Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
             }
-
-            Divider()
-
-            if row.localGroups.isEmpty {
-                unboundSection(row)
-            } else {
-                localBindingsSection(row)
-            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppLocalization.format(
+            "tracking.subscriptions.open_detail_format",
+            "Open %@ details",
+            row.entry.title
+        ))
         .appCardStyle()
-    }
-
-    private func unboundSection(_ row: TrackerSubscriptionRow) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            Text(AppLocalization.text("tracking.subscriptions.no_local_binding", "No confirmed local binding yet."))
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            if !sourceManager.selectedSourceKey.isEmpty {
-                Button {
-                    sourceSearchRoute = TrackerSourceSearchRoute(
-                        sourceKey: sourceManager.selectedSourceKey,
-                        keyword: row.entry.title
-                    )
-                } label: {
-                    Label(
-                        AppLocalization.text("tracking.subscriptions.search_selected_source", "Search selected source"),
-                        systemImage: "magnifyingglass"
-                    )
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func localBindingsSection(_ row: TrackerSubscriptionRow) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            Text(AppLocalization.text("tracking.subscriptions.local_bindings", "Local bindings"))
-                .font(.subheadline.weight(.semibold))
-
-            ForEach(row.localGroups) { group in
-                VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                    HStack(alignment: .top, spacing: AppSpacing.sm) {
-                        CoverArtworkView(urlString: group.coverURL, width: 44, height: 62)
-                            .frame(width: 44, height: 62)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(group.title)
-                                .font(.subheadline.weight(.semibold))
-                                .lineLimit(2)
-                            Text("\(group.sourceKey) · \(group.comicID)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 0)
-                    }
-
-                    providerChips(group.bindings)
-
-                    NavigationLink {
-                        ComicDetailView(
-                            vm: vm,
-                            item: ComicSummary(
-                                id: group.comicID,
-                                sourceKey: group.sourceKey,
-                                title: group.title,
-                                coverURL: group.coverURL
-                            )
-                        )
-                        .environment(library)
-                    } label: {
-                        Label(
-                            AppLocalization.text("tracking.subscriptions.open_local_comic", "Open local comic"),
-                            systemImage: "book"
-                        )
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding(AppSpacing.sm)
-                .background(AppSurface.subtle, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
-            }
-        }
-    }
-
-    private func providerChips(_ bindings: [TrackerProvider: TrackerBinding]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: AppSpacing.xs) {
-                ForEach(bindings.values.sorted { lhs, rhs in lhs.provider.title < rhs.provider.title }) { binding in
-                    Text(providerProgressText(binding))
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(AppTint.accent.opacity(0.12), in: Capsule())
-                        .foregroundStyle(AppTint.accent)
-                }
-            }
-        }
     }
 
     private func statusPill(title: String, value: String) -> some View {
@@ -493,30 +391,6 @@ struct TrackerSubscriptionsView: View {
             "%@ • %@",
             status,
             String(entry.progress)
-        )
-    }
-
-    private func providerProgressText(_ binding: TrackerBinding) -> String {
-        let status = binding.lastSyncedStatus.map(statusTitle)
-        let progress = AppLocalization.format(
-            "tracking.subscriptions.progress_count_format",
-            "%@",
-            String(binding.lastSyncedProgress)
-        )
-        if let status {
-            return AppLocalization.format(
-                "tracking.subscriptions.provider_status_progress_format",
-                "%@ · %@ · %@",
-                binding.provider.title,
-                status,
-                progress
-            )
-        }
-        return AppLocalization.format(
-            "tracking.subscriptions.provider_progress_format",
-            "%@ · %@",
-            binding.provider.title,
-            progress
         )
     }
 

@@ -8,6 +8,7 @@ struct AppBackupPayload: Codable, Hashable {
     let library: LibraryBackupData
     let preferences: AppPreferencesBackup
     let sourceRuntime: SourceRuntimeBackupData
+    let tracker: TrackerBackupData?
 }
 
 struct LibraryBackupData: Codable, Hashable {
@@ -38,6 +39,38 @@ struct SourceRuntimeBackupData: Codable, Hashable {
     let autoLoadRemoteSources: Bool?
     let cookieFormValues: [String: [String: String]]
     let sourceSettings: [String: BackupJSONValue]
+}
+
+struct TrackerBackupData: Codable, Hashable {
+    let accounts: [TrackerAccount]
+    let bindings: [TrackerBindingBackupData]
+    let syncPreferences: TrackerSyncPreferencesBackupData
+    let credentials: [TrackerCredentialBackupData]
+}
+
+struct TrackerBindingBackupData: Codable, Hashable {
+    let provider: TrackerProvider
+    let sourceKey: String
+    let comicID: String
+    let remoteMediaID: String
+    let remoteTitle: String
+    let remoteCoverURL: String?
+    let sourceTitle: String?
+    let sourceCoverURL: String?
+    let lastSyncedProgress: Int
+    let lastSyncedStatus: TrackerReadingStatus?
+}
+
+struct TrackerSyncPreferencesBackupData: Codable, Hashable {
+    let automaticSyncEnabled: Bool?
+    let automaticSyncDirection: TrackerSyncDirection?
+    let manualSyncDefaultDirection: TrackerSyncDirection?
+    let automaticProviderSyncEnabled: [String: Bool]
+}
+
+struct TrackerCredentialBackupData: Codable, Hashable {
+    let provider: TrackerProvider
+    let accessToken: String
 }
 
 enum BackupJSONValue: Codable, Hashable {

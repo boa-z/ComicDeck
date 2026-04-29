@@ -331,6 +331,8 @@ public actor SQLiteStore {
         remoteMediaID: String,
         remoteTitle: String,
         remoteCoverURL: String?,
+        sourceTitle: String? = nil,
+        sourceCoverURL: String? = nil,
         lastSyncedProgress: Int,
         lastSyncedStatus: TrackerReadingStatus?
     ) throws -> TrackerBinding {
@@ -340,14 +342,16 @@ public actor SQLiteStore {
                 sql: """
                 INSERT INTO tracker_bindings (
                     provider, source_key, comic_id, remote_media_id, remote_title, remote_cover_url,
-                    last_synced_progress, last_synced_status, updated_at
+                    source_title, source_cover_url, last_synced_progress, last_synced_status, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(provider, source_key, comic_id)
                 DO UPDATE SET
                     remote_media_id = excluded.remote_media_id,
                     remote_title = excluded.remote_title,
                     remote_cover_url = excluded.remote_cover_url,
+                    source_title = COALESCE(excluded.source_title, tracker_bindings.source_title),
+                    source_cover_url = COALESCE(excluded.source_cover_url, tracker_bindings.source_cover_url),
                     last_synced_progress = excluded.last_synced_progress,
                     last_synced_status = excluded.last_synced_status,
                     updated_at = excluded.updated_at;
@@ -359,6 +363,8 @@ public actor SQLiteStore {
                     remoteMediaID,
                     remoteTitle,
                     Self.normalizedOptionalString(remoteCoverURL),
+                    Self.normalizedOptionalString(sourceTitle),
+                    Self.normalizedOptionalString(sourceCoverURL),
                     lastSyncedProgress,
                     lastSyncedStatus?.rawValue,
                     now,
@@ -387,7 +393,7 @@ public actor SQLiteStore {
                 db,
                 sql: """
                 SELECT id, provider, source_key, comic_id, remote_media_id, remote_title, remote_cover_url,
-                       last_synced_progress, last_synced_status, updated_at
+                       source_title, source_cover_url, last_synced_progress, last_synced_status, updated_at
                 FROM tracker_bindings
                 ORDER BY updated_at DESC;
                 """
@@ -495,6 +501,12 @@ public actor SQLiteStore {
                 sql: "DELETE FROM tracker_sync_events WHERE id = ?;",
                 arguments: [id]
             )
+        }
+    }
+
+    public func clearTrackerSyncEvents() throws {
+        try write { db in
+            try db.execute(sql: "DELETE FROM tracker_sync_events;")
         }
     }
 
@@ -1204,6 +1216,8 @@ public actor SQLiteStore {
                     remote_media_id TEXT NOT NULL,
                     remote_title TEXT NOT NULL,
                     remote_cover_url TEXT,
+                    source_title TEXT,
+                    source_cover_url TEXT,
                     last_synced_progress INTEGER NOT NULL DEFAULT 0,
                     last_synced_status TEXT,
                     updated_at INTEGER NOT NULL,
@@ -1308,6 +1322,16 @@ public actor SQLiteStore {
             try db.execute(
                 sql: "CREATE INDEX IF NOT EXISTS idx_reader_page_translation_documents_lookup ON reader_page_translation_documents(source_key, comic_id, chapter_id, target_language, updated_at DESC);"
             )
+        }
+
+        migrator.registerMigration("v7_tracker_binding_source_metadata") { db in
+            let columns = try tableColumns("tracker_bindings", db: db)
+            if !columns.contains("source_title") {
+                try db.execute(sql: "ALTER TABLE tracker_bindings ADD COLUMN source_title TEXT;")
+            }
+            if !columns.contains("source_cover_url") {
+                try db.execute(sql: "ALTER TABLE tracker_bindings ADD COLUMN source_cover_url TEXT;")
+            }
         }
 
         return migrator
@@ -1457,7 +1481,7 @@ public actor SQLiteStore {
             db,
             sql: """
             SELECT id, provider, source_key, comic_id, remote_media_id, remote_title, remote_cover_url,
-                   last_synced_progress, last_synced_status, updated_at
+                   source_title, source_cover_url, last_synced_progress, last_synced_status, updated_at
             FROM tracker_bindings
             WHERE provider = ? AND source_key = ? AND comic_id = ?
             LIMIT 1;
@@ -1801,6 +1825,8 @@ public actor SQLiteStore {
             remoteMediaID: row["remote_media_id"],
             remoteTitle: row["remote_title"],
             remoteCoverURL: row["remote_cover_url"],
+            sourceTitle: row["source_title"],
+            sourceCoverURL: row["source_cover_url"],
             lastSyncedProgress: row["last_synced_progress"],
             lastSyncedStatus: lastSyncedStatusRaw.flatMap(TrackerReadingStatus.init(rawValue:)),
             updatedAt: row["updated_at"]

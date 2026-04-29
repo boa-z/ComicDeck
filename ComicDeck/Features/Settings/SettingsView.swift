@@ -118,7 +118,7 @@ struct SettingsView: View {
                     }
 
                     Button {
-                        model.prepareBackupShare(using: library)
+                        model.prepareBackupShare(using: library, tracker: tracker)
                     } label: {
                         Label(AppLocalization.text("settings.data.export_backup", "Export Backup"), systemImage: "square.and.arrow.up")
                     }
@@ -131,7 +131,7 @@ struct SettingsView: View {
                     }
                     .disabled(model.sharingBackup || model.restoringBackup)
 
-                    Text(AppLocalization.text("settings.data.backup_hint", "Backups include favorites, reading history, source preferences, and reader/app settings. Offline files and active download queue are not included."))
+                    Text(AppLocalization.text("settings.data.backup_hint", "Backups include favorites, reading history, source preferences, tracker bindings, and plaintext tracker access tokens. Offline files, active download queue, and pending tracker sync events are not included."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -217,7 +217,7 @@ struct SettingsView: View {
                     guard let url = urls.first else { return }
                     let granted = url.startAccessingSecurityScopedResource()
                     Task {
-                        await model.restoreBackup(from: url, using: library, sourceManager: sourceManager)
+                        await model.restoreBackup(from: url, using: library, sourceManager: sourceManager, tracker: tracker)
                         if granted {
                             url.stopAccessingSecurityScopedResource()
                         }

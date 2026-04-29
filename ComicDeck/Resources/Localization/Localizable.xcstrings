@@ -3760,57 +3760,6 @@
         }
       }
     },
-    "library.workspace.tracker.disconnected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Connect"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "连接"
-          }
-        }
-      }
-    },
-    "library.workspace.tracker.subtitle" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "View manga and local progress bindings"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "查看漫画列表与本地进度绑定"
-          }
-        }
-      }
-    },
-    "library.workspace.tracker.title_format" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ Library"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ 书库"
-          }
-        }
-      }
-    },
     "library.workspace.bookmarks.subtitle" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3960,6 +3909,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "历史"
+          }
+        }
+      }
+    },
+    "library.workspace.tracker.disconnected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接"
+          }
+        }
+      }
+    },
+    "library.workspace.tracker.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View manga and local progress bindings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看漫画列表与本地进度绑定"
+          }
+        }
+      }
+    },
+    "library.workspace.tracker.title_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ Library"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 书库"
           }
         }
       }
@@ -4163,9 +4163,6 @@
 
     },
     "Preview hidden. Tap “Show Preview” to inspect inline comments." : {
-
-    },
-    "Progress %lld" : {
 
     },
     "Project" : {
@@ -6528,6 +6525,22 @@
         }
       }
     },
+    "settings.backup.restored_message" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backup restored. Preferences, library data, and tracker settings have been reloaded."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备份已恢复。偏好设置、资料库数据和 Track 设置已重新加载。"
+          }
+        }
+      }
+    },
     "settings.backup.restored_title" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6568,13 +6581,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Backups include favorites, reading history, source preferences, and reader/app settings. Offline files and active download queue are not included."
+            "value" : "Backups include favorites, reading history, source preferences, tracker bindings, and plaintext tracker access tokens. Offline files, active download queue, and pending tracker sync events are not included."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "备份包含收藏、阅读历史、图源偏好以及阅读器与 App 设置。不包含离线文件和当前下载队列。"
+            "value" : "备份包含收藏、阅读历史、图源偏好、Track 绑定以及明文 Track 访问令牌。不包含离线文件、当前下载队列和待处理的 Track 同步事件。"
           }
         }
       }
@@ -7981,9 +7994,6 @@
     "Supported" : {
 
     },
-    "Sync Now" : {
-
-    },
     "Syncing..." : {
 
     },
@@ -8007,6 +8017,482 @@
     },
     "Tracking" : {
 
+    },
+    "tracking.binding.status.linked_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Linked to %1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已关联到 %1$@"
+          }
+        }
+      }
+    },
+    "tracking.binding.status.unlinked_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlinked from %1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已取消关联 %1$@"
+          }
+        }
+      }
+    },
+    "tracking.connect_before_link_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect %1$@ in Settings before linking this comic."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先在设置中连接 %1$@，再关联这部漫画。"
+          }
+        }
+      }
+    },
+    "tracking.disconnect" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disconnect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "断开连接"
+          }
+        }
+      }
+    },
+    "tracking.disconnect_confirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disconnect %@? This will remove local account session and unlink all comics."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "断开 %@？这将移除本地账户会话并取消所有漫画的关联。"
+          }
+        }
+      }
+    },
+    "tracking.link_entry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link %@ Entry"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关联 %@ 条目"
+          }
+        }
+      }
+    },
+    "tracking.not_connected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not connected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未连接"
+          }
+        }
+      }
+    },
+    "tracking.progress_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Progress %1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进度 %1$@"
+          }
+        }
+      }
+    },
+    "tracking.search" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索"
+          }
+        }
+      }
+    },
+    "tracking.section.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync reading progress to external services"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将阅读进度同步到外部服务"
+          }
+        }
+      }
+    },
+    "tracking.section.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracking"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追踪"
+          }
+        }
+      }
+    },
+    "tracking.settings.sync_behavior.automatic" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic Sync"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动同步"
+          }
+        }
+      }
+    },
+    "tracking.settings.sync_behavior.automatic_direction" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic Direction"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动同步方向"
+          }
+        }
+      }
+    },
+    "tracking.settings.sync_behavior.help" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pull and two-way sync only use confirmed bindings. Local history is updated only when a local chapter list is available."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拉取和双向同步只使用已确认的绑定。只有能加载本地章节列表时才会更新本地历史。"
+          }
+        }
+      }
+    },
+    "tracking.settings.sync_behavior.manual_default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual Sync Default"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动同步默认方向"
+          }
+        }
+      }
+    },
+    "tracking.settings.sync_behavior.provider_auto_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync %1$@ automatically"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动同步 %1$@"
+          }
+        }
+      }
+    },
+    "tracking.settings.sync_behavior.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Behavior"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步行为"
+          }
+        }
+      }
+    },
+    "tracking.source_binding.add_source_binding" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add source binding"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加源绑定"
+          }
+        }
+      }
+    },
+    "tracking.source_binding.bind_action" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bind to tracker"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "绑定到追踪条目"
+          }
+        }
+      }
+    },
+    "tracking.source_binding.binding" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Binding..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "绑定中..."
+          }
+        }
+      }
+    },
+    "tracking.source_binding.empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No source results yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有源搜索结果。"
+          }
+        }
+      }
+    },
+    "tracking.source_binding.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not bind this source result."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法绑定这个源搜索结果。"
+          }
+        }
+      }
+    },
+    "tracking.source_binding.header_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bind a %1$@ result from %2$@ to this %3$@ entry."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将来自 %2$@ 的 %1$@ 搜索结果绑定到这个 %3$@ 条目。"
+          }
+        }
+      }
+    },
+    "tracking.source_binding.no_sources" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No source installed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未安装源。"
+          }
+        }
+      }
+    },
+    "tracking.source_binding.search_prompt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search keyword"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索关键词"
+          }
+        }
+      }
+    },
+    "tracking.source_binding.searching" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Searching..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索中..."
+          }
+        }
+      }
+    },
+    "tracking.source_binding.source_picker" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search source"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索源"
+          }
+        }
+      }
+    },
+    "tracking.source_binding.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bind Source"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "绑定源内容"
+          }
+        }
+      }
     },
     "tracking.status.completed" : {
       "extractionState" : "manual",
@@ -8093,6 +8579,108 @@
         }
       }
     },
+    "tracking.status.ready" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就绪"
+          }
+        }
+      }
+    },
+    "tracking.subscription_detail.bindings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmed bindings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已确认绑定"
+          }
+        }
+      }
+    },
+    "tracking.subscription_detail.local_history_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · page %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · 第 %2$@ 页"
+          }
+        }
+      }
+    },
+    "tracking.subscription_detail.local_page_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local page %1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地第 %1$@ 页"
+          }
+        }
+      }
+    },
+    "tracking.subscription_detail.sync_hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pull and two-way sync only apply to confirmed bindings. Local history is updated after ComicDeck loads the local chapter list."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拉取和双向同步只作用于已确认的绑定。ComicDeck 加载本地章节列表后才会更新本地历史。"
+          }
+        }
+      }
+    },
+    "tracking.subscription_detail.updated_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updated %1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@更新"
+          }
+        }
+      }
+    },
     "tracking.subscriptions.account" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8144,23 +8732,6 @@
         }
       }
     },
-    "tracking.subscriptions.empty.message_format" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your %1$@ manga list will appear here after it has entries."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你的 %1$@ 漫画列表有条目后会显示在这里。"
-          }
-        }
-      }
-    },
     "tracking.subscriptions.empty_format" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8178,6 +8749,40 @@
         }
       }
     },
+    "tracking.subscriptions.empty.message_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your %1$@ manga list will appear here after it has entries."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 %1$@ 漫画列表有条目后会显示在这里。"
+          }
+        }
+      }
+    },
+    "tracking.subscriptions.entries" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entries"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条目"
+          }
+        }
+      }
+    },
     "tracking.subscriptions.error_format" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8191,6 +8796,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无法加载 %1$@"
+          }
+        }
+      }
+    },
+    "tracking.subscriptions.last_loaded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loaded %1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@已加载"
           }
         }
       }
@@ -8229,91 +8851,6 @@
         }
       }
     },
-    "tracking.subscriptions.open_remote_format" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open %1$@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开 %1$@"
-          }
-        }
-      }
-    },
-    "tracking.subscriptions.subtitle_format" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "View %1$@ manga and confirmed local progress bindings."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "查看 %1$@ 漫画和已确认的本地进度绑定。"
-          }
-        }
-      }
-    },
-    "tracking.subscriptions.title_format" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ Library"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ 书库"
-          }
-        }
-      }
-    },
-    "tracking.subscriptions.entries" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Entries"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "条目"
-          }
-        }
-      }
-    },
-    "tracking.subscriptions.last_loaded" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Loaded %1$@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@已加载"
-          }
-        }
-      }
-    },
     "tracking.subscriptions.local_bindings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8348,6 +8885,23 @@
         }
       }
     },
+    "tracking.subscriptions.open_detail_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open %1$@ details"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 %1$@ 详情"
+          }
+        }
+      }
+    },
     "tracking.subscriptions.open_local_comic" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8365,36 +8919,19 @@
         }
       }
     },
-    "tracking.subscriptions.provider_progress_format" : {
+    "tracking.subscriptions.open_remote_format" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · %2$@"
+            "value" : "Open %1$@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · %2$@"
-          }
-        }
-      }
-    },
-    "tracking.subscriptions.provider_status_progress_format" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · %2$@ · %3$@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ · %2$@ · %3$@"
+            "value" : "打开 %1$@"
           }
         }
       }
@@ -8450,6 +8987,40 @@
         }
       }
     },
+    "tracking.subscriptions.provider_progress_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "tracking.subscriptions.provider_status_progress_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
     "tracking.subscriptions.refresh" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8501,87 +9072,36 @@
         }
       }
     },
-    "tracking.disconnect" : {
+    "tracking.subscriptions.subtitle_format" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Disconnect"
+            "value" : "View %1$@ manga and confirmed local progress bindings."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "断开连接"
+            "value" : "查看 %1$@ 漫画和已确认的本地进度绑定。"
           }
         }
       }
     },
-    "tracking.disconnect_confirm" : {
+    "tracking.subscriptions.title_format" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Disconnect %@? This will remove local account session and unlink all comics."
+            "value" : "%1$@ Library"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "断开 %@？这将移除本地账户会话并取消所有漫画的关联。"
-          }
-        }
-      }
-    },
-    "tracking.link_entry" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Link %@ Entry"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "关联 %@ 条目"
-          }
-        }
-      }
-    },
-    "tracking.not_connected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not connected"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未连接"
-          }
-        }
-      }
-    },
-    "tracking.search" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索"
+            "value" : "%1$@ 书库"
           }
         }
       }
@@ -8599,6 +9119,261 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "立即同步"
+          }
+        }
+      }
+    },
+    "tracking.sync.action" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步"
+          }
+        }
+      }
+    },
+    "tracking.sync.direction.bidirectional" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Two-way Sync"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双向同步"
+          }
+        }
+      }
+    },
+    "tracking.sync.direction.local_to_remote" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Push Local Progress"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "推送本地进度"
+          }
+        }
+      }
+    },
+    "tracking.sync.direction.remote_to_local" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pull Tracker Progress"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拉取追踪进度"
+          }
+        }
+      }
+    },
+    "tracking.sync.error.already_running" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracker sync is already running."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追踪同步正在运行。"
+          }
+        }
+      }
+    },
+    "tracking.sync.error.no_binding" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tracker binding exists yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有追踪绑定。"
+          }
+        }
+      }
+    },
+    "tracking.sync.error.remote_entry_missing_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not find remote tracker entry in %1$@ library."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法在 %1$@ 书库中找到远程追踪条目。"
+          }
+        }
+      }
+    },
+    "tracking.sync.more" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多"
+          }
+        }
+      }
+    },
+    "tracking.sync.more_actions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More sync actions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多同步操作"
+          }
+        }
+      }
+    },
+    "tracking.sync.status.complete" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracker sync complete"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追踪同步完成"
+          }
+        }
+      }
+    },
+    "tracking.sync.status.failed_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tracker sync failed: %1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追踪同步失败：%1$@"
+          }
+        }
+      }
+    },
+    "tracking.sync.status.pulled_history_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulled %1$@ progress %2$@ to local history"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已将 %1$@ 进度 %2$@ 拉取到本地历史"
+          }
+        }
+      }
+    },
+    "tracking.sync.status.pulled_metadata_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulled %1$@ progress %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已拉取 %1$@ 进度 %2$@"
+          }
+        }
+      }
+    },
+    "tracking.sync.status.pushed_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pushed %1$@ progress %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已推送 %1$@ 进度 %2$@"
+          }
+        }
+      }
+    },
+    "tracking.sync.syncing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Syncing..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步中..."
           }
         }
       }
@@ -8644,9 +9419,6 @@
     "Upload timestamped snapshots" : {
 
     },
-    "Use an existing WebDAV directory. Restore from a specific remote backup or keep using the configured latest backup file. Offline files and active download queue are not uploaded." : {
-
-    },
     "Use Source" : {
 
     },
@@ -8689,13 +9461,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Use an existing WebDAV directory. Restore from a specific remote backup or keep using the configured latest backup file. Offline files and active download queue are not uploaded."
+            "value" : "Use an existing WebDAV directory. Backups include tracker bindings and plaintext tracker access tokens. Offline files, active download queue, and pending tracker sync events are not uploaded."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用现有 WebDAV 目录。从特定远程备份恢复或继续使用配置的最新备份文件。离线文件和当前下载队列不会上传。"
+            "value" : "使用现有 WebDAV 目录。备份包含 Track 绑定和明文 Track 访问令牌。离线文件、当前下载队列和待处理的 Track 同步事件不会上传。"
           }
         }
       }
