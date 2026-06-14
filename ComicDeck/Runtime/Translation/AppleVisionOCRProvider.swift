@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
-import Vision
+@preconcurrency import Vision
 
 struct OCRTextRegion: Sendable, Hashable {
     let id: String

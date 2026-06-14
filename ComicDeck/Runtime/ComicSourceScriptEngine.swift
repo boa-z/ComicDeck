@@ -4,6 +4,16 @@ import CryptoKit
 import UIKit
 import CommonCrypto
 
+final class NSLockProtected<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    nonisolated(unsafe) private var _value: Value
+    nonisolated init(_ value: Value) { self._value = value }
+    nonisolated var value: Value {
+        get { lock.withLock { _value } }
+        set { lock.withLock { _value = newValue } }
+    }
+}
+
 private enum RuntimeLogLevel: String {
     case debug = "DEBUG"
     case info = "INFO"
@@ -3536,13 +3546,17 @@ nonisolated final class ComicSourceScriptEngine {
             if RuntimeDebugConsole.isEnabled {
                 RuntimeDebugConsole.appendRuntimeLine("[SourceRuntime][INFO][UI] dialog: \(title) | \(content)")
             }
-            return BridgeUIRuntime.showDialog(title: title, message: content, actions: labels)
+            return runBlockingOnMain(defaultValue: 0) {
+                BridgeUIRuntime.showDialog(title: title, message: content, actions: labels)
+            }
         }
         let showInputDialog: @convention(block) (String) -> String = { title in
             if RuntimeDebugConsole.isEnabled {
                 RuntimeDebugConsole.appendRuntimeLine("[SourceRuntime][INFO][UI] input dialog requested: \(title)")
             }
-            return BridgeUIRuntime.showInputDialog(title: title) ?? ""
+            return runBlockingOnMain(defaultValue: "") {
+                BridgeUIRuntime.showInputDialog(title: title) ?? ""
+            }
         }
         let launchUrl: @convention(block) (String) -> Void = { urlStr in
             guard let url = URL(string: urlStr) else { return }
@@ -3924,24 +3938,24 @@ nonisolated final class ComicSourceScriptEngine {
         waitSeconds: TimeInterval
     ) -> (data: Data?, response: URLResponse?, error: Error?) {
         let semaphore = DispatchSemaphore(value: 0)
-        var responseData: Data?
-        var responseObj: URLResponse?
-        var responseErr: Error?
+        let responseDataBox = NSLockProtected<Data?>(nil)
+        let responseObjBox = NSLockProtected<URLResponse?>(nil)
+        let responseErrBox = NSLockProtected<Error?>(nil)
 
         let task = sharedSession.dataTask(with: request) { data, response, error in
-            responseData = data
-            responseObj = response
-            responseErr = error
+            responseDataBox.value = data
+            responseObjBox.value = response
+            responseErrBox.value = error
             semaphore.signal()
         }
         task.resume()
         let waitResult = semaphore.wait(timeout: .now() + waitSeconds)
         if waitResult == .timedOut {
             task.cancel()
-            responseErr = URLError(.timedOut)
+            responseErrBox.value = URLError(.timedOut)
             jsDebugLog("HTTP request semaphore timeout: method=\(method), url=\(url), wait=\(waitSeconds)s", level: .warn)
         }
-        return (responseData, responseObj, responseErr)
+        return (responseDataBox.value, responseObjBox.value, responseErrBox.value)
     }
 
     private static func makeRedirectedRequest(
@@ -3980,31 +3994,31 @@ nonisolated final class ComicSourceScriptEngine {
     private func performRequestViaDownload(request: URLRequest) -> (data: Data?, response: URLResponse?, error: Error?) {
         let waitSeconds = max(20.0, request.timeoutInterval + 8.0)
         let semaphore = DispatchSemaphore(value: 0)
-        var outData: Data?
-        var outResponse: URLResponse?
-        var outError: Error?
+        let outDataBox = NSLockProtected<Data?>(nil)
+        let outResponseBox = NSLockProtected<URLResponse?>(nil)
+        let outErrorBox = NSLockProtected<Error?>(nil)
         var task: URLSessionDownloadTask?
 
         task = sharedSession.downloadTask(with: request) { localURL, response, error in
             defer { semaphore.signal() }
-            outResponse = response
+            outResponseBox.value = response
             if let error {
-                outError = error
+                outErrorBox.value = error
                 return
             }
             guard let localURL else {
                 return
             }
-            outData = try? Data(contentsOf: localURL)
+            outDataBox.value = try? Data(contentsOf: localURL)
         }
         task?.resume()
         let waitResult = semaphore.wait(timeout: .now() + waitSeconds)
         if waitResult == .timedOut {
             task?.cancel()
-            outError = URLError(.timedOut)
+            outErrorBox.value = URLError(.timedOut)
             jsDebugLog("HTTP downloadTask semaphore timeout: wait=\(waitSeconds)s", level: .warn)
         }
-        return (outData, outResponse, outError)
+        return (outDataBox.value, outResponseBox.value, outErrorBox.value)
     }
 }
 
@@ -4182,8 +4196,9 @@ private nonisolated func percentEscape(_ text: String) -> String {
     return text.addingPercentEncoding(withAllowedCharacters: allowed) ?? text
 }
 
+@MainActor
 private enum BridgeUIRuntime {
-    nonisolated static func showDialog(title: String, message: String, actions: [String]) -> Int {
+    static func showDialog(title: String, message: String, actions: [String]) -> Int {
         let normalized = actions.isEmpty ? ["OK"] : actions
         return runBlockingOnMain(defaultValue: 0) {
             guard let host = topController() else { return 0 }
@@ -4192,7 +4207,7 @@ private enum BridgeUIRuntime {
             let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
             for (idx, label) in normalized.enumerated() {
                 let actionIdx = idx
-                alert.addAction(UIAlertAction(title: label.isEmpty ? "Action \(actionIdx + 1)" : label, style: .default) { @Sendable _ in
+                alert.addAction(UIAlertAction(title: label.isEmpty ? "Action \(actionIdx + 1)" : label, style: .default) { _ in
                     selected = actionIdx
                     semaphore.signal()
                 })
@@ -4203,20 +4218,21 @@ private enum BridgeUIRuntime {
         }
     }
 
-    nonisolated static func showInputDialog(title: String) -> String? {
+    @MainActor
+    static func showInputDialog(title: String) -> String? {
         runBlockingOnMain(defaultValue: nil) {
             guard let host = topController() else { return nil }
             var text: String?
             let semaphore = DispatchSemaphore(value: 0)
             let alert = UIAlertController(title: title, message: nil, preferredStyle: .alert)
-            alert.addTextField { @Sendable tf in
+            alert.addTextField { tf in
                 tf.placeholder = "Input"
             }
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { @Sendable _ in
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
                 text = nil
                 semaphore.signal()
             })
-            alert.addAction(UIAlertAction(title: "OK", style: .default) { @Sendable _ in
+            alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
                 text = alert.textFields?.first?.text
                 semaphore.signal()
             })
@@ -4226,7 +4242,7 @@ private enum BridgeUIRuntime {
         }
     }
 
-    private nonisolated static func topController() -> UIViewController? {
+    private static func topController() -> UIViewController? {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         var keyWindow: UIWindow?
         for scene in scenes {
@@ -4244,13 +4260,31 @@ private enum BridgeUIRuntime {
         }
         return top
     }
+}
 
-    private nonisolated static func runBlockingOnMain<T>(defaultValue: T, _ work: @escaping @Sendable () -> T) -> T {
-        if Thread.isMainThread {
-            return work()
+nonisolated private func runBlockingOnMain<T>(defaultValue: T, _ work: @escaping @MainActor () -> T) -> T {
+    if Thread.isMainThread {
+        let resultBox = NSLockProtected<T?>(nil)
+        let semaphore = DispatchSemaphore(value: 0)
+        _ = DispatchQueue.main.sync {
+            Task { @MainActor in
+                resultBox.value = work()
+                semaphore.signal()
+            }
         }
-        return DispatchQueue.main.sync(execute: work)
+        _ = semaphore.wait(timeout: .now() + 180)
+        return resultBox.value!
     }
+    let resultBox = NSLockProtected<T?>(nil)
+    let semaphore = DispatchSemaphore(value: 0)
+    _ = DispatchQueue.main.sync {
+        Task { @MainActor in
+            resultBox.value = work()
+            semaphore.signal()
+        }
+    }
+    _ = semaphore.wait(timeout: .now() + 180)
+    return resultBox.value!
 }
 
 private nonisolated func bytesFromAny(_ any: Any?) -> [UInt8] {

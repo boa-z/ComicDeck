@@ -77,10 +77,13 @@ final class AniListOAuthSession: NSObject {
 extension AniListOAuthSession: ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         #if os(iOS)
-        return UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first(where: \.isKeyWindow) ?? ASPresentationAnchor()
+        if let windowScene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.windows.contains(where: \.isKeyWindow) }),
+           let keyWindow = windowScene.windows.first(where: \.isKeyWindow) {
+            return keyWindow
+        }
+        return ASPresentationAnchor()
         #else
         return ASPresentationAnchor()
         #endif

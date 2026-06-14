@@ -6,7 +6,7 @@ extension Notification.Name {
 }
 
 enum ComicDownloadNotificationKey {
-    static let item = "item"
+    nonisolated static let item = "item"
 }
 
 actor ComicDownloadManager {

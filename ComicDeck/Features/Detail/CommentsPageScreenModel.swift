@@ -188,7 +188,7 @@ final class CommentsPageScreenModel {
             } catch {
                 return
             }
-            await self?.applyDelayedLoadingStatus(slowText)
+            self?.applyDelayedLoadingStatus(slowText)
         }
     }
 

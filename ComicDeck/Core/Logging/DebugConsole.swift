@@ -23,13 +23,13 @@ final class RuntimeDebugConsole {
     @ObservationIgnored
     private var bufferedLines: [String] = []
     @ObservationIgnored
-    private var logsDirectoryURL: URL {
+    nonisolated private var logsDirectoryURL: URL {
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         return base.appendingPathComponent("DebugLogs", isDirectory: true)
     }
     @ObservationIgnored
-    private var activeLogFileURL: URL {
+    nonisolated private var activeLogFileURL: URL {
         logsDirectoryURL.appendingPathComponent("runtime-debug.log", isDirectory: false)
     }
 
@@ -49,13 +49,17 @@ final class RuntimeDebugConsole {
     func append(_ message: String) {
         guard Self.isEnabled else { return }
         writeQueue.async { [weak self] in
-            self?.appendSerialized(message)
+            Task { @MainActor in
+                self?.appendSerialized(message)
+            }
         }
     }
 
     func clear() {
         writeQueue.async { [weak self] in
-            self?.clearSerialized()
+            Task { @MainActor in
+                self?.clearSerialized()
+            }
         }
     }
 
@@ -91,27 +95,29 @@ final class RuntimeDebugConsole {
     private func appendSerialized(_ message: String) {
         let timestamp = formatter.string(from: Date())
         let line = "[\(timestamp)] \(message)"
-        bufferedLines.append(line)
-        if bufferedLines.count > maxLines {
-            bufferedLines.removeFirst(bufferedLines.count - maxLines)
-        }
-        appendToFile(line)
-        let snapshot = bufferedLines
         Task { @MainActor [weak self] in
-            self?.lines = snapshot
+            guard let self else { return }
+            self.bufferedLines.append(line)
+            if self.bufferedLines.count > self.maxLines {
+                self.bufferedLines.removeFirst(self.bufferedLines.count - self.maxLines)
+            }
+            self.appendToFile(line)
+            let snapshot = self.bufferedLines
+            self.lines = snapshot
         }
     }
 
     private func clearSerialized() {
-        bufferedLines.removeAll(keepingCapacity: true)
-        truncateLogFile()
         Task { @MainActor [weak self] in
-            self?.lines.removeAll(keepingCapacity: true)
-            self?.lastWriteError = nil
+            guard let self else { return }
+            self.bufferedLines.removeAll(keepingCapacity: true)
+            self.truncateLogFile()
+            self.lines.removeAll(keepingCapacity: true)
+            self.lastWriteError = nil
         }
     }
 
-    private func appendToFile(_ line: String) {
+    private nonisolated func appendToFile(_ line: String) {
         do {
             try ensureLogsDirectory()
             let data = Data((line + "\n").utf8)
@@ -133,7 +139,7 @@ final class RuntimeDebugConsole {
         }
     }
 
-    private func truncateLogFile() {
+    private nonisolated func truncateLogFile() {
         do {
             try ensureLogsDirectory()
             if FileManager.default.fileExists(atPath: activeLogFileURL.path) {
@@ -149,11 +155,11 @@ final class RuntimeDebugConsole {
         }
     }
 
-    private func ensureLogsDirectory() throws {
+    private nonisolated func ensureLogsDirectory() throws {
         try FileManager.default.createDirectory(at: logsDirectoryURL, withIntermediateDirectories: true)
     }
 
-    private static func exportTimestamp() -> String {
+    private nonisolated static func exportTimestamp() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         return formatter.string(from: Date())
