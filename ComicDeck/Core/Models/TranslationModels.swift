@@ -68,7 +68,7 @@ public enum ReaderRenderedPageMode: String, Codable, Sendable, Hashable {
     case translated
 }
 
-public struct ReaderNormalizedRect: Codable, Sendable, Hashable {
+public nonisolated struct ReaderNormalizedRect: Codable, Sendable, Hashable {
     public let x: CGFloat
     public let y: CGFloat
     public let width: CGFloat
@@ -86,7 +86,7 @@ public struct ReaderNormalizedRect: Codable, Sendable, Hashable {
     }
 }
 
-public struct ReaderTextStyleHints: Codable, Sendable, Hashable {
+public nonisolated struct ReaderTextStyleHints: Codable, Sendable, Hashable {
     public enum FontStyle: String, Codable, Sendable, Hashable {
         case speechBubble
         case caption
@@ -102,7 +102,7 @@ public struct ReaderTextStyleHints: Codable, Sendable, Hashable {
     }
 }
 
-public struct ReaderTextBlock: Codable, Sendable, Hashable, Identifiable {
+public nonisolated struct ReaderTextBlock: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let sourceRect: ReaderNormalizedRect
     public let containerRect: ReaderNormalizedRect?
@@ -164,7 +164,7 @@ public struct ReaderTextBlock: Codable, Sendable, Hashable, Identifiable {
     }
 }
 
-public struct ReaderCleanupRegion: Codable, Sendable, Hashable, Identifiable {
+public nonisolated struct ReaderCleanupRegion: Codable, Sendable, Hashable, Identifiable {
     public let id: String
     public let rect: ReaderNormalizedRect
     public let kind: ReaderCleanupRegionKind
@@ -172,7 +172,7 @@ public struct ReaderCleanupRegion: Codable, Sendable, Hashable, Identifiable {
     public let maskAssetPath: String?
 }
 
-public struct ReaderRenderedPageAsset: Codable, Sendable, Hashable {
+public nonisolated struct ReaderRenderedPageAsset: Codable, Sendable, Hashable {
     public let localFilePath: String
     public let pixelWidth: Int
     public let pixelHeight: Int
@@ -200,7 +200,7 @@ public struct ReaderPagePresentationState: Codable, Sendable, Hashable {
     }
 }
 
-public struct ReaderPageTranslationDocument: Codable, Sendable, Hashable, Identifiable {
+public nonisolated struct ReaderPageTranslationDocument: Codable, Sendable, Hashable, Identifiable {
     public let id: Int64
     public let sourceKey: String
     public let comicID: String

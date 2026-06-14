@@ -567,11 +567,19 @@ final class SourceRuntime {
         }
     }
 
-    private func withTimeout<T>(seconds: UInt64, operation: @escaping () async throws -> T) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask { try await operation() }
+    private func withTimeout<T: Sendable>(
+        seconds: UInt64,
+        operation: @escaping @MainActor () async throws -> T
+    ) async throws -> T {
+        @MainActor
+        func runOperation() async throws -> T {
+            try await operation()
+        }
+
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await runOperation() }
             group.addTask {
-                try await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+                try await Task.sleep(for: .seconds(seconds))
                 throw ScriptEngineError.timeout("operation timeout (\(seconds)s)")
             }
             let result = try await group.next()!

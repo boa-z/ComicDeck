@@ -166,7 +166,7 @@ struct SearchFeatureProfile: Hashable {
     let optionGroupCount: Int
     let availableMethods: [String]
 
-    static let empty = SearchFeatureProfile(
+    nonisolated static let empty = SearchFeatureProfile(
         hasKeywordSearch: false,
         supportsPagedKeywordSearch: false,
         supportsLoadPage: false,
@@ -245,7 +245,7 @@ struct CategoryPageProfile: Hashable {
     let enableRankingPage: Bool
     let parts: [CategoryPartData]
 
-    static let empty = CategoryPageProfile(
+    nonisolated static let empty = CategoryPageProfile(
         title: "",
         key: "",
         enableRankingPage: false,
@@ -278,7 +278,7 @@ struct CategoryRankingProfile: Hashable {
     let supportsLoadPage: Bool
     let supportsLoadNext: Bool
 
-    static let empty = CategoryRankingProfile(
+    nonisolated static let empty = CategoryRankingProfile(
         options: [],
         supportsLoadPage: false,
         supportsLoadNext: false

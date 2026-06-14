@@ -1,22 +1,23 @@
 import Foundation
+import SwiftSoup
 
 protocol HtmlRuntimeEngine: AnyObject {
-    func parse(html: String) -> Int
-    func querySelector(documentKey: Int, query: String) -> Int?
-    func querySelectorAll(documentKey: Int, query: String) -> [Int]
-    func getElementById(documentKey: Int, id: String) -> Int?
-    func elementQuerySelector(elementKey: Int, query: String) -> Int?
-    func elementQuerySelectorAll(elementKey: Int, query: String) -> [Int]
-    func children(elementKey: Int) -> [Int]
-    func previousElementSibling(elementKey: Int) -> Int?
-    func nextElementSibling(elementKey: Int) -> Int?
-    func parentElement(elementKey: Int) -> Int?
-    func text(elementKey: Int) -> String
-    func innerHTML(elementKey: Int) -> String
-    func outerHTML(elementKey: Int) -> String
-    func tagName(elementKey: Int) -> String
-    func attributes(elementKey: Int) -> [String: String]
-    func dispose(documentKey: Int)
+    nonisolated func parse(html: String) -> Int
+    nonisolated func querySelector(documentKey: Int, query: String) -> Int?
+    nonisolated func querySelectorAll(documentKey: Int, query: String) -> [Int]
+    nonisolated func getElementById(documentKey: Int, id: String) -> Int?
+    nonisolated func elementQuerySelector(elementKey: Int, query: String) -> Int?
+    nonisolated func elementQuerySelectorAll(elementKey: Int, query: String) -> [Int]
+    nonisolated func children(elementKey: Int) -> [Int]
+    nonisolated func previousElementSibling(elementKey: Int) -> Int?
+    nonisolated func nextElementSibling(elementKey: Int) -> Int?
+    nonisolated func parentElement(elementKey: Int) -> Int?
+    nonisolated func text(elementKey: Int) -> String
+    nonisolated func innerHTML(elementKey: Int) -> String
+    nonisolated func outerHTML(elementKey: Int) -> String
+    nonisolated func tagName(elementKey: Int) -> String
+    nonisolated func attributes(elementKey: Int) -> [String: String]
+    nonisolated func dispose(documentKey: Int)
 }
 
 nonisolated final class InProcessHtmlRuntimeEngine: HtmlRuntimeEngine {
@@ -163,6 +164,6 @@ nonisolated final class InProcessHtmlRuntimeEngine: HtmlRuntimeEngine {
         if let dataNode = node as? DataNode {
             return dataNode.getWholeData()
         }
-        return node.childNodes.map(textContent(of:)).joined()
+        return node.childNodesCopy().map(textContent(of:)).joined()
     }
 }

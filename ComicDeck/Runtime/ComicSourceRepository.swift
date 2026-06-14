@@ -1,6 +1,6 @@
 import Foundation
 
-struct ComicSourceDefinition: Codable, Sendable, Hashable {
+nonisolated struct ComicSourceDefinition: Codable, Sendable, Hashable {
     public let key: String
     public let name: String
     public let script: String

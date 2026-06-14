@@ -10,7 +10,7 @@ struct OCRTextRegion: Sendable, Hashable {
 }
 
 protocol OCRProvider: Sendable {
-    var name: String { get }
+    nonisolated var name: String { get }
     func recognizeTextRegions(from imageData: Data) async throws -> [OCRTextRegion]
 }
 
@@ -26,7 +26,7 @@ enum AppleVisionOCRProviderError: LocalizedError {
 }
 
 struct AppleVisionOCRProvider: OCRProvider {
-    let name = "apple-vision"
+    nonisolated let name = "apple-vision"
 
     func recognizeTextRegions(from imageData: Data) async throws -> [OCRTextRegion] {
         guard let source = CGImageSourceCreateWithData(imageData as CFData, nil),

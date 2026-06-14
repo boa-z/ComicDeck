@@ -20,7 +20,7 @@ nonisolated struct ComicDownloadActivityAttributes: ActivityAttributes {
 @available(iOS 16.1, *)
 actor DownloadLiveActivityManager {
     static let shared = DownloadLiveActivityManager()
-    private var activitiesByKey: [String: Activity<ComicDownloadActivityAttributes>] = [:]
+    private var trackedChapterKeys: Set<String> = []
     private let displayGraceSeconds: TimeInterval = 90
 
     func upsert(
@@ -41,27 +41,18 @@ actor DownloadLiveActivityManager {
             updatedAt: Date()
         )
 
-        if let activity = activitiesByKey[chapterKey] {
-            await activity.update(ActivityContent(state: state, staleDate: nil))
+        if trackedChapterKeys.contains(chapterKey),
+           await Self.updateExisting(chapterKey: chapterKey, state: state) {
             return
         }
 
-        if let existing = Activity<ComicDownloadActivityAttributes>.activities.first(where: { $0.attributes.chapterKey == chapterKey }) {
-            activitiesByKey[chapterKey] = existing
-            await existing.update(ActivityContent(state: state, staleDate: nil))
+        if await Self.updateExisting(chapterKey: chapterKey, state: state) {
+            trackedChapterKeys.insert(chapterKey)
             return
         }
 
-        let attributes = ComicDownloadActivityAttributes(chapterKey: chapterKey)
-        do {
-            let created = try Activity.request(
-                attributes: attributes,
-                content: ActivityContent(state: state, staleDate: nil),
-                pushType: nil
-            )
-            activitiesByKey[chapterKey] = created
-        } catch {
-            return
+        if await Self.requestActivity(chapterKey: chapterKey, state: state) {
+            trackedChapterKeys.insert(chapterKey)
         }
     }
 
@@ -76,18 +67,48 @@ actor DownloadLiveActivityManager {
             updatedAt: Date()
         )
 
-        let target: Activity<ComicDownloadActivityAttributes>
-        if let existing = activitiesByKey[chapterKey] {
-            target = existing
-        } else if let existing = Activity<ComicDownloadActivityAttributes>.activities.first(where: { $0.attributes.chapterKey == chapterKey }) {
-            target = existing
-        } else {
+        let dismissalAt = Date().addingTimeInterval(displayGraceSeconds)
+        await Self.endExisting(chapterKey: chapterKey, state: state, dismissalAt: dismissalAt)
+        trackedChapterKeys.remove(chapterKey)
+    }
+
+    private nonisolated static func updateExisting(
+        chapterKey: String,
+        state: ComicDownloadActivityAttributes.ContentState
+    ) async -> Bool {
+        guard let activity = Activity<ComicDownloadActivityAttributes>.activities.first(where: { $0.attributes.chapterKey == chapterKey }) else {
+            return false
+        }
+        await activity.update(ActivityContent(state: state, staleDate: nil))
+        return true
+    }
+
+    private nonisolated static func requestActivity(
+        chapterKey: String,
+        state: ComicDownloadActivityAttributes.ContentState
+    ) async -> Bool {
+        let attributes = ComicDownloadActivityAttributes(chapterKey: chapterKey)
+        do {
+            _ = try Activity.request(
+                attributes: attributes,
+                content: ActivityContent(state: state, staleDate: nil),
+                pushType: nil
+            )
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private nonisolated static func endExisting(
+        chapterKey: String,
+        state: ComicDownloadActivityAttributes.ContentState,
+        dismissalAt: Date
+    ) async {
+        guard let activity = Activity<ComicDownloadActivityAttributes>.activities.first(where: { $0.attributes.chapterKey == chapterKey }) else {
             return
         }
-
-        let dismissalAt = Date().addingTimeInterval(displayGraceSeconds)
-        await target.end(ActivityContent(state: state, staleDate: dismissalAt), dismissalPolicy: .after(dismissalAt))
-        activitiesByKey.removeValue(forKey: chapterKey)
+        await activity.end(ActivityContent(state: state, staleDate: dismissalAt), dismissalPolicy: .after(dismissalAt))
     }
 }
 

@@ -180,12 +180,12 @@ actor ReaderTranslationService: ReaderPageTranslationBackend {
         }
     }
 
-    private static func imageFingerprint(for data: Data) -> String {
+    private nonisolated static func imageFingerprint(for data: Data) -> String {
         SHA256.hash(data: data).compactMap { String(format: "%02x", $0) }.joined()
     }
 
 
-    private static func imageRequestKey(_ request: ImageRequest, sourceLanguage: ReaderTranslationLanguage?) -> String {
+    private nonisolated static func imageRequestKey(_ request: ImageRequest, sourceLanguage: ReaderTranslationLanguage?) -> String {
         let bodyData = request.body.map { Data($0) }
         let headers = request.headers
             .map { ($0.key.lowercased(), $0.value) }
@@ -203,7 +203,7 @@ actor ReaderTranslationService: ReaderPageTranslationBackend {
         return [method, request.url, sourceLanguage?.rawValue ?? "auto", headers, bodyDigest].joined(separator: "|")
     }
 
-    private static func digest(_ string: String) -> String {
+    private nonisolated static func digest(_ string: String) -> String {
         SHA256.hash(data: Data(string.utf8)).compactMap { String(format: "%02x", $0) }.joined()
     }
 }

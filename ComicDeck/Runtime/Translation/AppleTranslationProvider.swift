@@ -5,7 +5,8 @@ import Translation
 #endif
 
 protocol TranslationProvider: Sendable {
-    var name: String { get }
+    nonisolated var name: String { get }
+    @MainActor
     func translate(
         texts: [String],
         sourceLanguage: ReaderTranslationLanguage?,
@@ -36,8 +37,9 @@ enum AppleTranslationProviderError: LocalizedError {
 }
 
 struct AppleTranslationProvider: TranslationProvider {
-    let name = "apple-translation"
+    nonisolated let name = "apple-translation"
 
+    @MainActor
     func translate(
         texts: [String],
         sourceLanguage: ReaderTranslationLanguage?,
@@ -55,11 +57,11 @@ struct AppleTranslationProvider: TranslationProvider {
                 throw AppleTranslationProviderError.noInstalledLanguageModel
             }
 
-            let session = TranslationSession(installedSource: resolvedSourceLanguage, target: targetLanguage.localeLanguage)
-            let requests = normalized.enumerated().map { index, text in
-                TranslationSession.Request(sourceText: text, clientIdentifier: String(index))
-            }
-            let responses = try await session.translations(from: requests)
+            let responses = try await translateBatch(
+                normalized,
+                sourceLanguage: resolvedSourceLanguage,
+                targetLanguage: targetLanguage.localeLanguage
+            )
             guard responses.count == normalized.count else {
                 throw AppleTranslationProviderError.invalidTranslationResponse(expected: normalized.count, actual: responses.count)
             }
@@ -84,4 +86,19 @@ struct AppleTranslationProvider: TranslationProvider {
         }
         return Locale.Language(identifier: "ja")
     }
+
+    #if canImport(Translation)
+    @available(iOS 18.0, macCatalyst 26.0, *)
+    private nonisolated func translateBatch(
+        _ texts: [String],
+        sourceLanguage: Locale.Language,
+        targetLanguage: Locale.Language
+    ) async throws -> [TranslationSession.Response] {
+        let session = TranslationSession(installedSource: sourceLanguage, target: targetLanguage)
+        let requests = texts.enumerated().map { index, text in
+            TranslationSession.Request(sourceText: text, clientIdentifier: String(index))
+        }
+        return try await session.translations(from: requests)
+    }
+    #endif
 }

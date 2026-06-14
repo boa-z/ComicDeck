@@ -7,7 +7,7 @@ enum OfflineChapterLoadError: LocalizedError {
     case noImagesFound
     case incompleteDownload(found: Int, expected: Int)
 
-    var errorDescription: String? {
+    nonisolated var errorDescription: String? {
         switch self {
         case .missingDirectory:
             return AppLocalization.text("reader.error.missing_directory", "Offline chapter files are missing.")
@@ -23,7 +23,7 @@ enum OfflineChapterLoadError: LocalizedError {
         }
     }
 
-    var recoverySuggestion: String? {
+    nonisolated var recoverySuggestion: String? {
         switch self {
         case .missingDirectory, .noImagesFound:
             return AppLocalization.text("reader.error.redownload_suggestion", "Re-download this chapter before opening it offline.")

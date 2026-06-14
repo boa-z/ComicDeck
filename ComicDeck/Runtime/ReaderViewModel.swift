@@ -62,8 +62,8 @@ final class ReaderViewModel {
             queue: .main
         ) { [weak self] notification in
             guard let self else { return }
+            let item = notification.userInfo?[ComicDownloadNotificationKey.item] as? DownloadChapterItem
             Task { @MainActor in
-                let item = notification.userInfo?[ComicDownloadNotificationKey.item] as? DownloadChapterItem
                 if let item {
                     if item.status != .completed {
                         self.library.applyDownloadUpdate(item)

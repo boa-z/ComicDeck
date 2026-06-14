@@ -18,7 +18,7 @@ private nonisolated func jsDebugLog(_ message: String, level: RuntimeLogLevel = 
 }
 
 @inline(__always)
-private func bridgeBlock<T>(_ block: T) -> AnyObject {
+private nonisolated func bridgeBlock<T>(_ block: T) -> AnyObject {
     block as AnyObject
 }
 
@@ -160,7 +160,7 @@ nonisolated final class ComicSourceScriptEngine {
     }
 
     /// Creates a ComicSourceScriptEngine bound to the first ComicSource subclass found in the script.
-    static func fromSourceScript(_ script: String) throws -> ComicSourceScriptEngine {
+    nonisolated static func fromSourceScript(_ script: String) throws -> ComicSourceScriptEngine {
         guard let className = SourceScriptParser.extractClassName(from: script) else {
             throw ScriptEngineError.invalidResult("Cannot find 'class ... extends ComicSource'")
         }
@@ -4008,7 +4008,7 @@ nonisolated final class ComicSourceScriptEngine {
     }
 }
 
-private func aesCBC(operation: CCOperation, data: [UInt8], key: [UInt8], iv: [UInt8]) -> [UInt8] {
+private nonisolated func aesCBC(operation: CCOperation, data: [UInt8], key: [UInt8], iv: [UInt8]) -> [UInt8] {
     guard !data.isEmpty, !key.isEmpty else { return [] }
     let keyLen = key.count
     guard keyLen == kCCKeySizeAES128 || keyLen == kCCKeySizeAES192 || keyLen == kCCKeySizeAES256 else {
@@ -4039,7 +4039,7 @@ private func aesCBC(operation: CCOperation, data: [UInt8], key: [UInt8], iv: [UI
     return Array(out.prefix(outLength))
 }
 
-private func aesECB(operation: CCOperation, data: [UInt8], key: [UInt8]) -> [UInt8] {
+private nonisolated func aesECB(operation: CCOperation, data: [UInt8], key: [UInt8]) -> [UInt8] {
     guard !data.isEmpty, !key.isEmpty else { return [] }
     let keyLen = key.count
     guard keyLen == kCCKeySizeAES128 || keyLen == kCCKeySizeAES192 || keyLen == kCCKeySizeAES256 else {
@@ -4071,7 +4071,7 @@ private func aesECB(operation: CCOperation, data: [UInt8], key: [UInt8]) -> [UIn
     return Array(out.prefix(outLength))
 }
 
-private func encodeRequestBody(bodyLike: Any?, contentType: String?) -> Data? {
+private nonisolated func encodeRequestBody(bodyLike: Any?, contentType: String?) -> Data? {
     guard let bodyLike else { return nil }
 
     let rawBytes = bytesFromAny(bodyLike)
@@ -4125,7 +4125,7 @@ private final class RedirectBlockingDelegate: NSObject, URLSessionTaskDelegate {
     }
 }
 
-private func normalizeHeaderValue(name: String, value: Any) -> Any {
+private nonisolated func normalizeHeaderValue(name: String, value: Any) -> Any {
     if let array = value as? [Any] {
         return array.map { String(describing: $0) }
     }
@@ -4143,7 +4143,7 @@ private func normalizeHeaderValue(name: String, value: Any) -> Any {
     return text
 }
 
-private func splitSetCookieHeader(_ header: String) -> [String] {
+private nonisolated func splitSetCookieHeader(_ header: String) -> [String] {
     guard !header.isEmpty else { return [] }
     var result: [String] = []
     var current = ""
@@ -4176,14 +4176,14 @@ private func splitSetCookieHeader(_ header: String) -> [String] {
     return result
 }
 
-private func percentEscape(_ text: String) -> String {
+private nonisolated func percentEscape(_ text: String) -> String {
     var allowed = CharacterSet.urlQueryAllowed
     allowed.remove(charactersIn: "&=+")
     return text.addingPercentEncoding(withAllowedCharacters: allowed) ?? text
 }
 
 private enum BridgeUIRuntime {
-    static func showDialog(title: String, message: String, actions: [String]) -> Int {
+    nonisolated static func showDialog(title: String, message: String, actions: [String]) -> Int {
         let normalized = actions.isEmpty ? ["OK"] : actions
         return runBlockingOnMain(defaultValue: 0) {
             guard let host = topController() else { return 0 }
@@ -4191,8 +4191,9 @@ private enum BridgeUIRuntime {
             let semaphore = DispatchSemaphore(value: 0)
             let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
             for (idx, label) in normalized.enumerated() {
-                alert.addAction(UIAlertAction(title: label.isEmpty ? "Action \(idx + 1)" : label, style: .default) { _ in
-                    selected = idx
+                let actionIdx = idx
+                alert.addAction(UIAlertAction(title: label.isEmpty ? "Action \(actionIdx + 1)" : label, style: .default) { @Sendable _ in
+                    selected = actionIdx
                     semaphore.signal()
                 })
             }
@@ -4202,20 +4203,20 @@ private enum BridgeUIRuntime {
         }
     }
 
-    static func showInputDialog(title: String) -> String? {
+    nonisolated static func showInputDialog(title: String) -> String? {
         runBlockingOnMain(defaultValue: nil) {
             guard let host = topController() else { return nil }
             var text: String?
             let semaphore = DispatchSemaphore(value: 0)
             let alert = UIAlertController(title: title, message: nil, preferredStyle: .alert)
-            alert.addTextField { tf in
+            alert.addTextField { @Sendable tf in
                 tf.placeholder = "Input"
             }
-            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { @Sendable _ in
                 text = nil
                 semaphore.signal()
             })
-            alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+            alert.addAction(UIAlertAction(title: "OK", style: .default) { @Sendable _ in
                 text = alert.textFields?.first?.text
                 semaphore.signal()
             })
@@ -4225,32 +4226,34 @@ private enum BridgeUIRuntime {
         }
     }
 
-    private static func topController() -> UIViewController? {
+    private nonisolated static func topController() -> UIViewController? {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        let window = scenes.flatMap(\.windows).first { $0.isKeyWindow } ?? scenes.flatMap(\.windows).first
-        var top = window?.rootViewController
+        var keyWindow: UIWindow?
+        for scene in scenes {
+            if let window = scene.windows.first(where: { $0.isKeyWindow }) {
+                keyWindow = window
+                break
+            }
+        }
+        if keyWindow == nil {
+            keyWindow = scenes.first?.windows.first
+        }
+        var top = keyWindow?.rootViewController
         while let presented = top?.presentedViewController {
             top = presented
         }
         return top
     }
 
-    private static func runBlockingOnMain<T>(defaultValue: T, _ work: @escaping () -> T) -> T {
+    private nonisolated static func runBlockingOnMain<T>(defaultValue: T, _ work: @escaping @Sendable () -> T) -> T {
         if Thread.isMainThread {
             return work()
         }
-        var result = defaultValue
-        let semaphore = DispatchSemaphore(value: 0)
-        DispatchQueue.main.async {
-            result = work()
-            semaphore.signal()
-        }
-        _ = semaphore.wait(timeout: .now() + 180)
-        return result
+        return DispatchQueue.main.sync(execute: work)
     }
 }
 
-private func bytesFromAny(_ any: Any?) -> [UInt8] {
+private nonisolated func bytesFromAny(_ any: Any?) -> [UInt8] {
     guard let any else { return [] }
 
     if let data = any as? Data {

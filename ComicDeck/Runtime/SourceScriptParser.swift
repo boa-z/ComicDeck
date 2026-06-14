@@ -7,7 +7,7 @@ import Foundation
 enum SourceScriptParser {
 
     /// Extracts the class name of the first `class Foo extends ComicSource` declaration.
-    static func extractClassName(from script: String) -> String? {
+    nonisolated static func extractClassName(from script: String) -> String? {
         let pattern = #"class\s+([A-Za-z0-9_]+)\s+extends\s+ComicSource"#
         guard let regex = try? NSRegularExpression(pattern: pattern) else {
             return nil
@@ -22,7 +22,7 @@ enum SourceScriptParser {
     }
 
     /// Extracts structured metadata (name, key, version, url) from a source script.
-    static func extractMetadata(from script: String) -> SourceScriptMetadata? {
+    nonisolated static func extractMetadata(from script: String) -> SourceScriptMetadata? {
         guard let className = extractClassName(from: script) else {
             return nil
         }
@@ -57,7 +57,7 @@ enum SourceScriptParser {
 
     /// Extracts the `loginWithWebview/loginWithWebView.url` property from a source script without
     /// running the script engine.
-    static func extractLoginWebviewURL(from script: String) -> String? {
+    nonisolated static func extractLoginWebviewURL(from script: String) -> String? {
         let patterns = [
             #"loginWithWebview\s*:\s*\{[\s\S]*?url\s*:\s*["']([^"']+)["']"#,
             #"account\s*=\s*\{[\s\S]*?loginWithWebview\s*:\s*\{[\s\S]*?url\s*:\s*["']([^"']+)["']"#,

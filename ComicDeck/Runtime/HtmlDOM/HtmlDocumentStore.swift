@@ -1,4 +1,5 @@
 import Foundation
+import SwiftSoup
 
 nonisolated final class HtmlDocumentStore {
     private struct RegisteredElement {

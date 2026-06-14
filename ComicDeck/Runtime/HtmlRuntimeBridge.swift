@@ -13,7 +13,7 @@ private nonisolated func htmlBridgeLog(_ message: String, level: HtmlBridgeLogLe
     RuntimeDebugConsole.appendRuntimeLine(line)
 }
 
-nonisolated final class HtmlRuntimeBridge {
+nonisolated final class HtmlRuntimeBridge: @unchecked Sendable {
     static let shared = HtmlRuntimeBridge()
 
     private let engine: HtmlRuntimeEngine
@@ -24,90 +24,90 @@ nonisolated final class HtmlRuntimeBridge {
         htmlBridgeLog("Initialized in-process HTML runtime engine", level: .info)
     }
 
-    func parse(html: String) -> Int {
+    nonisolated func parse(html: String) -> Int {
         withEngine { engine in
             engine.parse(html: html)
         }
     }
 
-    func querySelector(documentKey: Int, query: String) -> Int? {
+    nonisolated func querySelector(documentKey: Int, query: String) -> Int? {
         guard documentKey > 0 else { return nil }
         return withEngine { engine in
             engine.querySelector(documentKey: documentKey, query: query)
         }
     }
 
-    func querySelectorAll(documentKey: Int, query: String) -> [Int] {
+    nonisolated func querySelectorAll(documentKey: Int, query: String) -> [Int] {
         guard documentKey > 0 else { return [] }
         return withEngine { engine in
             engine.querySelectorAll(documentKey: documentKey, query: query)
         }
     }
 
-    func getElementById(documentKey: Int, id: String) -> Int? {
+    nonisolated func getElementById(documentKey: Int, id: String) -> Int? {
         guard documentKey > 0 else { return nil }
         return withEngine { engine in
             engine.getElementById(documentKey: documentKey, id: id)
         }
     }
 
-    func elementQuerySelector(elementKey: Int, query: String) -> Int? {
+    nonisolated func elementQuerySelector(elementKey: Int, query: String) -> Int? {
         guard elementKey > 0 else { return nil }
         return withEngine { engine in
             engine.elementQuerySelector(elementKey: elementKey, query: query)
         }
     }
 
-    func elementQuerySelectorAll(elementKey: Int, query: String) -> [Int] {
+    nonisolated func elementQuerySelectorAll(elementKey: Int, query: String) -> [Int] {
         guard elementKey > 0 else { return [] }
         return withEngine { engine in
             engine.elementQuerySelectorAll(elementKey: elementKey, query: query)
         }
     }
 
-    func children(elementKey: Int) -> [Int] {
+    nonisolated func children(elementKey: Int) -> [Int] {
         guard elementKey > 0 else { return [] }
         return withEngine { engine in
             engine.children(elementKey: elementKey)
         }
     }
 
-    func previousElementSibling(elementKey: Int) -> Int? {
+    nonisolated func previousElementSibling(elementKey: Int) -> Int? {
         guard elementKey > 0 else { return nil }
         return withEngine { engine in
             engine.previousElementSibling(elementKey: elementKey)
         }
     }
 
-    func nextElementSibling(elementKey: Int) -> Int? {
+    nonisolated func nextElementSibling(elementKey: Int) -> Int? {
         guard elementKey > 0 else { return nil }
         return withEngine { engine in
             engine.nextElementSibling(elementKey: elementKey)
         }
     }
 
-    func parentElement(elementKey: Int) -> Int? {
+    nonisolated func parentElement(elementKey: Int) -> Int? {
         guard elementKey > 0 else { return nil }
         return withEngine { engine in
             engine.parentElement(elementKey: elementKey)
         }
     }
 
-    func text(elementKey: Int) -> String {
+    nonisolated func text(elementKey: Int) -> String {
         guard elementKey > 0 else { return "" }
         return withEngine { engine in
             engine.text(elementKey: elementKey)
         }
     }
 
-    func innerHTML(elementKey: Int) -> String {
+    nonisolated func innerHTML(elementKey: Int) -> String {
         guard elementKey > 0 else { return "" }
         return withEngine { engine in
             engine.innerHTML(elementKey: elementKey)
         }
     }
 
-    func outerHTML(elementKey: Int) -> String {
+    nonisolated func outerHTML(elementKey: Int) -> String {
         guard elementKey > 0 else { return "" }
         return withEngine { engine in
             engine.outerHTML(elementKey: elementKey)

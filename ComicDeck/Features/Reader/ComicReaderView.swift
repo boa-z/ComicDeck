@@ -713,7 +713,7 @@ struct ComicReaderView: View {
             for: urlRequest,
             data: data,
             targetSize: .zero,
-            scale: UIScreen.main.scale,
+            scale: UITraitCollection.current.displayScale,
             allowOriginalSize: true
         ) else {
             throw ReaderPageExportError.imageDecodeFailed

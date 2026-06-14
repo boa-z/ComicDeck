@@ -14,7 +14,7 @@ struct SourceCapabilityProfile: Hashable {
     let settingCount: Int
     let availableSearchMethods: [String]
 
-    static let empty = SourceCapabilityProfile(
+    nonisolated static let empty = SourceCapabilityProfile(
         hasExplore: false,
         hasCategory: false,
         hasSearch: false,

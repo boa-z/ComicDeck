@@ -82,15 +82,15 @@ struct ReaderKoharuLLMConfiguration: Sendable, Hashable {
 }
 
 struct ReaderPageTranslationBackendConfiguration: Sendable, Hashable {
-    static let minRequestTimeoutSeconds = 15
-    static let maxRequestTimeoutSeconds = 300
+    nonisolated static let minRequestTimeoutSeconds = 15
+    nonisolated static let maxRequestTimeoutSeconds = 300
 
     let kind: ReaderTranslationBackendKind
     let koharuBaseURL: String
     let requestTimeoutSeconds: Int
     let koharuLLM: ReaderKoharuLLMConfiguration
 
-    init(
+    nonisolated init(
         kind: ReaderTranslationBackendKind,
         koharuBaseURL: String,
         requestTimeoutSeconds: Int,
@@ -106,11 +106,11 @@ struct ReaderPageTranslationBackendConfiguration: Sendable, Hashable {
         min(max(value, minRequestTimeoutSeconds), maxRequestTimeoutSeconds)
     }
 
-    var trimmedKoharuBaseURL: String {
+    nonisolated var trimmedKoharuBaseURL: String {
         koharuBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    func normalizedKoharuAPIBaseURL() throws -> URL {
+    nonisolated func normalizedKoharuAPIBaseURL() throws -> URL {
         let trimmed = trimmedKoharuBaseURL
         guard !trimmed.isEmpty,
               let rawURL = URL(string: trimmed),

@@ -3,8 +3,10 @@ import Observation
 
 @Observable
 final class RuntimeDebugConsole {
+    nonisolated static let enabledKey = "runtime.debug.enabled"
+    
+    @MainActor
     static let shared = RuntimeDebugConsole()
-    static let enabledKey = "runtime.debug.enabled"
 
     private(set) var lines: [String] = []
     private(set) var lastWriteError: String?
@@ -31,7 +33,7 @@ final class RuntimeDebugConsole {
         logsDirectoryURL.appendingPathComponent("runtime-debug.log", isDirectory: false)
     }
 
-    static var isEnabled: Bool {
+    nonisolated static var isEnabled: Bool {
         UserDefaults.standard.bool(forKey: enabledKey)
     }
 
@@ -39,7 +41,9 @@ final class RuntimeDebugConsole {
     nonisolated static func appendRuntimeLine(_ line: String) {
         guard isEnabled else { return }
         NSLog("%@", line)
-        shared.append(line)
+        Task { @MainActor in
+            shared.append(line)
+        }
     }
 
     func append(_ message: String) {

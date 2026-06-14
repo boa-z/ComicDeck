@@ -6,7 +6,7 @@ public enum TrackerProvider: String, Codable, Sendable, Hashable, CaseIterable, 
 
     public var id: String { rawValue }
 
-    public var title: String {
+    public nonisolated var title: String {
         switch self {
         case .aniList:
             return "AniList"
