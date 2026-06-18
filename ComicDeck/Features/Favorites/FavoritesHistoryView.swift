@@ -129,97 +129,20 @@ struct FavoritesView: View {
             )
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if model.isSelecting {
-                selectionBar
-                    .padding(.horizontal, 12)
-                    .padding(.top, 6)
-                    .padding(.bottom, 8)
-            } else if shouldShowPager {
-                pagerBar
-                    .padding(.horizontal, 12)
-                    .padding(.top, 6)
-                    .padding(.bottom, 8)
-                    .background(.clear)
-            }
+            bottomInset
         }
         .navigationTitle("Favorites")
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    requestRefresh(forceNetwork: true)
-                } label: {
-                    if model.refreshing {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-                .disabled(model.refreshing)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(model.isSelecting ? "Done" : "Select") {
-                    model.toggleSelecting()
-                }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Picker("Browse Mode", selection: Binding(
-                        get: { browseMode },
-                        set: { browseMode = $0 }
-                    )) {
-                        ForEach(ComicBrowseDisplayMode.allCases) { item in
-                            Label(item.title, systemImage: item.systemImage)
-                                .tag(item)
-                        }
-                    }
-
-                    Section("Source (\(currentSourceLabel))") {
-                        ForEach(sourceOptions, id: \.key) { option in
-                            Button {
-                                model.selectedSourceKey = option.key
-                            } label: {
-                                if option.key == model.selectedSourceKey {
-                                    Label(option.label, systemImage: "checkmark")
-                                } else {
-                                    Text(option.label)
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-            }
+            favoritesToolbar
         }
         .refreshable {
             await model.refreshNow(vm: vm, forceNetwork: true)
         }
         .confirmationDialog("Select Source", isPresented: $showSourcePicker, titleVisibility: .visible) {
-            ForEach(sourceOptions, id: \.key) { option in
-                Button(option.label) {
-                    model.selectedSourceKey = option.key
-                }
-            }
-            Button("Cancel", role: .cancel) { }
+            sourcePickerDialog
         }
         .confirmationDialog("Select Folder", isPresented: $showFolderPicker, titleVisibility: .visible) {
-            Button(defaultFolderTitle) {
-                model.selectedFolderID = model.canonicalFolderID(nil, availableFolders: model.sourceFolders)
-                model.currentPage = 1
-                requestRefresh()
-            }
-
-            if hasFolders {
-                ForEach(model.selectableFolders) { folder in
-                    Button(folder.title) {
-                        model.selectedFolderID = folder.id
-                        model.currentPage = 1
-                        requestRefresh()
-                    }
-                }
-            }
-
-            Button("Cancel", role: .cancel) { }
+            folderPickerDialog
         }
         .alert("Remove selected favorites?", isPresented: Binding(
             get: { model.showBatchRemoveConfirm },
@@ -270,38 +193,139 @@ struct FavoritesView: View {
             get: { model.showPagePicker },
             set: { model.showPagePicker = $0 }
         )) {
-            NavigationStack {
-                Form {
-                    Section("Jump to page") {
-                        TextField("Page number", value: Binding(
-                            get: { Int(model.pageInput) ?? model.currentPage },
-                            set: { model.pageInput = String($0) }
-                        ), format: .number)
-                        .keyboardType(.numberPad)
+            pagePickerSheet
+        }
+    }
+
+    @ToolbarContentBuilder
+    private var favoritesToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                requestRefresh(forceNetwork: true)
+            } label: {
+                if model.refreshing {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                }
+            }
+            .disabled(model.refreshing)
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button(model.isSelecting ? "Done" : "Select") {
+                model.toggleSelecting()
+            }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Picker("Browse Mode", selection: Binding(
+                    get: { browseMode },
+                    set: { browseMode = $0 }
+                )) {
+                    ForEach(ComicBrowseDisplayMode.allCases) { item in
+                        Label(item.title, systemImage: item.systemImage)
+                            .tag(item)
                     }
                 }
-                .navigationTitle("Select Page")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            model.showPagePicker = false
+
+                Section("Source (\(currentSourceLabel))") {
+                    ForEach(sourceOptions, id: \.key) { option in
+                        Button {
+                            model.selectedSourceKey = option.key
+                        } label: {
+                            if option.key == model.selectedSourceKey {
+                                Label(option.label, systemImage: "checkmark")
+                            } else {
+                                Text(option.label)
+                            }
                         }
                     }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Go") {
-                            guard let page = Int(model.pageInput), page > 0 else {
-                                model.sourceError = "Invalid page number"
-                                return
-                            }
-                            model.showPagePicker = false
-                            Task { await model.jumpToPage(page, vm: vm) }
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var bottomInset: some View {
+        if model.isSelecting {
+            selectionBar
+                .padding(.horizontal, 12)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
+        } else if shouldShowPager {
+            pagerBar
+                .padding(.horizontal, 12)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
+                .background(.clear)
+        }
+    }
+
+    @ViewBuilder
+    private var sourcePickerDialog: some View {
+        ForEach(sourceOptions, id: \.key) { option in
+            Button(option.label) {
+                model.selectedSourceKey = option.key
+            }
+        }
+        Button("Cancel", role: .cancel) { }
+    }
+
+    @ViewBuilder
+    private var folderPickerDialog: some View {
+        Button(defaultFolderTitle) {
+            model.selectedFolderID = model.canonicalFolderID(nil, availableFolders: model.sourceFolders)
+            model.currentPage = 1
+            requestRefresh()
+        }
+
+        if hasFolders {
+            ForEach(model.selectableFolders) { folder in
+                Button(folder.title) {
+                    model.selectedFolderID = folder.id
+                    model.currentPage = 1
+                    requestRefresh()
+                }
+            }
+        }
+
+        Button("Cancel", role: .cancel) { }
+    }
+
+    private var pagePickerSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Jump to page") {
+                    TextField("Page number", value: Binding(
+                        get: { Int(model.pageInput) ?? model.currentPage },
+                        set: { model.pageInput = String($0) }
+                    ), format: .number)
+                    .keyboardType(.numberPad)
+                }
+            }
+            .navigationTitle("Select Page")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        model.showPagePicker = false
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Go") {
+                        guard let page = Int(model.pageInput), page > 0 else {
+                            model.sourceError = "Invalid page number"
+                            return
                         }
+                        model.showPagePicker = false
+                        Task { await model.jumpToPage(page, vm: vm) }
                     }
                 }
             }
-            .presentationDetents([.height(220)])
         }
+        .presentationDetents([.height(220)])
     }
 
     private var pagerBar: some View {
