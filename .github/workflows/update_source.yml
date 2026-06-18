@@ -1,16 +1,17 @@
 name: Update AltStore Source
-on:
-  workflow_run:
-    workflows: ["Xcode - Build"] # Name of your build workflow
-    types: [completed]
+
+"on":
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
   update-source:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.release.tag_name == 'nightly' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,26 +21,57 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Prepare metadata
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "COMMIT_MSG=Manual source refresh" >> $GITHUB_ENV
-            echo "GITHUB_SHA=${{ github.sha }}" >> $GITHUB_ENV
-          else
-            echo "COMMIT_MSG=${{ github.event.workflow_run.head_commit.message }}" >> $GITHUB_ENV
-            echo "GITHUB_SHA=${{ github.event.workflow_run.head_commit.id }}" >> $GITHUB_ENV
-          fi
+      - name: Record Job Start Time
+        id: job_start_time
+        run: echo "start_time=$(date +%s)" >> "$GITHUB_OUTPUT"
 
-      - name: Update apps.json from nightly release
+      - name: Update AltStore Source From Nightly Release
+        id: update_source
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python .github/update_json.py
+        run: |
+          python .github/update_json.py
+          if git diff --quiet -- .github/apps.json; then
+            echo "changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Source To Nightly Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          files: .github/apps.json
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Commit and Push
+        if: steps.update_source.outputs.changes == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .github/apps.json
-          git diff --cached --quiet && exit 0
-          git commit -m "Update apps.json for nightly build"
+          git commit -m "Update apps.json for nightly build [skip ci]"
           git push
+
+      - name: Calculate Job Duration
+        id: duration
+        if: always()
+        run: |
+          end_time=$(date +%s)
+          duration=$((end_time - ${{ steps.job_start_time.outputs.start_time }}))
+          echo "duration=$duration seconds" >> "$GITHUB_OUTPUT"
+
+      - name: Create Job Summary
+        if: always()
+        run: |
+          echo "## Update AltStore Source Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.update_source.outputs.changes }}" = "true" ]; then
+            echo "Changes were generated and committed to .github/apps.json." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo ".github/apps.json was already up to date." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Execution time: ${{ steps.duration.outputs.duration }}" >> "$GITHUB_STEP_SUMMARY"

@@ -1,20 +1,32 @@
 name: Xcode - Build
 
-on:
+"on":
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      release__nightly:
+        description: Create a nightly release
+        type: boolean
+        required: false
+        default: false
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  scheme: ComicDeck
 
 jobs:
   build-ios:
     name: Build IPA (unsigned)
     runs-on: macos-latest
     env:
-      scheme: ComicDeck
       archive_path: archive-ios
+    outputs:
+      ipa_artifact: ${{ steps.artifact_metadata.outputs.artifact_name }}.ipa
+      version_label: ${{ steps.artifact_metadata.outputs.version_label }}
+      short_sha: ${{ steps.artifact_metadata.outputs.short_sha }}
 
     steps:
       - uses: maxim-lobanov/setup-xcode@v1
@@ -27,28 +39,31 @@ jobs:
       - name: Set Scheme
         id: scheme
         run: |
-          if [ "$scheme" = "default" ]
-          then
+          if [ "$scheme" = "default" ]; then
             scheme_list=$(xcodebuild -list -json | tr -d "\n")
-            scheme=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
-            echo Using default scheme: $scheme
+            scheme=$(echo "$scheme_list" | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
+            echo "Using default scheme: $scheme"
           else
-            echo Using configured scheme: $scheme
+            echo "Using configured scheme: $scheme"
           fi
-          echo "scheme=$scheme" >> $GITHUB_OUTPUT
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
 
       - name: Set filetype_parameter
         id: filetype_parameter
         run: |
-          filetype_parameter=`ls -A | grep -i \.xcworkspace$ && echo workspace || echo project`
-          echo "filetype_parameter=$filetype_parameter" >> $GITHUB_OUTPUT
+          if ls -A | grep -qi "\.xcworkspace$"; then
+            filetype_parameter=workspace
+          else
+            filetype_parameter=project
+          fi
+          echo "filetype_parameter=$filetype_parameter" >> "$GITHUB_OUTPUT"
 
       - name: Set file_to_build
         id: file_to_build
         run: |
-          file_to_build=`ls -A | grep -i \.xcworkspace$ || ls -A | grep -i \.xcodeproj$`
-          file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
-          echo "file_to_build=$file_to_build" >> $GITHUB_OUTPUT
+          file_to_build=$(ls -A | grep -i "\.xcworkspace$" || ls -A | grep -i "\.xcodeproj$")
+          file_to_build=$(echo "$file_to_build" | awk '{$1=$1;print}')
+          echo "file_to_build=$file_to_build" >> "$GITHUB_OUTPUT"
 
       - name: Set artifact metadata
         id: artifact_metadata
@@ -79,11 +94,11 @@ jobs:
           short_sha=$(echo "${GITHUB_SHA}" | cut -c1-7)
           version_label="${marketing_version}+${build_version}"
           artifact_name="${scheme}-${version_label}-${short_sha}-unsigned"
-          echo "marketing_version=$marketing_version" >> $GITHUB_OUTPUT
-          echo "build_version=$build_version" >> $GITHUB_OUTPUT
-          echo "version_label=$version_label" >> $GITHUB_OUTPUT
-          echo "short_sha=$short_sha" >> $GITHUB_OUTPUT
-          echo "artifact_name=$artifact_name" >> $GITHUB_OUTPUT
+          echo "marketing_version=$marketing_version" >> "$GITHUB_OUTPUT"
+          echo "build_version=$build_version" >> "$GITHUB_OUTPUT"
+          echo "version_label=$version_label" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
 
       - name: Archive
         env:
@@ -129,12 +144,7 @@ jobs:
         if: success()
         env:
           artifact_name: ${{ steps.artifact_metadata.outputs.artifact_name }}
-        run: |
-          sh .github/build_github.sh
-
-      - name: Prepare Nightly IPA Asset
-        if: success() && github.event_name != 'pull_request'
-        run: cp "${{ steps.artifact_metadata.outputs.artifact_name }}.ipa" ComicDeck.ipa
+        run: sh .github/build_github.sh
 
       - name: Upload IPA Artifact
         if: success()
@@ -143,29 +153,13 @@ jobs:
           name: ${{ steps.artifact_metadata.outputs.artifact_name }}.ipa
           path: ${{ steps.artifact_metadata.outputs.artifact_name }}.ipa
 
-      - name: Publish Nightly Release Asset
-        if: success() && github.event_name != 'pull_request'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: nightly
-          name: Nightly
-          prerelease: true
-          make_latest: false
-          body: |
-            Version: ${{ steps.artifact_metadata.outputs.version_label }}
-            Commit: ${{ steps.artifact_metadata.outputs.short_sha }}
-            Message: ${{ github.event.head_commit.message || github.sha }}
-            Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
-          files: |
-            ComicDeck.ipa
-          overwrite_files: true
-
   build-macos-catalyst:
     name: Build Mac Catalyst DMG
     runs-on: macos-latest
     env:
-      scheme: ComicDeck
       derived_data_path: build-maccatalyst
+    outputs:
+      dmg_artifact: ${{ steps.artifact_metadata.outputs.artifact_name }}.dmg
 
     steps:
       - uses: maxim-lobanov/setup-xcode@v1
@@ -178,28 +172,31 @@ jobs:
       - name: Set Scheme
         id: scheme
         run: |
-          if [ "$scheme" = "default" ]
-          then
+          if [ "$scheme" = "default" ]; then
             scheme_list=$(xcodebuild -list -json | tr -d "\n")
-            scheme=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
-            echo Using default scheme: $scheme
+            scheme=$(echo "$scheme_list" | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
+            echo "Using default scheme: $scheme"
           else
-            echo Using configured scheme: $scheme
+            echo "Using configured scheme: $scheme"
           fi
-          echo "scheme=$scheme" >> $GITHUB_OUTPUT
+          echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
 
       - name: Set filetype_parameter
         id: filetype_parameter
         run: |
-          filetype_parameter=`ls -A | grep -i \.xcworkspace$ && echo workspace || echo project`
-          echo "filetype_parameter=$filetype_parameter" >> $GITHUB_OUTPUT
+          if ls -A | grep -qi "\.xcworkspace$"; then
+            filetype_parameter=workspace
+          else
+            filetype_parameter=project
+          fi
+          echo "filetype_parameter=$filetype_parameter" >> "$GITHUB_OUTPUT"
 
       - name: Set file_to_build
         id: file_to_build
         run: |
-          file_to_build=`ls -A | grep -i \.xcworkspace$ || ls -A | grep -i \.xcodeproj$`
-          file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
-          echo "file_to_build=$file_to_build" >> $GITHUB_OUTPUT
+          file_to_build=$(ls -A | grep -i "\.xcworkspace$" || ls -A | grep -i "\.xcodeproj$")
+          file_to_build=$(echo "$file_to_build" | awk '{$1=$1;print}')
+          echo "file_to_build=$file_to_build" >> "$GITHUB_OUTPUT"
 
       - name: Set artifact metadata
         id: artifact_metadata
@@ -230,11 +227,11 @@ jobs:
           short_sha=$(echo "${GITHUB_SHA}" | cut -c1-7)
           version_label="${marketing_version}+${build_version}"
           artifact_name="${scheme}-${version_label}-${short_sha}-maccatalyst"
-          echo "marketing_version=$marketing_version" >> $GITHUB_OUTPUT
-          echo "build_version=$build_version" >> $GITHUB_OUTPUT
-          echo "version_label=$version_label" >> $GITHUB_OUTPUT
-          echo "short_sha=$short_sha" >> $GITHUB_OUTPUT
-          echo "artifact_name=$artifact_name" >> $GITHUB_OUTPUT
+          echo "marketing_version=$marketing_version" >> "$GITHUB_OUTPUT"
+          echo "build_version=$build_version" >> "$GITHUB_OUTPUT"
+          echo "version_label=$version_label" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
 
       - name: Build Mac Catalyst App
         env:
@@ -269,16 +266,10 @@ jobs:
             find "$derived_data_path/Build/Products" -maxdepth 2 -type d | sort || true
             exit 1
           fi
-          if [ ! -d "$app_path" ]; then
-            echo "Mac Catalyst app not found at $app_path" >&2
-            exit 1
-          fi
-          echo "app_path=$app_path" >> $GITHUB_ENV
+          echo "app_path=$app_path" >> "$GITHUB_ENV"
 
       - name: Package Mac App Artifact
         if: success()
-        env:
-          scheme: ${{ steps.scheme.outputs.scheme }}
         run: |
           rm -f "${{ steps.artifact_metadata.outputs.artifact_name }}.app.zip"
           ditto -c -k --sequesterRsrc --keepParent "$app_path" "${{ steps.artifact_metadata.outputs.artifact_name }}.app.zip"
@@ -303,12 +294,7 @@ jobs:
           artifact_name: ${{ steps.artifact_metadata.outputs.artifact_name }}
           volume_name: ComicDeck
           app_path: ${{ env.app_path }}
-        run: |
-          sh .github/build_macos_dmg.sh
-
-      - name: Prepare Nightly DMG Asset
-        if: success() && github.event_name != 'pull_request'
-        run: cp "${{ steps.artifact_metadata.outputs.artifact_name }}.dmg" ComicDeck-maccatalyst.dmg
+        run: sh .github/build_macos_dmg.sh
 
       - name: Upload DMG Artifact
         if: success()
@@ -317,8 +303,58 @@ jobs:
           name: ${{ steps.artifact_metadata.outputs.artifact_name }}.dmg
           path: ${{ steps.artifact_metadata.outputs.artifact_name }}.dmg
 
-      - name: Publish Nightly Mac Asset
-        if: success() && github.event_name != 'pull_request'
+  release-nightly:
+    name: Nightly Release
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.release__nightly) || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
+    runs-on: ubuntu-latest
+    needs: [build-ios, build-macos-catalyst]
+    permissions:
+      contents: write
+    concurrency:
+      group: release-nightly
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download IPA Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build-ios.outputs.ipa_artifact }}
+          path: release-assets
+
+      - name: Download DMG Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build-macos-catalyst.outputs.dmg_artifact }}
+          path: release-assets
+
+      - name: Prepare Release Assets
+        run: |
+          mv "release-assets/${{ needs.build-ios.outputs.ipa_artifact }}" ComicDeck.ipa
+          mv "release-assets/${{ needs.build-macos-catalyst.outputs.dmg_artifact }}" ComicDeck-maccatalyst.dmg
+
+      - name: Get Commit Info
+        id: commit_info
+        run: |
+          commit_sha=$(git rev-parse HEAD)
+          commit_msg=$(git log -1 --pretty=%s)
+          echo "commit_sha=$commit_sha" >> "$GITHUB_OUTPUT"
+          echo "commit_msg=$commit_msg" >> "$GITHUB_OUTPUT"
+
+      - name: Update AltStore Source
+        env:
+          ALTSTORE_MODE: nightly-local
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOCAL_IPA_PATH: ComicDeck.ipa
+          VERSION_LABEL: ${{ needs.build-ios.outputs.version_label }}
+          COMMIT_SHA: ${{ steps.commit_info.outputs.commit_sha }}
+          COMMIT_MSG: ${{ steps.commit_info.outputs.commit_msg }}
+          NIGHTLY_LINK: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: python .github/update_json.py
+
+      - name: Publish Nightly Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly
@@ -326,10 +362,23 @@ jobs:
           prerelease: true
           make_latest: false
           body: |
-            Version: ${{ steps.artifact_metadata.outputs.version_label }}
-            Commit: ${{ steps.artifact_metadata.outputs.short_sha }}
-            Message: ${{ github.event.head_commit.message || github.sha }}
+            Version: ${{ needs.build-ios.outputs.version_label }}
+            Commit: ${{ needs.build-ios.outputs.short_sha }}
+            Message: ${{ steps.commit_info.outputs.commit_msg }}
             Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
           files: |
+            ComicDeck.ipa
             ComicDeck-maccatalyst.dmg
+            .github/apps.json
           overwrite_files: true
+
+      - name: Commit AltStore Source
+        run: |
+          if git diff --quiet -- .github/apps.json; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/apps.json
+          git commit -m "Update apps.json for nightly build [skip ci]"
+          git push
