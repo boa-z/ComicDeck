@@ -29,13 +29,7 @@ jobs:
         id: update_source
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          python .github/update_json.py
-          if git diff --quiet -- .github/apps.json; then
-            echo "changes=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changes=true" >> "$GITHUB_OUTPUT"
-          fi
+        run: python .github/update_json.py
 
       - name: Upload Source To Nightly Release
         uses: softprops/action-gh-release@v2
@@ -45,15 +39,6 @@ jobs:
           overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Commit and Push
-        if: steps.update_source.outputs.changes == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .github/apps.json
-          git commit -m "Update apps.json for nightly build [skip ci]"
-          git push
 
       - name: Calculate Job Duration
         id: duration
@@ -68,10 +53,6 @@ jobs:
         run: |
           echo "## Update AltStore Source Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ steps.update_source.outputs.changes }}" = "true" ]; then
-            echo "Changes were generated and committed to .github/apps.json." >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo ".github/apps.json was already up to date." >> "$GITHUB_STEP_SUMMARY"
-          fi
+          echo "Generated .github/apps.json and uploaded it to the nightly release asset." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Execution time: ${{ steps.duration.outputs.duration }}" >> "$GITHUB_STEP_SUMMARY"

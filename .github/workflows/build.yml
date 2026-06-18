@@ -371,14 +371,3 @@ jobs:
             ComicDeck-maccatalyst.dmg
             .github/apps.json
           overwrite_files: true
-
-      - name: Commit AltStore Source
-        run: |
-          if git diff --quiet -- .github/apps.json; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .github/apps.json
-          git commit -m "Update apps.json for nightly build [skip ci]"
-          git push
