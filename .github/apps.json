@@ -25,12 +25,12 @@
       "versions": [
         {
           "version": "0.0.1+1",
-          "date": "2026-03-15T04:26:26Z",
-          "localizedDescription": "Commit: 812ead4\nMessage: refactor(reader): improve image loading pipeline and restore source script DOM compatibility\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23378499024/attempts/1",
+          "date": "2026-06-18T23:39:05Z",
+          "localizedDescription": "Commit: 81ba92e\nMessage: fix(ci): split FavoritesView.body to fix Mac Catalyst build timeout\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/27795763414/attempts/1",
           "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-          "size": 6537429,
-          "commit": "812ead4",
-          "headline": "refactor(reader): improve image loading pipeline and restore source script DOM compatibility"
+          "size": 8198462,
+          "commit": "81ba92e",
+          "headline": "fix(ci): split FavoritesView.body to fix Mac Catalyst build timeout"
         }
       ],
       "releaseChannels": [
@@ -43,23 +43,23 @@
           "releases": [
             {
               "version": "0.0.1+1",
-              "date": "2026-03-15T04:26:26Z",
-              "localizedDescription": "Commit: 812ead4\nMessage: refactor(reader): improve image loading pipeline and restore source script DOM compatibility\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23378499024/attempts/1",
+              "date": "2026-06-18T23:39:05Z",
+              "localizedDescription": "Commit: 81ba92e\nMessage: fix(ci): split FavoritesView.body to fix Mac Catalyst build timeout\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/27795763414/attempts/1",
               "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-              "size": 6537429,
-              "commit": "812ead4",
-              "headline": "refactor(reader): improve image loading pipeline and restore source script DOM compatibility"
+              "size": 8198462,
+              "commit": "81ba92e",
+              "headline": "fix(ci): split FavoritesView.body to fix Mac Catalyst build timeout"
             }
           ]
         }
       ],
       "version": "0.0.1+1",
-      "versionDate": "2026-03-15T04:26:26Z",
-      "versionDescription": "Commit: 812ead4\nMessage: refactor(reader): improve image loading pipeline and restore source script DOM compatibility\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/23378499024/attempts/1",
+      "versionDate": "2026-06-18T23:39:05Z",
+      "versionDescription": "Commit: 81ba92e\nMessage: fix(ci): split FavoritesView.body to fix Mac Catalyst build timeout\nWorkflow: https://github.com/boa-z/ComicDeck/actions/runs/27795763414/attempts/1",
       "downloadURL": "https://github.com/boa-z/ComicDeck/releases/download/nightly/ComicDeck.ipa",
-      "size": 6537429,
-      "commit": "812ead4",
-      "headline": "refactor(reader): improve image loading pipeline and restore source script DOM compatibility"
+      "size": 8198462,
+      "commit": "81ba92e",
+      "headline": "fix(ci): split FavoritesView.body to fix Mac Catalyst build timeout"
     }
   ],
   "news": []
