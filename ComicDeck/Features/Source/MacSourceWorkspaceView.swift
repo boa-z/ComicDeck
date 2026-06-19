@@ -2,118 +2,83 @@
 import SwiftUI
 import Observation
 
+/// macOS Sources workspace.
+///
+/// Rendered as a **2-pane** `NavigationSplitView` (list + detail). Previously this
+/// was a 3-pane split nested inside `MacMainView`'s own split view, which summed
+/// to ~1200px of minimum width against a 980px window and caused column
+/// squashing/layout corruption (显示错乱). Installed and indexed sources are now
+/// folded into a single unified list; the detail pane is always a native
+/// `Form/.grouped` view (installed → `MacSourceDetailView`, remote/index →
+/// existing detail views).
 @MainActor
 struct MacSourceWorkspaceView: View {
-    private enum Pane: String, CaseIterable, Identifiable {
-        case installed
-        case index
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .installed:
-                return AppLocalization.text("source.management.installed", "Installed Sources")
-            case .index:
-                return AppLocalization.text("source.management.repository", "Source Index")
-            }
-        }
-
-        var systemImage: String {
-            switch self {
-            case .installed:
-                return "puzzlepiece.extension"
-            case .index:
-                return "tray.and.arrow.down"
-            }
-        }
-    }
-
     private enum DetailSelection: Hashable {
+        case index
         case installed(String)
         case remote(String)
-        case index
     }
 
     @Bindable var vm: ReaderViewModel
     @Bindable var sourceManager: SourceManagerViewModel
-    @State private var pane: Pane? = .installed
-    @State private var selection: DetailSelection? = .index
-    @State private var installedQuery = ""
-    @State private var remoteQuery = ""
+    @State private var selection: DetailSelection?
+    @State private var query = ""
     @State private var showInstalledOnly = false
     @State private var batchSelection: Set<String> = []
     @State private var showBatchDeleteConfirm = false
     @State private var batchWorking = false
 
     private var filteredInstalledSources: [InstalledSource] {
-        let keyword = installedQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !keyword.isEmpty else { return sourceManager.installedSources }
-        return sourceManager.installedSources.filter {
-            $0.name.lowercased().contains(keyword) || $0.key.lowercased().contains(keyword)
+        sourceManager.installedSources.filter { source in
+            matchesKeyword(source.name) || matchesKeyword(source.key)
         }
     }
 
     private var filteredRemoteSources: [SourceConfigIndexItem] {
-        let base = sourceManager.remoteSources.filter { item in
-            !showInstalledOnly || sourceManager.installedSource(for: sourceManager.resolvedKey(for: item)) != nil
-        }
-        let keyword = remoteQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !keyword.isEmpty else { return base }
-        return base.filter { item in
-            sourceManager.resolvedKey(for: item).lowercased().contains(keyword) ||
-            item.name.lowercased().contains(keyword) ||
-            (item.description?.lowercased().contains(keyword) ?? false)
+        sourceManager.remoteSources.filter { item in
+            (!showInstalledOnly || sourceManager.installedSource(for: sourceManager.resolvedKey(for: item)) != nil)
+            && (matchesKeyword(sourceManager.resolvedKey(for: item)) || matchesKeyword(item.name) || matchesKeyword(item.description ?? ""))
         }
     }
 
     var body: some View {
         NavigationSplitView {
-            List(Pane.allCases, selection: $pane) { item in
-                Label(item.title, systemImage: item.systemImage)
-                    .tag(item)
-            }
-            .navigationTitle(AppLocalization.text("source.management.title", "Sources"))
-            .frame(minWidth: 190)
-        } content: {
-            sourceList
-                .navigationTitle(paneTitle)
-                .searchable(text: activeSearchBinding, prompt: searchPrompt)
+            unifiedList
+                .navigationTitle(AppLocalization.text("source.management.title", "Sources"))
+                .searchable(text: $query, prompt: AppLocalization.text("source.management.search_placeholder", "Search sources"))
                 .toolbar {
                     ToolbarItemGroup(placement: .primaryAction) {
-                        if pane == .installed {
-                            if !batchSelection.isEmpty {
-                                if !selectedUpdatableSources.isEmpty {
-                                    Button {
-                                        Task { await updateSelectedSources() }
-                                    } label: {
-                                        Label(AppLocalization.text("source.action.update_selected", "Update Selected"), systemImage: "square.and.arrow.down")
-                                    }
-                                    .disabled(batchWorking)
-                                }
-
-                                Button(role: .destructive) {
-                                    showBatchDeleteConfirm = true
-                                } label: {
-                                    Label(AppLocalization.text("source.action.delete_selected", "Delete Selected"), systemImage: "trash")
-                                }
-                                .disabled(batchWorking)
-
-                                Divider()
-                            }
-
-                            if hasAvailableUpdates {
+                        if !batchSelection.isEmpty {
+                            if !selectedUpdatableSources.isEmpty {
                                 Button {
-                                    Task { await updateAllInstalledSources() }
+                                    Task { await updateSelectedSources() }
                                 } label: {
-                                    if batchWorking {
-                                        ProgressView().controlSize(.small)
-                                    } else {
-                                        Label(AppLocalization.text("source.action.update_all", "Update All"), systemImage: "arrow.down.circle")
-                                    }
+                                    Label(AppLocalization.text("source.action.update_selected", "Update Selected"), systemImage: "square.and.arrow.down")
                                 }
                                 .disabled(batchWorking)
                             }
+
+                            Button(role: .destructive) {
+                                showBatchDeleteConfirm = true
+                            } label: {
+                                Label(AppLocalization.text("source.action.delete_selected", "Delete Selected"), systemImage: "trash")
+                            }
+                            .disabled(batchWorking)
+
+                            Divider()
+                        }
+
+                        if hasAvailableUpdates {
+                            Button {
+                                Task { await updateAllInstalledSources() }
+                            } label: {
+                                if batchWorking {
+                                    ProgressView().controlSize(.small)
+                                } else {
+                                    Label(AppLocalization.text("source.action.update_all", "Update All"), systemImage: "arrow.down.circle")
+                                }
+                            }
+                            .disabled(batchWorking)
                         }
 
                         Button {
@@ -131,7 +96,6 @@ struct MacSourceWorkspaceView: View {
         } detail: {
             detailView
         }
-        .navigationSplitViewStyle(.balanced)
         .alert(
             AppLocalization.text("source.alert.batch_delete.title", "Delete selected sources?"),
             isPresented: $showBatchDeleteConfirm
@@ -143,157 +107,152 @@ struct MacSourceWorkspaceView: View {
         } message: {
             Text(AppLocalization.text("source.alert.batch_delete.message", "Delete \(batchSelection.count) selected installed source\(batchSelection.count == 1 ? "" : "s")? This action cannot be undone."))
         }
-        .onAppear {
-            if selection == nil {
-                selection = sourceManager.installedSources.first.map { .installed($0.key) } ?? .index
-            }
-        }
-        .onChange(of: pane) { _, newPane in
-            switch newPane {
-            case .installed:
-                selection = filteredInstalledSources.first.map { .installed($0.key) } ?? .index
-            case .index:
-                selection = .index
-            case nil:
-                selection = .index
-            }
-        }
+        .onAppear { ensureSelection() }
+        .onChange(of: query) { _, _ in ensureSelection() }
+        .onChange(of: showInstalledOnly) { _, _ in ensureSelection() }
         .onChange(of: sourceManager.installedSources) { _, sources in
             guard case let .installed(key) = selection else { return }
             if !sources.contains(where: { $0.key == key }) {
                 selection = sources.first.map { .installed($0.key) } ?? .index
             }
         }
+        .onChange(of: sourceManager.remoteSources) { _, _ in
+            ensureSelection()
+        }
+    }
+
+    // MARK: - Unified list
+
+    private var unifiedList: some View {
+        List(selection: $selection) {
+            Section {
+                MacSourceIndexStatusRow(sourceManager: sourceManager)
+                    .tag(DetailSelection.index)
+            } header: {
+                Text(AppLocalization.text("source.management.repository", "Source Index"))
+            } footer: {
+                Text(AppLocalization.text("source.management.index_footer", "Configure your source index URL and update checks."))
+            }
+
+            Toggle(AppLocalization.text("source.repository.show_installed_only", "Show installed only"), isOn: $showInstalledOnly)
+                .padding(.horizontal, 4)
+
+            Section {
+                if filteredInstalledSources.isEmpty {
+                    Text(AppLocalization.text("source.management.empty", "No installed sources"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(filteredInstalledSources) { source in
+                        MacInstalledSourceRow(
+                            source: source,
+                            isActive: source.key == sourceManager.selectedSourceKey,
+                            updateVersion: sourceManager.availableSourceUpdates[source.key],
+                            isBatchSelected: batchSelection.contains(source.key)
+                        )
+                        .tag(DetailSelection.installed(source.key))
+                        .contextMenu {
+                            installedRowContextMenu(for: source)
+                        }
+                    }
+                }
+            } header: {
+                HStack {
+                    Text(AppLocalization.text("source.management.installed", "Installed Sources"))
+                    Spacer()
+                    if !batchSelection.isEmpty {
+                        Text(AppLocalization.format("source.management.batch_count_format", "%d selected", batchSelection.count))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Section {
+                if sourceManager.remoteSources.isEmpty {
+                    Text(AppLocalization.text("source.repository.empty", "Source index not loaded"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else if filteredRemoteSources.isEmpty {
+                    Text(AppLocalization.text("source.repository.no_matches", "No matching sources"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(filteredRemoteSources) { item in
+                        MacRemoteSourceRow(
+                            item: item,
+                            key: sourceManager.resolvedKey(for: item),
+                            isInstalled: sourceManager.installedSource(for: sourceManager.resolvedKey(for: item)) != nil,
+                            updateVersion: sourceManager.availableSourceUpdates[sourceManager.resolvedKey(for: item)]
+                        )
+                        .tag(DetailSelection.remote(sourceManager.resolvedKey(for: item)))
+                    }
+                }
+            } header: {
+                Text(AppLocalization.text("source.repository.indexed_sources", "Indexed Sources"))
+            }
+        }
+        .listStyle(.sidebar)
     }
 
     @ViewBuilder
-    private var sourceList: some View {
-        switch pane ?? .installed {
-        case .installed:
-            List(selection: $selection) {
-                Section {
-                    if filteredInstalledSources.isEmpty {
-                        ContentUnavailableView(
-                            AppLocalization.text("source.management.empty", "No installed sources"),
-                            systemImage: "puzzlepiece.extension",
-                            description: Text(AppLocalization.text("source.management.empty_hint", "Add your own source index and install a source to start browsing."))
-                        )
-                    } else {
-                        ForEach(filteredInstalledSources) { source in
-                            MacInstalledSourceRow(
-                                source: source,
-                                isActive: source.key == sourceManager.selectedSourceKey,
-                                updateVersion: sourceManager.availableSourceUpdates[source.key],
-                                isBatchSelected: batchSelection.contains(source.key)
-                            )
-                            .tag(DetailSelection.installed(source.key))
-                            .contextMenu {
-                                Button(AppLocalization.text("source.action.use", "Use Source")) {
-                                    sourceManager.selectSource(source)
-                                }
-                                .disabled(source.key == sourceManager.selectedSourceKey)
+    private func installedRowContextMenu(for source: InstalledSource) -> some View {
+        Button(AppLocalization.text("source.action.use", "Use Source")) {
+            sourceManager.selectSource(source)
+        }
+        .disabled(source.key == sourceManager.selectedSourceKey)
 
-                                if sourceManager.availableSourceUpdates[source.key] != nil {
-                                    Button(AppLocalization.text("source.action.update", "Update")) {
-                                        Task { await sourceManager.updateSource(source) }
-                                    }
-                                }
-
-                                Button(AppLocalization.text("source.action.delete", "Delete"), role: .destructive) {
-                                    Task { await sourceManager.uninstallSource(source) }
-                                }
-
-                                Divider()
-
-                                if batchSelection.contains(source.key) {
-                                    Button(AppLocalization.text("source.action.deselect", "Deselect")) {
-                                        batchSelection.remove(source.key)
-                                    }
-                                } else {
-                                    Button(AppLocalization.text("source.action.select", "Select for Batch")) {
-                                        batchSelection.insert(source.key)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    HStack {
-                        Text(AppLocalization.text("source.management.installed", "Installed Sources"))
-                        Spacer()
-                        if !batchSelection.isEmpty {
-                            Text("\(batchSelection.count) selected")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
+        if sourceManager.availableSourceUpdates[source.key] != nil {
+            Button(AppLocalization.text("source.action.update", "Update")) {
+                Task { await sourceManager.updateSource(source) }
             }
-        case .index:
-            List(selection: $selection) {
-                Section {
-                    MacSourceIndexStatusRow(sourceManager: sourceManager)
-                        .tag(DetailSelection.index)
-                }
+        }
 
-                Section {
-                    Toggle(AppLocalization.text("source.repository.show_installed_only", "Show installed only"), isOn: $showInstalledOnly)
-                }
+        Button(AppLocalization.text("source.action.delete", "Delete"), role: .destructive) {
+            Task { await sourceManager.uninstallSource(source) }
+        }
 
-                Section {
-                    if sourceManager.remoteSources.isEmpty {
-                        ContentUnavailableView(
-                            AppLocalization.text("source.repository.empty", "Source index not loaded"),
-                            systemImage: "tray",
-                            description: Text(AppLocalization.text("source.repository.empty_hint", "Enter your source index URL, then refresh."))
-                        )
-                    } else if filteredRemoteSources.isEmpty {
-                        ContentUnavailableView(
-                            AppLocalization.text("source.repository.no_matches", "No matching sources"),
-                            systemImage: "magnifyingglass",
-                            description: Text(AppLocalization.text("source.repository.no_matches_hint", "Try a different keyword or clear the installed-only filter."))
-                        )
-                    } else {
-                        ForEach(filteredRemoteSources) { item in
-                            MacRemoteSourceRow(
-                                item: item,
-                                key: sourceManager.resolvedKey(for: item),
-                                isInstalled: sourceManager.installedSource(for: sourceManager.resolvedKey(for: item)) != nil,
-                                updateVersion: sourceManager.availableSourceUpdates[sourceManager.resolvedKey(for: item)]
-                            )
-                            .tag(DetailSelection.remote(sourceManager.resolvedKey(for: item)))
-                        }
-                    }
-                } header: {
-                    Text(AppLocalization.text("source.repository.indexed_sources", "Indexed Sources"))
-                }
+        Divider()
+
+        if batchSelection.contains(source.key) {
+            Button(AppLocalization.text("source.action.deselect", "Deselect")) {
+                batchSelection.remove(source.key)
+            }
+        } else {
+            Button(AppLocalization.text("source.action.select", "Select for Batch")) {
+                batchSelection.insert(source.key)
             }
         }
     }
+
+    // MARK: - Detail
 
     @ViewBuilder
     private var detailView: some View {
         switch selection {
         case .installed(let key):
             if let source = sourceManager.installedSource(for: key) {
-                SourceDetailView(
+                MacSourceDetailView(
                     vm: vm,
                     sourceManager: sourceManager,
                     login: vm.login,
                     source: source
                 )
-                .frame(minWidth: 520)
+                .frame(minWidth: 460, idealWidth: 560)
+                .navigationSubtitle(AppLocalization.text("source.detail.installed", "Installed"))
             } else {
                 emptyDetail
             }
         case .remote(let key):
             if let item = sourceManager.remoteSources.first(where: { sourceManager.resolvedKey(for: $0) == key }) {
                 MacRemoteSourceDetailView(sourceManager: sourceManager, item: item)
+                    .frame(minWidth: 460, idealWidth: 560)
             } else {
                 emptyDetail
             }
         case .index, nil:
             MacSourceIndexDetailView(sourceManager: sourceManager)
+                .frame(minWidth: 460, idealWidth: 560)
         }
     }
 
@@ -305,6 +264,21 @@ struct MacSourceWorkspaceView: View {
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    // MARK: - Selection / filtering
+
+    private func ensureSelection() {
+        guard selection == nil else { return }
+        selection = filteredInstalledSources.first.map { .installed($0.key) } ?? .index
+    }
+
+    private func matchesKeyword(_ candidate: String) -> Bool {
+        let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !keyword.isEmpty else { return true }
+        return candidate.lowercased().contains(keyword)
+    }
+
+    // MARK: - Batch operations
 
     private var hasAvailableUpdates: Bool {
         !sourceManager.availableSourceUpdates.isEmpty
@@ -353,28 +327,6 @@ struct MacSourceWorkspaceView: View {
             await sourceManager.uninstallSource(source)
         }
         batchSelection.removeAll()
-    }
-
-    private var paneTitle: String {
-        (pane ?? .installed).title
-    }
-
-    private var activeSearchBinding: Binding<String> {
-        switch pane ?? .installed {
-        case .installed:
-            return $installedQuery
-        case .index:
-            return $remoteQuery
-        }
-    }
-
-    private var searchPrompt: String {
-        switch pane ?? .installed {
-        case .installed:
-            return AppLocalization.text("source.management.search_placeholder", "Search installed sources")
-        case .index:
-            return AppLocalization.text("source.repository.search_placeholder", "Search source index")
-        }
     }
 }
 
@@ -458,17 +410,34 @@ private struct MacRemoteSourceRow: View {
 private struct MacSourceIndexStatusRow: View {
     @Bindable var sourceManager: SourceManagerViewModel
 
+    private var remoteCountText: String {
+        sourceManager.remoteSources.isEmpty ? "-" : "\(sourceManager.remoteSources.count)"
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(AppLocalization.text("source.management.repository", "Source Index"))
-                .font(.body.weight(.medium))
-            Text(sourceManager.lastRemoteRefreshDescription)
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "tray.and.arrow.down")
+                .foregroundStyle(AppTint.accent)
+                .frame(width: 22, height: 22)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(AppLocalization.text("source.management.repository", "Source Index"))
+                    .font(.body.weight(.medium))
+                HStack(spacing: 8) {
+                    Label(remoteCountText, systemImage: "shippingbox")
+                    Label("\(sourceManager.installedSources.count)", systemImage: "puzzlepiece.extension")
+                    if sourceManager.availableSourceUpdates.count > 0 {
+                        Label("\(sourceManager.availableSourceUpdates.count)", systemImage: "arrow.up.circle")
+                            .foregroundStyle(AppTint.warning)
+                    }
+                }
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(sourceManager.status)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+                Text(sourceManager.lastRemoteRefreshDescription)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
         }
         .padding(.vertical, 3)
     }
@@ -531,8 +500,7 @@ private struct MacSourceIndexDetailView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle(AppLocalization.text("source.management.repository", "Source Index"))
-        .frame(minWidth: 520)
+        .navigationSubtitle(AppLocalization.text("source.management.repository", "Source Index"))
     }
 }
 
@@ -595,8 +563,7 @@ private struct MacRemoteSourceDetailView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle(item.name)
-        .frame(minWidth: 520)
+        .navigationSubtitle(item.name)
     }
 }
 #endif

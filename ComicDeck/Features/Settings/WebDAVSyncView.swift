@@ -2,10 +2,30 @@ import SwiftUI
 
 @MainActor
 struct WebDAVSyncView: View {
-    @Environment(LibraryViewModel.self) private var library
-    @Environment(SourceManagerViewModel.self) private var sourceManager
-    @Environment(TrackerViewModel.self) private var tracker
+    // NOTE: These dependencies are passed in explicitly rather than read via
+    // `@Environment(...)`. `WebDAVSyncView` is presented as a `NavigationLink`
+    // destination closure inside `SettingsView`, and SwiftUI may pre-evaluate
+    // that destination to collect navigation preferences — especially on macOS
+    // where `SettingsView` is nested inside a `NavigationSplitView` detail.
+    // A force-unwrapped `@Environment` read during that pre-evaluation crashes
+    // when the environment chain is not yet established; explicit parameters
+    // keep view construction side-effect free.
+    private let library: LibraryViewModel
+    private let sourceManager: SourceManagerViewModel
+    private let tracker: TrackerViewModel
     @Bindable var model: SettingsScreenModel
+
+    init(
+        model: SettingsScreenModel,
+        library: LibraryViewModel,
+        sourceManager: SourceManagerViewModel,
+        tracker: TrackerViewModel
+    ) {
+        self.model = model
+        self.library = library
+        self.sourceManager = sourceManager
+        self.tracker = tracker
+    }
 
     var body: some View {
         Form {

@@ -111,7 +111,12 @@ struct SettingsView: View {
 
                 Section(AppLocalization.text("settings.section.data", "Data")) {
                     NavigationLink {
-                        WebDAVSyncView(model: model)
+                        WebDAVSyncView(
+                            model: model,
+                            library: library,
+                            sourceManager: sourceManager,
+                            tracker: tracker
+                        )
                     } label: {
                         Label(AppLocalization.text("settings.data.webdav", "WebDAV Sync"), systemImage: "externaldrive.connected.to.line.below")
                     }
