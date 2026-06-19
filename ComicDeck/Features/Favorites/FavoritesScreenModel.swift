@@ -191,6 +191,9 @@ final class FavoritesScreenModel {
 
         do {
             sourceError = ""
+            await vm.prepareSourceFavoriteSession(sourceKey: sourceKey)
+            guard !Task.isCancelled, refreshGeneration == generation else { return }
+
             let favoriteListing = try await vm.loadSourceFavoriteFolders(sourceKey: sourceKey)
             let folders = favoriteListing.folders
             guard !Task.isCancelled, refreshGeneration == generation else { return }

@@ -69,8 +69,6 @@ struct FavoritesView: View {
     let onTagSearchRequested: (String, String) -> Void
     @State private var model = FavoritesScreenModel()
     @State private var selectedDetailItem: ComicSummary?
-    @State private var showSourcePicker = false
-    @State private var showFolderPicker = false
     @AppStorage("favorites.selectedSourceKey") private var persistedSourceKey: String = ""
     @AppStorage("ui.comicBrowseMode") private var browseModeRaw = ComicBrowseDisplayMode.list.rawValue
 
@@ -89,8 +87,8 @@ struct FavoritesView: View {
     }
 
     private var hasFolders: Bool { model.hasFolders }
-    private var currentSourceLabel: String {
-        sourceOptions.first(where: { $0.key == model.selectedSourceKey })?.name ?? "Source"
+    private var selectedInstalledSource: InstalledSource? {
+        sourceManager.installedSource(for: model.selectedSourceKey)
     }
     private var currentFolderLabel: String {
         guard hasFolders else { return "All" }
@@ -138,12 +136,6 @@ struct FavoritesView: View {
         .refreshable {
             await model.refreshNow(vm: vm, forceNetwork: true)
         }
-        .confirmationDialog("Select Source", isPresented: $showSourcePicker, titleVisibility: .visible) {
-            sourcePickerDialog
-        }
-        .confirmationDialog("Select Folder", isPresented: $showFolderPicker, titleVisibility: .visible) {
-            folderPickerDialog
-        }
         .alert("Remove selected favorites?", isPresented: Binding(
             get: { model.showBatchRemoveConfirm },
             set: { model.showBatchRemoveConfirm = $0 }
@@ -170,9 +162,7 @@ struct FavoritesView: View {
             if persistedSourceKey != key {
                 persistedSourceKey = key
             }
-            if sourceManager.selectedSourceKey != key {
-                sourceManager.selectedSourceKey = key
-            }
+            Task { await prepareFavoriteContext(for: key) }
             model.currentPage = 1
             model.setSelecting(false)
             requestRefresh()
@@ -184,9 +174,8 @@ struct FavoritesView: View {
                 model.selectedSourceKey = restoredSourceKey(from: keys)
             } else if persistedSourceKey != model.selectedSourceKey {
                 persistedSourceKey = model.selectedSourceKey
-            } else if sourceManager.selectedSourceKey != model.selectedSourceKey {
-                sourceManager.selectedSourceKey = model.selectedSourceKey
             }
+            await prepareFavoriteContext(for: model.selectedSourceKey)
             await model.refreshNow(vm: vm)
         }
         .sheet(isPresented: Binding(
@@ -217,32 +206,16 @@ struct FavoritesView: View {
             }
         }
         ToolbarItem(placement: .topBarTrailing) {
-            Menu {
-                Picker("Browse Mode", selection: Binding(
-                    get: { browseMode },
-                    set: { browseMode = $0 }
-                )) {
-                    ForEach(ComicBrowseDisplayMode.allCases) { item in
-                        Label(item.title, systemImage: item.systemImage)
-                            .tag(item)
-                    }
-                }
-
-                Section("Source (\(currentSourceLabel))") {
-                    ForEach(sourceOptions, id: \.key) { option in
-                        Button {
-                            model.selectedSourceKey = option.key
-                        } label: {
-                            if option.key == model.selectedSourceKey {
-                                Label(option.label, systemImage: "checkmark")
-                            } else {
-                                Text(option.label)
-                            }
-                        }
-                    }
-                }
+            sourceContextMenu
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            folderContextMenu
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                toggleBrowseMode()
             } label: {
-                Image(systemName: "ellipsis.circle")
+                Label(browseModeToggleTitle, systemImage: browseModeToggleIcon)
             }
         }
     }
@@ -261,37 +234,6 @@ struct FavoritesView: View {
                 .padding(.bottom, 8)
                 .background(.clear)
         }
-    }
-
-    @ViewBuilder
-    private var sourcePickerDialog: some View {
-        ForEach(sourceOptions, id: \.key) { option in
-            Button(option.label) {
-                model.selectedSourceKey = option.key
-            }
-        }
-        Button("Cancel", role: .cancel) { }
-    }
-
-    @ViewBuilder
-    private var folderPickerDialog: some View {
-        Button(defaultFolderTitle) {
-            model.selectedFolderID = model.canonicalFolderID(nil, availableFolders: model.sourceFolders)
-            model.currentPage = 1
-            requestRefresh()
-        }
-
-        if hasFolders {
-            ForEach(model.selectableFolders) { folder in
-                Button(folder.title) {
-                    model.selectedFolderID = folder.id
-                    model.currentPage = 1
-                    requestRefresh()
-                }
-            }
-        }
-
-        Button("Cancel", role: .cancel) { }
     }
 
     private var pagePickerSheet: some View {
@@ -384,6 +326,49 @@ struct FavoritesView: View {
         }
         return keys.first ?? ""
     }
+
+    private func prepareFavoriteContext(for sourceKey: String) async {
+        guard !sourceKey.isEmpty else { return }
+        await vm.prepareSourceFavoriteSession(sourceKey: sourceKey)
+    }
+
+    private func switchFavoriteAccount(_ profile: WebLoginCookieStore.AuthProfile) {
+        guard let source = selectedInstalledSource else { return }
+        Task {
+            await vm.login.switchAuthProfile(profile, for: source)
+            model.currentPage = 1
+            model.setSelecting(false)
+            await model.refreshNow(vm: vm, forceNetwork: true)
+        }
+    }
+
+    private var browseModeToggleTitle: String {
+        switch browseMode {
+        case .list:
+            AppLocalization.text("favorites.action.show_grid", "Show Grid")
+        case .grid:
+            AppLocalization.text("favorites.action.show_list", "Show List")
+        }
+    }
+
+    private var browseModeToggleIcon: String {
+        switch browseMode {
+        case .list:
+            "square.grid.2x2"
+        case .grid:
+            "list.bullet"
+        }
+    }
+
+    private func toggleBrowseMode() {
+        browseMode = browseMode == .list ? .grid : .list
+    }
+
+    private func selectFavoriteFolder(_ folderID: String?) {
+        model.selectedFolderID = model.canonicalFolderID(folderID, availableFolders: model.sourceFolders)
+        model.currentPage = 1
+        requestRefresh()
+    }
     
     private func requestRefresh(forceNetwork: Bool = false) {
         model.requestRefresh(vm: vm, forceNetwork: forceNetwork)
@@ -391,7 +376,6 @@ struct FavoritesView: View {
 
     private var favoritesList: some View {
         List {
-            controlsSection
             favoriteContent
         }
         .listStyle(.plain)
@@ -399,9 +383,6 @@ struct FavoritesView: View {
 
     private var favoritesGrid: some View {
         ScrollView {
-            controlsSection
-                .padding(.horizontal, AppSpacing.md)
-                .padding(.top, AppSpacing.sm)
             if !model.sourceError.isEmpty {
                 Text(model.sourceError)
                     .foregroundStyle(.red)
@@ -436,70 +417,95 @@ struct FavoritesView: View {
         }
     }
 
+    private var sourceContextMenu: some View {
+        Menu {
+            sourceContextMenuContent
+        } label: {
+            Label(AppLocalization.text("favorites.menu.source_account", "Source & Account"), systemImage: "person.crop.circle.badge.checkmark")
+        }
+    }
+
+    private var folderContextMenu: some View {
+        Menu {
+            folderContextMenuContent
+        } label: {
+            Label(currentFolderLabel, systemImage: "folder")
+        }
+    }
+
     @ViewBuilder
-    private var controlsSection: some View {
-        filterControlBar
-            .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 6, trailing: 12))
-            .listRowBackground(Color.clear)
-    }
-
-    private var filterControlBar: some View {
-        HStack(spacing: 10) {
-            Button {
-                showSourcePicker = true
-            } label: {
-                filterButtonLabel(
-                    title: "Source",
-                    value: currentSourceLabel,
-                    systemImage: "square.stack.3d.up"
-                )
+    private var sourceContextMenuContent: some View {
+        Section(AppLocalization.text("favorites.menu.source", "Source")) {
+            ForEach(sourceOptions, id: \.key) { option in
+                Button {
+                    model.selectedSourceKey = option.key
+                } label: {
+                    if option.key == model.selectedSourceKey {
+                        Label(option.label, systemImage: "checkmark")
+                    } else {
+                        Text(option.label)
+                    }
+                }
             }
-            .buttonStyle(.plain)
+        }
 
-            Button {
-                showFolderPicker = true
-            } label: {
-                filterButtonLabel(
-                    title: "Folder",
-                    value: currentFolderLabel,
-                    systemImage: "folder"
-                )
+        Section(AppLocalization.text("favorites.menu.account", "Account")) {
+            if vm.login.authProfiles.isEmpty {
+                Button(AppLocalization.text("favorites.account.no_saved", "No saved accounts")) { }
+                    .disabled(true)
+            } else {
+                ForEach(vm.login.authProfiles) { profile in
+                    Button {
+                        switchFavoriteAccount(profile)
+                    } label: {
+                        if profile.id == vm.login.activeAuthProfileID {
+                            Label(profile.label, systemImage: "checkmark")
+                        } else {
+                            Text(profile.label)
+                        }
+                    }
+                }
             }
-            .buttonStyle(.plain)
+
+            if let source = selectedInstalledSource {
+                Button(AppLocalization.text("source.detail.refresh_login", "Refresh Login Status")) {
+                    Task { await vm.login.refreshCurrentSourceLoginState(for: source) }
+                }
+                Button(AppLocalization.text("source.detail.save_current_account", "Save Current Account")) {
+                    Task { await vm.login.saveCurrentAuthProfile(for: source, replacingActive: false) }
+                }
+                .disabled(!vm.login.canSaveCurrentAuthProfile(sourceKey: source.key))
+            }
         }
     }
 
-    private func filterButtonLabel(title: String, value: String, systemImage: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTint.accent)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+    @ViewBuilder
+    private var folderContextMenuContent: some View {
+        Section(AppLocalization.text("favorites.menu.folder", "Folder")) {
+            Button {
+                selectFavoriteFolder(nil)
+            } label: {
+                if model.canonicalFolderID(model.selectedFolderID, availableFolders: model.sourceFolders) == model.canonicalFolderID(nil, availableFolders: model.sourceFolders) {
+                    Label(defaultFolderTitle, systemImage: "checkmark")
+                } else {
+                    Text(defaultFolderTitle)
+                }
             }
 
-            Spacer(minLength: 8)
-
-            Image(systemName: "chevron.down")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+            if hasFolders {
+                ForEach(model.selectableFolders) { folder in
+                    Button {
+                        selectFavoriteFolder(folder.id)
+                    } label: {
+                        if model.canonicalFolderID(model.selectedFolderID, availableFolders: model.sourceFolders) == folder.id {
+                            Label(folder.title, systemImage: "checkmark")
+                        } else {
+                            Text(folder.title)
+                        }
+                    }
+                }
+            }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous)
-                .stroke(AppSurface.border, lineWidth: 1)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous))
     }
 
     @ViewBuilder
@@ -644,22 +650,18 @@ struct HistoryView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker("Browse Mode", selection: Binding(
-                            get: { browseMode },
-                            set: { browseMode = $0 }
-                        )) {
-                            ForEach(ComicBrowseDisplayMode.allCases) { item in
-                                Label(item.title, systemImage: item.systemImage)
-                                    .tag(item)
-                            }
-                        }
-
-                        Button("Clear History", role: .destructive) {
-                            model.showClearConfirm = true
-                        }
+                    Button(role: .destructive) {
+                        model.showClearConfirm = true
                     } label: {
-                        Image(systemName: "ellipsis.circle")
+                        Label(AppLocalization.text("history.action.clear", "Clear History"), systemImage: "trash")
+                    }
+                    .disabled(model.isSelecting)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        toggleHistoryBrowseMode()
+                    } label: {
+                        Label(historyBrowseModeToggleTitle, systemImage: historyBrowseModeToggleIcon)
                     }
                 }
             }
@@ -869,6 +871,28 @@ struct HistoryView: View {
 
         pendingDetailReadRoute = context
         selectedDetailItem = context.item
+    }
+
+    private var historyBrowseModeToggleTitle: String {
+        switch browseMode {
+        case .list:
+            AppLocalization.text("favorites.action.show_grid", "Show Grid")
+        case .grid:
+            AppLocalization.text("favorites.action.show_list", "Show List")
+        }
+    }
+
+    private var historyBrowseModeToggleIcon: String {
+        switch browseMode {
+        case .list:
+            "square.grid.2x2"
+        case .grid:
+            "list.bullet"
+        }
+    }
+
+    private func toggleHistoryBrowseMode() {
+        browseMode = browseMode == .list ? .grid : .list
     }
 
 }

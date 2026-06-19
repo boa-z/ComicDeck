@@ -348,6 +348,12 @@ final class ReaderViewModel {
         return try await requireSourceRuntime().loadSourceFavoriteFolders(sourceKey: sourceKey)
     }
 
+    func prepareSourceFavoriteSession(sourceKey: String) async {
+        await prepareIfNeeded()
+        guard let source = sourceManager.installedSource(for: sourceKey) else { return }
+        await login.prepareLoginState(for: source)
+    }
+
     func loadSourceFavoriteComics(sourceKey: String, page: Int = 1, folderID: String? = nil) async throws -> [ComicSummary] {
         await prepareIfNeeded()
         return try await requireSourceRuntime().loadSourceFavoriteComics(sourceKey: sourceKey, page: page, folderID: folderID)

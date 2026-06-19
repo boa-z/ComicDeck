@@ -164,7 +164,8 @@ Open `Library -> Favorites` when you need to work with source-owned favorites or
 
 Typical uses:
 
-- browse favorites from the active source
+- browse favorites from the source selected in the Favorites page
+- use the Source & Account menu to switch source context or saved account profile without changing the global browsing source
 - switch source favorite folders
 - remove items from source-side favorites
 
