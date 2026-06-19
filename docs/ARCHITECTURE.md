@@ -450,6 +450,44 @@ This keeps the app visually consistent across:
 3. Offline files are not synchronized remotely.
 4. Source compatibility still depends on runtime bridge coverage per script capability.
 
+## Platform Abstraction
+
+The project shares a single source tree between iOS and macOS targets, using compile-time conditionals and shared abstraction layers.
+
+### Abstraction Layers
+
+- `PlatformSupport.swift`: central platform shim with `PlatformPasteboard`, `PlatformColors`, `ToolbarItemPlacement` mappings, and `platform*` View extensions for keyboard, status bar, list style, and sheet detent differences.
+- `PlatformCapabilities.swift`: compile-time capability flags (e.g. `supportsLiveActivity`, `supportsIdleTimerControl`, `supportsMemoryPressureNotification`) to replace scattered `#if os` checks with semantic boolean checks.
+- `PlatformImage.swift`: typealiases (`PlatformImage`, `PlatformFont`, `PlatformColor`) and extensions bridging `UIImage`/`NSImage`, `UIFont`/`NSFont`, `UIColor`/`NSColor`.
+- `LoginSheetPresenter.swift`: shared login sheet overlay used by both `MainView` (iOS) and `MacMainView` (macOS).
+- `ReaderPlatformMonitor.swift`: encapsulates platform-specific lifecycle monitoring (keyboard, memory pressure, idle timer) for the reader, with iOS using `GCKeyboard`/`NotificationCenter` and macOS using `DispatchSource.makeMemoryPressureSource`/SwiftUI `.onKeyPress`.
+
+### Conventions
+
+- Shared views should have no more than 5 `#if os` blocks; if more, split into a Mac-specific view.
+- Use `platform*` View extensions from `PlatformSupport.swift` instead of inline `#if os(macOS)`.
+- macOS sheets must include `minWidth`/`minHeight` (via `platformPresentationDetents*` helpers).
+- See `docs/CROSS_PLATFORM_CHECKLIST.md` for the full pre-merge checklist.
+
+## Feature Parity Matrix
+
+| Feature | iOS | macOS | Notes |
+|---------|-----|-------|-------|
+| Home / Discover / Library | ✅ | ✅ | TabView (iOS) vs NavigationSplitView sidebar (macOS) |
+| Downloads | ✅ | ✅ | Shared `DownloadManagerView` |
+| Source management | ✅ | ✅ | Shared `SourceManagementView` (iOS) / `MacSourceWorkspaceView` 3-pane (macOS) with batch operations |
+| Source login | ✅ | ✅ | Shared `LoginSheetPresenter` overlay |
+| Tracker library browsing | ✅ | ✅ | `TrackerSubscriptionsView` (iOS) / `MacTrackingWorkspaceView` 3-pane (macOS) |
+| Tracker settings | ✅ | ✅ | Shared `TrackingSettingsView` |
+| Reader keyboard navigation | ✅ | ✅ | `GCKeyboard` (iOS) / SwiftUI `.onKeyPress` (macOS) |
+| Reader memory pressure | ✅ | ✅ | `UIApplication.didReceiveMemoryWarning` (iOS) / `DispatchSource.makeMemoryPressureSource` (macOS) |
+| Reader keep-screen-on | ✅ | N/A | iOS only (idle timer) |
+| Reader save page | ✅ | ✅ | Photos library (iOS) / reveal in Finder (macOS) |
+| Settings | ✅ | ✅ | Sheet (iOS) / sidebar + Settings menu scene (macOS) |
+| WebDAV / Backup | ✅ | ✅ | Shared services |
+| Share sheet | ✅ | ✅ | `UIActivityViewController` (iOS) / `NSSharingServicePicker` (macOS) |
+| Widgets / Live Activity | ✅ | N/A | iOS only by design |
+
 ## Next Structural Candidates
 
 The next architecture-level improvements that would matter most are:
@@ -457,5 +495,7 @@ The next architecture-level improvements that would matter most are:
 1. a lightweight global app router for detail / reader / search / settings
 2. batch add-to-category from local favorites surfaces
 3. category sorting / manual reorder
-3. richer download policies and retry flows
-4. backup merge/version handling beyond full restore
+4. richer download policies and retry flows
+5. backup merge/version handling beyond full restore
+6. macOS menu bar commands for key reader and library actions
+7. macOS drag-and-drop for shelf reordering and image export

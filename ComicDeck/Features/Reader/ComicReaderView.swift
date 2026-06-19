@@ -3,9 +3,7 @@ import SwiftUI
 import UIKit
 import Photos
 #endif
-#if os(iOS)
-import GameController
-#elseif os(macOS)
+#if os(macOS)
 import AppKit
 #endif
 
@@ -83,9 +81,7 @@ struct ComicReaderView: View {
     @State private var showSettings = false
     @State private var historySaveTask: Task<Void, Never>? = nil
     @FocusState private var isReaderFocused: Bool
-    @State private var keyboardDidConnectObserver: NSObjectProtocol?
-    @State private var keyboardDidDisconnectObserver: NSObjectProtocol?
-    @State private var memoryPressureObserver: NSObjectProtocol?
+    @State private var platformMonitor = ReaderPlatformMonitor()
     @State private var isLongPressZoomed = false
     @State private var sharedPageExport: ShareFile?
     @State private var pageExportInProgress = false
@@ -207,6 +203,16 @@ struct ComicReaderView: View {
             .platformStatusBarHidden(!session.showControls)
             .focusable(true)
             .focused($isReaderFocused)
+            #if os(macOS)
+            .onKeyPress(.leftArrow) { previousPage(); return .handled }
+            .onKeyPress(.rightArrow) { nextPage(); return .handled }
+            .onKeyPress(.upArrow) { openPreviousChapter(); return .handled }
+            .onKeyPress(.downArrow) { openNextChapter(); return .handled }
+            .onKeyPress(.space) {
+                if readerMode == .vertical { nextPage() } else { openNextChapter() }
+                return .handled
+            }
+            #endif
             .sheet(item: $sharedPageExport) { shareFile in
                 ActivityShareSheet(items: [shareFile.url])
             }
@@ -288,16 +294,22 @@ struct ComicReaderView: View {
                 session.markVisible()
                 applyCurrentTranslationPreferences()
                 isReaderFocused = true
-                #if os(iOS)
-                UIApplication.shared.isIdleTimerDisabled = keepScreenOn
-                #endif
-                installKeyboardMonitoring()
-                installMemoryPressureMonitoring()
+                platformMonitor.setKeepScreenOn(keepScreenOn)
+                platformMonitor.install(
+                    onLeft: { previousPage() },
+                    onRight: { nextPage() },
+                    onUp: { openPreviousChapter() },
+                    onDown: { openNextChapter() },
+                    onMemoryPressure: {
+                        verticalCoordinator.clearTrackedFrames()
+                        ReaderDecodedImageStore.shared.trim()
+                        Task { await ReaderImagePipeline.shared.clearAllCache() }
+                        readerDebugLog("memory pressure: trimmed all caches", level: .warn)
+                    }
+                )
             }
             .onChange(of: keepScreenOn) { _, enabled in
-                #if os(iOS)
-                UIApplication.shared.isIdleTimerDisabled = enabled
-                #endif
+                platformMonitor.setKeepScreenOn(enabled)
             }
             .onDisappear {
                 handleDisappear()
@@ -446,113 +458,6 @@ struct ComicReaderView: View {
         )
         .ignoresSafeArea()
     }
-
-    private var upArrowHandler: (() -> Void)? {
-        guard readerMode == .vertical else { return nil }
-        return { previousPage() }
-    }
-
-    private var downArrowHandler: (() -> Void)? {
-        guard readerMode == .vertical else { return nil }
-        return { nextPage() }
-    }
-
-    private func installKeyboardMonitoring() {
-        #if os(iOS)
-        attachKeyboardHandler()
-        if keyboardDidConnectObserver == nil {
-            keyboardDidConnectObserver = NotificationCenter.default.addObserver(
-                forName: .GCKeyboardDidConnect,
-                object: nil,
-                queue: .main
-            ) { _ in
-                Task { @MainActor in
-                    attachKeyboardHandler()
-                }
-            }
-        }
-        if keyboardDidDisconnectObserver == nil {
-            keyboardDidDisconnectObserver = NotificationCenter.default.addObserver(
-                forName: .GCKeyboardDidDisconnect,
-                object: nil,
-                queue: .main
-            ) { _ in
-                Task { @MainActor in
-                    clearKeyboardHandler()
-                }
-            }
-        }
-        #endif
-    }
-
-    private func installMemoryPressureMonitoring() {
-        #if os(iOS)
-        memoryPressureObserver = NotificationCenter.default.addObserver(
-            forName: UIApplication.didReceiveMemoryWarningNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            Task { @MainActor in
-                verticalCoordinator.clearTrackedFrames()
-                ReaderDecodedImageStore.shared.trim()
-                await ReaderImagePipeline.shared.clearAllCache()
-                readerDebugLog("memory pressure: trimmed all caches", level: .warn)
-            }
-        }
-        #endif
-    }
-
-    private func uninstallKeyboardMonitoring() {
-        #if os(iOS)
-        clearKeyboardHandler()
-        if let observer = keyboardDidConnectObserver {
-            NotificationCenter.default.removeObserver(observer)
-            keyboardDidConnectObserver = nil
-        }
-        if let observer = keyboardDidDisconnectObserver {
-            NotificationCenter.default.removeObserver(observer)
-            keyboardDidDisconnectObserver = nil
-        }
-        #endif
-        if let observer = memoryPressureObserver {
-            NotificationCenter.default.removeObserver(observer)
-            memoryPressureObserver = nil
-        }
-    }
-
-    private func attachKeyboardHandler() {
-        #if os(iOS)
-        GCKeyboard.coalesced?.keyboardInput?.keyChangedHandler = { _, _, keyCode, pressed in
-            guard pressed else { return }
-            Task { @MainActor in
-                handleKeyboardKey(keyCode)
-            }
-        }
-        #endif
-    }
-
-    private func clearKeyboardHandler() {
-        #if os(iOS)
-        GCKeyboard.coalesced?.keyboardInput?.keyChangedHandler = nil
-        #endif
-    }
-
-    #if os(iOS)
-    private func handleKeyboardKey(_ keyCode: GCKeyCode) {
-        switch keyCode {
-        case GCKeyCode.leftArrow, GCKeyCode.keypad4:
-            previousPage()
-        case GCKeyCode.rightArrow, GCKeyCode.keypad6:
-            nextPage()
-        case GCKeyCode.upArrow, GCKeyCode.keypad8:
-            openPreviousChapter()
-        case GCKeyCode.downArrow, GCKeyCode.keypad2:
-            openNextChapter()
-        default:
-            break
-        }
-    }
-    #endif
 
     private var loadingOverlay: some View {
         VStack(spacing: 6) {
@@ -810,10 +715,8 @@ struct ComicReaderView: View {
         chapterNavigationTask?.cancel()
         chapterNavigationTask = nil
         prefetcher.cancel()
-        #if os(iOS)
-        UIApplication.shared.isIdleTimerDisabled = false
-        #endif
-        uninstallKeyboardMonitoring()
+        platformMonitor.disableKeepScreenOn()
+        platformMonitor.uninstall()
 
         #if os(iOS)
         let app = UIApplication.shared

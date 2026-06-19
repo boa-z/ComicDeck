@@ -1,0 +1,65 @@
+# Cross-Platform Checklist
+
+Use this checklist when adding or modifying features that affect both iOS and macOS.
+
+## Feature Entry Points
+
+- [ ] Feature is reachable on both iOS and macOS
+- [ ] iOS entry point: TabView tab, NavigationLink, or sheet from MainView
+- [ ] macOS entry point: Sidebar destination, NavigationLink, or sheet from MacMainView
+- [ ] No platform-specific feature is silently missing from the other platform
+
+## Platform Abstraction
+
+- [ ] Use `PlatformSupport.swift` helpers (`platform*` methods) instead of inline `#if os(macOS)`
+- [ ] Use `PlatformImage`, `PlatformFont`, `PlatformColor` typealiases instead of `UIImage`/`NSImage` directly
+- [ ] Use `PlatformColors` for semantic background colors
+- [ ] Use `PlatformCapabilities` for capability checks instead of scattered `#if os` blocks
+- [ ] Sheet presentations on macOS include `minWidth`/`minHeight` via `platformPresentationDetents*`
+- [ ] Single shared view has no more than 5 `#if os` blocks; if more, split into Mac-specific view
+
+## UI Layout
+
+- [ ] macOS windows have appropriate `minWidth`/`minHeight` constraints
+- [ ] macOS sidebar lists have `minWidth` (typically 190-210)
+- [ ] macOS detail panes have `minWidth` (typically 520)
+- [ ] macOS uses `NavigationSplitView` for multi-pane layouts
+- [ ] macOS uses `ContentUnavailableView` for empty states
+- [ ] macOS uses `.formStyle(.grouped)` for settings forms
+- [ ] macOS context menus provided for list row actions
+
+## Interaction
+
+- [ ] Touch gestures (tap zones, swipe) work on iOS
+- [ ] Keyboard navigation works on macOS (`.onKeyPress` for reader, shortcuts for actions)
+- [ ] Mouse/trackpad interactions work on macOS (click, right-click context menus, scroll)
+- [ ] macOS menu bar commands considered for key features
+
+## Localization
+
+- [ ] No hardcoded English literals in product screens
+- [ ] Use `AppLocalization.text` with semantic keys
+- [ ] Key naming follows `<feature>.<section>.<element>.<property>` convention
+- [ ] No platform name in localized strings (avoid "for iOS" or "for macOS")
+- [ ] New keys added to `Localizable.xcstrings` with English and zh-Hans values
+
+## Reader-Specific
+
+- [ ] Reader keyboard navigation: left/right arrows for pages, up/down for chapters (both platforms)
+- [ ] Memory pressure handling: `ReaderPlatformMonitor` handles both platforms
+- [ ] Keep-screen-on: iOS only (via `PlatformCapabilities.supportsIdleTimerControl`)
+- [ ] Save page: iOS saves to Photos, macOS reveals in Finder
+- [ ] Image zoom: iOS uses UIScrollView, macOS uses SwiftUI ScrollView + MagnifyGesture
+
+## Testing
+
+- [ ] New logic has unit tests in `ComicDeckTests/`
+- [ ] Tests pass on iOS Simulator
+- [ ] Tests pass on macOS (if logic is platform-specific)
+- [ ] CI `test` job runs successfully
+
+## Documentation
+
+- [ ] Update `docs/ARCHITECTURE.md` if layer boundaries change
+- [ ] Update `docs/USER_GUIDE.md` if user-facing behavior changes
+- [ ] Update feature parity matrix in `docs/ARCHITECTURE.md` if feature availability changes

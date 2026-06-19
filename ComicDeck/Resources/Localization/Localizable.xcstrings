@@ -295,9 +295,6 @@
     "Comic" : {
 
     },
-    "Comic management and reading for iOS." : {
-
-    },
     "Comic Title" : {
 
     },
@@ -6924,6 +6921,22 @@
         }
       }
     },
+    "settings.about.description" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comic management and reading."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "漫画管理与阅读。"
+          }
+        }
+      }
+    },
     "settings.about.version" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7565,6 +7578,54 @@
         }
       }
     },
+    "source.action.delete_selected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Selected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除所选"
+          }
+        }
+      }
+    },
+    "source.action.deselect" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deselect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消选择"
+          }
+        }
+      }
+    },
+    "source.action.select" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select for Batch"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择以批量操作"
+          }
+        }
+      }
+    },
     "source.action.update" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7578,6 +7639,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新"
+          }
+        }
+      }
+    },
+    "source.action.update_all" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update All"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部更新"
+          }
+        }
+      }
+    },
+    "source.action.update_selected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update Selected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新所选"
           }
         }
       }

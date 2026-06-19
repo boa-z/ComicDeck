@@ -42,6 +42,9 @@ struct MacSourceWorkspaceView: View {
     @State private var installedQuery = ""
     @State private var remoteQuery = ""
     @State private var showInstalledOnly = false
+    @State private var batchSelection: Set<String> = []
+    @State private var showBatchDeleteConfirm = false
+    @State private var batchWorking = false
 
     private var filteredInstalledSources: [InstalledSource] {
         let keyword = installedQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -77,7 +80,42 @@ struct MacSourceWorkspaceView: View {
                 .navigationTitle(paneTitle)
                 .searchable(text: activeSearchBinding, prompt: searchPrompt)
                 .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        if pane == .installed {
+                            if !batchSelection.isEmpty {
+                                if !selectedUpdatableSources.isEmpty {
+                                    Button {
+                                        Task { await updateSelectedSources() }
+                                    } label: {
+                                        Label(AppLocalization.text("source.action.update_selected", "Update Selected"), systemImage: "square.and.arrow.down")
+                                    }
+                                    .disabled(batchWorking)
+                                }
+
+                                Button(role: .destructive) {
+                                    showBatchDeleteConfirm = true
+                                } label: {
+                                    Label(AppLocalization.text("source.action.delete_selected", "Delete Selected"), systemImage: "trash")
+                                }
+                                .disabled(batchWorking)
+
+                                Divider()
+                            }
+
+                            if hasAvailableUpdates {
+                                Button {
+                                    Task { await updateAllInstalledSources() }
+                                } label: {
+                                    if batchWorking {
+                                        ProgressView().controlSize(.small)
+                                    } else {
+                                        Label(AppLocalization.text("source.action.update_all", "Update All"), systemImage: "arrow.down.circle")
+                                    }
+                                }
+                                .disabled(batchWorking)
+                            }
+                        }
+
                         Button {
                             Task { await sourceManager.refreshRemoteSources(forceRefresh: true) }
                         } label: {
@@ -94,6 +132,17 @@ struct MacSourceWorkspaceView: View {
             detailView
         }
         .navigationSplitViewStyle(.balanced)
+        .alert(
+            AppLocalization.text("source.alert.batch_delete.title", "Delete selected sources?"),
+            isPresented: $showBatchDeleteConfirm
+        ) {
+            Button(AppLocalization.text("source.action.delete", "Delete"), role: .destructive) {
+                Task { await deleteSelectedSources() }
+            }
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) { }
+        } message: {
+            Text(AppLocalization.text("source.alert.batch_delete.message", "Delete \(batchSelection.count) selected installed source\(batchSelection.count == 1 ? "" : "s")? This action cannot be undone."))
+        }
         .onAppear {
             if selection == nil {
                 selection = sourceManager.installedSources.first.map { .installed($0.key) } ?? .index
@@ -134,7 +183,8 @@ struct MacSourceWorkspaceView: View {
                             MacInstalledSourceRow(
                                 source: source,
                                 isActive: source.key == sourceManager.selectedSourceKey,
-                                updateVersion: sourceManager.availableSourceUpdates[source.key]
+                                updateVersion: sourceManager.availableSourceUpdates[source.key],
+                                isBatchSelected: batchSelection.contains(source.key)
                             )
                             .tag(DetailSelection.installed(source.key))
                             .contextMenu {
@@ -152,11 +202,31 @@ struct MacSourceWorkspaceView: View {
                                 Button(AppLocalization.text("source.action.delete", "Delete"), role: .destructive) {
                                     Task { await sourceManager.uninstallSource(source) }
                                 }
+
+                                Divider()
+
+                                if batchSelection.contains(source.key) {
+                                    Button(AppLocalization.text("source.action.deselect", "Deselect")) {
+                                        batchSelection.remove(source.key)
+                                    }
+                                } else {
+                                    Button(AppLocalization.text("source.action.select", "Select for Batch")) {
+                                        batchSelection.insert(source.key)
+                                    }
+                                }
                             }
                         }
                     }
                 } header: {
-                    Text(AppLocalization.text("source.management.installed", "Installed Sources"))
+                    HStack {
+                        Text(AppLocalization.text("source.management.installed", "Installed Sources"))
+                        Spacer()
+                        if !batchSelection.isEmpty {
+                            Text("\(batchSelection.count) selected")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
         case .index:
@@ -236,6 +306,55 @@ struct MacSourceWorkspaceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private var hasAvailableUpdates: Bool {
+        !sourceManager.availableSourceUpdates.isEmpty
+    }
+
+    private var selectedInstalledSources: [InstalledSource] {
+        batchSelection.compactMap { key in
+            sourceManager.installedSources.first { $0.key == key }
+        }
+    }
+
+    private var selectedUpdatableSources: [InstalledSource] {
+        selectedInstalledSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }
+    }
+
+    private func updateAllInstalledSources() async {
+        guard !batchWorking else { return }
+        let targets = sourceManager.installedSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }
+        guard !targets.isEmpty else { return }
+        batchWorking = true
+        defer { batchWorking = false }
+        for source in targets {
+            await sourceManager.updateSource(source)
+        }
+    }
+
+    private func updateSelectedSources() async {
+        guard !batchWorking else { return }
+        let targets = selectedUpdatableSources
+        guard !targets.isEmpty else { return }
+        batchWorking = true
+        defer { batchWorking = false }
+        for source in targets {
+            await sourceManager.updateSource(source)
+        }
+        batchSelection.removeAll()
+    }
+
+    private func deleteSelectedSources() async {
+        guard !batchWorking else { return }
+        let targets = selectedInstalledSources
+        guard !targets.isEmpty else { return }
+        batchWorking = true
+        defer { batchWorking = false }
+        for source in targets {
+            await sourceManager.uninstallSource(source)
+        }
+        batchSelection.removeAll()
+    }
+
     private var paneTitle: String {
         (pane ?? .installed).title
     }
@@ -263,12 +382,19 @@ private struct MacInstalledSourceRow: View {
     let source: InstalledSource
     let isActive: Bool
     let updateVersion: String?
+    var isBatchSelected: Bool = false
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: isActive ? "checkmark.circle.fill" : "puzzlepiece.extension")
-                .foregroundStyle(isActive ? AppTint.accent : .secondary)
-                .frame(width: 22)
+            if isBatchSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(AppTint.accent)
+                    .frame(width: 22)
+            } else {
+                Image(systemName: isActive ? "checkmark.circle.fill" : "puzzlepiece.extension")
+                    .foregroundStyle(isActive ? AppTint.accent : .secondary)
+                    .frame(width: 22)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(source.name)

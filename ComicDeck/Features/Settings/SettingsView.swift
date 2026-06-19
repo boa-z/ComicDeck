@@ -440,9 +440,9 @@ private struct AboutView: View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: AppSpacing.xs) {
-                    Text("ComicDeck")
+                    Text(AppLocalization.text("settings.about.app_name", "ComicDeck"))
                         .font(.title3.weight(.semibold))
-                    Text("Comic management and reading for iOS.")
+                    Text(AppLocalization.text("settings.about.description", "Comic management and reading."))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

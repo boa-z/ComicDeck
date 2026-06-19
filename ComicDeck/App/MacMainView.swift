@@ -52,6 +52,11 @@ struct MacMainView: View {
         let keyword: String
     }
 
+    private nonisolated func appDebugLog(_ message: String) {
+        let line = "[SourceRuntime][DEBUG][MacMainView] \(message)"
+        RuntimeDebugConsole.appendRuntimeLine(line)
+    }
+
     var body: some View {
         NavigationSplitView {
             List(SidebarDestination.allCases, selection: $selectedDestination) { destination in
@@ -90,6 +95,9 @@ struct MacMainView: View {
                 .environment(vm.library)
                 .environment(vm.tracker)
                 .frame(minWidth: 820, minHeight: 620)
+        }
+        .overlay {
+            LoginSheetPresenter(login: vm.login, appDebugLog: appDebugLog)
         }
     }
 

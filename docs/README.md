@@ -9,6 +9,7 @@ This folder contains the maintained project documentation for ComicDeck.
 - [Troubleshooting](TROUBLESHOOTING.md): debugging and recovery paths
 - [Localization](LOCALIZATION.md): String Catalog and Crowdin workflow
 - [Release Checklist](RELEASE_CHECKLIST.md): pre-release validation list
+- [Cross-Platform Checklist](CROSS_PLATFORM_CHECKLIST.md): iOS/macOS feature parity and platform abstraction guidelines
 - [../llms.txt](../llms.txt): AI-friendly project map for agents and indexing
 
 ## Recommended Reading Order
