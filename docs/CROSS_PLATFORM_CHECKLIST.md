@@ -49,7 +49,7 @@ Use this checklist when adding or modifying features that affect both iOS and ma
 - [ ] Memory pressure handling: `ReaderPlatformMonitor` handles both platforms
 - [ ] Keep-screen-on: iOS only (via `PlatformCapabilities.supportsIdleTimerControl`)
 - [ ] Save page: iOS saves to Photos, macOS reveals in Finder
-- [ ] Image zoom: iOS uses UIScrollView, macOS uses SwiftUI ScrollView + MagnifyGesture
+- [ ] Image zoom: iOS uses UIScrollView, macOS uses NSScrollView via NSViewRepresentable (native trackpad pinch / ⌥-scroll zoom; SwiftUI ScrollView + MagnifyGesture was retired to fix a layout-solve feedback loop that pinned main-thread CPU at 100% in the reader)
 
 ## Testing
 

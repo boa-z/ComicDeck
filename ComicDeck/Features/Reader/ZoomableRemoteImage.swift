@@ -354,96 +354,413 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     }
 }
 #elseif os(macOS)
-struct ZoomableRemoteImage: View {
+import AppKit
+
+/// macOS zoomable image wrapper.
+///
+/// Backed by `NSScrollView` (via `NSViewRepresentable`) rather than a SwiftUI
+/// `ScrollView` + `.scaleEffect` + `MagnifyGesture` stack. The previous SwiftUI
+/// implementation created a layout-solve feedback loop — the `ScrollView`
+/// content size depended on the `Image` size, which depended on the
+/// `.frame(maxWidth/maxHeight: .infinity)`, which depended on the scroll view,
+/// driving the main thread to ~100% CPU whenever the reader was visible.
+///
+/// `NSScrollView.magnification` provides native trackpad pinch + ⌥-scroll zoom
+/// with a stable layout, mirroring the iOS `UIScrollView`-based implementation
+/// in the `#if os(iOS)` block above.
+@MainActor
+struct ZoomableRemoteImage: NSViewRepresentable {
     let request: URLRequest
     let overlays: [ReaderTextBlock]
     var displayScale: CGFloat = 2.0
     var onLongPressZoomStart: ((CGPoint) -> Void)?
     var onLongPressZoomEnd: (() -> Void)?
 
-    @State private var image: PlatformImage?
-    @State private var imageSize: CGSize?
-    @State private var errorText: String?
-    @State private var scale: CGFloat = 1
-    @State private var lastScale: CGFloat = 1
+    func makeCoordinator() -> Coordinator {
+        Coordinator(displayScale: displayScale)
+    }
 
-    var body: some View {
-        ZStack {
-            if let image {
-                ScrollView([.horizontal, .vertical]) {
-                    Image(platformImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .scaleEffect(scale)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .gesture(
-                            MagnifyGesture()
-                                .onChanged { value in
-                                    scale = min(max(lastScale * value.magnification, 1), 4)
-                                }
-                                .onEnded { _ in
-                                    lastScale = scale
-                                }
-                        )
-                        .onTapGesture(count: 2) {
-                            scale = scale > 1.01 ? 1 : 2
-                            lastScale = scale
-                        }
+    func makeNSView(context: Context) -> ZoomingImageScrollView {
+        let view = ZoomingImageScrollView()
+        context.coordinator.attach(view)
+        view.setOverlays(overlays)
+        view.onLongPressZoomStart = onLongPressZoomStart
+        view.onLongPressZoomEnd = onLongPressZoomEnd
+        context.coordinator.load(request)
+        return view
+    }
+
+    func updateNSView(_ nsView: ZoomingImageScrollView, context: Context) {
+        context.coordinator.attach(nsView)
+        nsView.setOverlays(overlays)
+        nsView.onLongPressZoomStart = onLongPressZoomStart
+        nsView.onLongPressZoomEnd = onLongPressZoomEnd
+        context.coordinator.updateRenderedImageIfNeeded()
+        context.coordinator.load(request)
+    }
+
+    static func dismantleNSView(_ nsView: ZoomingImageScrollView, coordinator: Coordinator) {
+        coordinator.cancel()
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        private weak var view: ZoomingImageScrollView?
+        private var loadTask: Task<Void, Never>?
+        private var currentKey = ""
+        private var currentRequest: URLRequest?
+        private var lastRenderedBaseImage: PlatformImage?
+        private var lastRenderedOverlays: [ReaderTextBlock]?
+        private let displayScale: CGFloat
+
+        init(displayScale: CGFloat) {
+            self.displayScale = max(1, displayScale)
+            super.init()
+        }
+
+        func attach(_ view: ZoomingImageScrollView) {
+            guard self.view !== view else { return }
+            self.view = view
+            view.doubleClickRecognizer.target = self
+            view.doubleClickRecognizer.action = #selector(handleDoubleClick(_:))
+            view.longPressRecognizer.target = self
+            view.longPressRecognizer.action = #selector(handleLongPress(_:))
+        }
+
+        func load(_ request: URLRequest) {
+            let key = urlRequestKey(request)
+            currentRequest = request
+            guard key != currentKey else { return }
+            currentKey = key
+            cancel()
+            view?.setLoading(true)
+            loadTask = Task { [weak self, displayScale] in
+                do {
+                    let data = try await ReaderImagePipeline.shared.loadData(for: request, priority: .visible)
+                    guard !Task.isCancelled else { return }
+                    let targetSize = await MainActor.run {
+                        self?.view?.bounds.size ?? .zero
+                    }
+                    guard !Task.isCancelled else { return }
+                    let resolvedTarget = ReaderPlainImageLayout.decodeTargetSize(
+                        for: max(targetSize.width, 1),
+                        imageSize: nil
+                    )
+                    guard let baseImage = ReaderDecodedImageStore.shared.image(
+                        for: request,
+                        data: data,
+                        targetSize: resolvedTarget,
+                        scale: displayScale,
+                        allowOriginalSize: false
+                    ) else {
+                        throw ReaderImagePipelineError.invalidResponse
+                    }
+                    await MainActor.run {
+                        self?.view?.setBaseImage(baseImage)
+                        self?.updateRenderedImageIfNeeded()
+                    }
+                } catch is CancellationError {
+                    return
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        self?.view?.setError(AppLocalization.text("reader.error.image_load_failed", "Failed to load image"))
+                    }
+                    readerDebugLog(
+                        "macOS image request error: \(error.localizedDescription), url=\(request.url?.absoluteString ?? "")",
+                        level: .error
+                    )
                 }
-            } else if let errorText {
-                VStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.yellow)
-                    Text(AppLocalization.text("reader.error.image_load_failed", "Failed to load image"))
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.85))
-                    Text(errorText)
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.55))
-                        .lineLimit(3)
-                }
-                .padding()
-            } else {
-                ProgressView()
-                    .controlSize(.large)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black)
-        .task(id: "\(urlRequestKey(request))|\(overlays.count)") {
-            await load()
+
+        func cancel() {
+            loadTask?.cancel()
+            loadTask = nil
+        }
+
+        @MainActor
+        func updateRenderedImageIfNeeded() {
+            guard let view, let baseImage = view.baseImage else { return }
+            let overlays = view.currentOverlays
+            guard lastRenderedBaseImage !== baseImage || lastRenderedOverlays != overlays || view.imageView.image == nil else { return }
+            let shouldResetViewport = lastRenderedBaseImage !== baseImage || view.imageView.image == nil
+            lastRenderedBaseImage = baseImage
+            lastRenderedOverlays = overlays
+
+            let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
+            view.setImage(image, resetViewport: shouldResetViewport)
+            readerDebugLog(
+                "macOS zoom translated image ready: overlays=\(overlays.count), size=\(Int(image.platformSize.width.rounded()))x\(Int(image.platformSize.height.rounded()))",
+                level: .info
+            )
+        }
+
+        @objc private func handleDoubleClick(_ recognizer: NSClickGestureRecognizer) {
+            guard let view else { return }
+            let location = recognizer.location(in: view.imageView)
+            view.toggleZoom(at: location)
+        }
+
+        @objc private func handleLongPress(_ recognizer: NSPressGestureRecognizer) {
+            guard let view else { return }
+            switch recognizer.state {
+            case .began:
+                let point = recognizer.location(in: view.imageView)
+                view.beginLongPressZoom(at: point)
+                view.onLongPressZoomStart?(point)
+            case .ended, .cancelled, .failed:
+                view.endLongPressZoom()
+                view.onLongPressZoomEnd?()
+            default:
+                break
+            }
+        }
+    }
+}
+
+/// macOS counterpart of the iOS `ZoomingImageScrollView` (UIScrollView subclass).
+///
+/// Uses `NSScrollView.magnification` for zoom, which decouples content layout
+/// from the scroll geometry and eliminates the SwiftUI layout feedback loop.
+final class ZoomingImageScrollView: NSScrollView {
+    let imageView = NSImageView()
+    let doubleClickRecognizer = NSClickGestureRecognizer()
+    let longPressRecognizer = NSPressGestureRecognizer()
+    private let loadingIndicator = NSProgressIndicator()
+    private let loadingLabel = NSTextField(labelWithString: "")
+    private let errorLabel = NSTextField(labelWithString: "")
+    var currentOverlays: [ReaderTextBlock] = []
+    var baseImage: PlatformImage?
+    private var lastBoundsSize: CGSize = .zero
+    private var isLongPressZoomed = false
+    private var longPressRestoreMagnification: CGFloat = 1
+    var onLongPressZoomStart: ((CGPoint) -> Void)?
+    var onLongPressZoomEnd: (() -> Void)?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setup()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setup()
+    }
+
+    private func setup() {
+        backgroundColor = .black
+        drawsBackground = true
+        borderType = .noBorder
+        hasVerticalScroller = false
+        hasHorizontalScroller = false
+        autohidesScrollers = true
+        verticalScrollElasticity = .allowed
+        horizontalScrollElasticity = .allowed
+        allowsMagnification = true
+        minMagnification = 1
+        maxMagnification = 4
+
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.imageAlignment = .alignCenter
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        documentView = imageView
+
+        // Gestures attach to the clip view so they keep working while zoomed.
+        doubleClickRecognizer.numberOfClicksRequired = 2
+        doubleClickRecognizer.delaysPrimaryMouseButtonEvents = false
+        contentView.addGestureRecognizer(doubleClickRecognizer)
+
+        longPressRecognizer.minimumPressDuration = 0.25
+        longPressRecognizer.allowableMovement = 8
+        contentView.addGestureRecognizer(longPressRecognizer)
+
+        loadingIndicator.style = .spinning
+        loadingIndicator.controlSize = .regular
+        loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(loadingIndicator)
+
+        loadingLabel.stringValue = AppLocalization.text("reader.loading.image", "Loading image...")
+        loadingLabel.textColor = NSColor.white.withAlphaComponent(0.56)
+        loadingLabel.font = .preferredFont(forTextStyle: .caption2)
+        loadingLabel.alignment = .center
+        loadingLabel.isBezeled = false
+        loadingLabel.drawsBackground = false
+        loadingLabel.isSelectable = false
+        loadingLabel.translatesAutoresizingMaskIntoConstraints = false
+        loadingLabel.isHidden = true
+        addSubview(loadingLabel)
+
+        errorLabel.textColor = .white
+        errorLabel.font = .preferredFont(forTextStyle: .caption1)
+        errorLabel.alignment = .center
+        errorLabel.maximumNumberOfLines = 2
+        errorLabel.isBezeled = false
+        errorLabel.drawsBackground = false
+        errorLabel.isSelectable = false
+        errorLabel.translatesAutoresizingMaskIntoConstraints = false
+        errorLabel.cell?.truncatesLastVisibleLine = true
+        errorLabel.cell?.wraps = true
+        errorLabel.isHidden = true
+        addSubview(errorLabel)
+
+        NSLayoutConstraint.activate([
+            loadingIndicator.centerXAnchor.constraint(equalTo: centerXAnchor),
+            loadingIndicator.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -12),
+            loadingLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            loadingLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+            loadingLabel.topAnchor.constraint(equalTo: centerYAnchor, constant: 8),
+            errorLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            errorLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
+            errorLabel.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+    }
+
+    override func layout() {
+        super.layout()
+        if bounds.size != lastBoundsSize {
+            lastBoundsSize = bounds.size
+            recalculateMagnificationScales()
         }
     }
 
-    private func load() async {
-        errorText = nil
-        image = nil
-        do {
-            let data = try await ReaderImagePipeline.shared.loadData(for: request, priority: .visible)
-            guard !Task.isCancelled else { return }
-            guard let baseImage = ReaderDecodedImageStore.shared.image(
-                for: request,
-                data: data,
-                targetSize: imageSize ?? .zero,
-                scale: displayScale,
-                allowOriginalSize: true
-            ) else {
-                throw ReaderImagePipelineError.invalidResponse
-            }
-            let rendered = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
-            imageSize = rendered.platformSize
-            image = rendered
-            scale = 1
-            lastScale = 1
-        } catch is CancellationError {
-            return
-        } catch {
-            errorText = error.localizedDescription
-            readerDebugLog(
-                "macOS image request error: \(error.localizedDescription), url=\(request.url?.absoluteString ?? "")",
-                level: .error
-            )
+    override func viewDidEndLiveResize() {
+        super.viewDidEndLiveResize()
+        recalculateMagnificationScales()
+    }
+
+    func setLoading(_ loading: Bool) {
+        if loading {
+            errorLabel.isHidden = true
+            loadingLabel.isHidden = false
+            loadingIndicator.startAnimation(nil)
+        } else {
+            loadingIndicator.stopAnimation(nil)
+            loadingLabel.isHidden = true
         }
+    }
+
+    func setImage(_ image: PlatformImage, resetViewport: Bool = true) {
+        imageView.image = image
+        errorLabel.isHidden = true
+        setLoading(false)
+        if resetViewport {
+            contentView.setBoundsOrigin(.zero)
+            shouldResetZoomOnNextLayout = true
+        }
+        recalculateMagnificationScales(resetToMin: resetViewport)
+    }
+
+    func setBaseImage(_ image: PlatformImage) {
+        baseImage = image
+    }
+
+    func setError(_ text: String) {
+        setLoading(false)
+        imageView.image = nil
+        errorLabel.stringValue = text.isEmpty
+            ? AppLocalization.text("reader.error.image_load_failed", "Failed to load image")
+            : text
+        errorLabel.isHidden = false
+        magnification = 1
+        minMagnification = 1
+        maxMagnification = 1
+    }
+
+    private var shouldResetZoomOnNextLayout = false
+
+    private func recalculateMagnificationScales(resetToMin: Bool = false) {
+        guard let image = imageView.image, image.size.width > 0, image.size.height > 0 else {
+            imageView.frame = bounds
+            minMagnification = 1
+            maxMagnification = 1
+            magnification = 1
+            return
+        }
+        guard bounds.width > 0, bounds.height > 0 else {
+            imageView.frame = NSRect(origin: .zero, size: image.size)
+            shouldResetZoomOnNextLayout = true
+            return
+        }
+
+        // Size the document view to the image's natural dimensions; magnification
+        // drives the on-screen scale independently (no frame/scale feedback).
+        imageView.frame = NSRect(origin: .zero, size: image.size)
+
+        let widthScale = bounds.width / image.size.width
+        let heightScale = bounds.height / image.size.height
+        let fitScale = max(min(widthScale, heightScale), 0.001)
+        let minScale = fitScale
+        let maxScale = max(fitScale * 4, fitScale + 0.01)
+
+        minMagnification = minScale
+        maxMagnification = maxScale
+        if resetToMin || shouldResetZoomOnNextLayout {
+            magnification = minScale
+            centerContentInView(atMinScale: minScale)
+            shouldResetZoomOnNextLayout = false
+        } else {
+            magnification = min(max(magnification, minScale), maxScale)
+        }
+    }
+
+    private func centerContentInView(atMinScale minScale: CGFloat) {
+        guard let image = imageView.image else { return }
+        let scaledWidth = image.size.width * minScale
+        let scaledHeight = image.size.height * minScale
+        let horizontalInset = max(0, (bounds.width - scaledWidth) / 2)
+        let verticalInset = max(0, (bounds.height - scaledHeight) / 2)
+        contentView.setBoundsOrigin(NSPoint(
+            x: -horizontalInset / minScale,
+            y: -verticalInset / minScale
+        ))
+    }
+
+    func setOverlays(_ overlays: [ReaderTextBlock]) {
+        guard currentOverlays != overlays else { return }
+        currentOverlays = overlays
+        readerDebugLog(
+            "macOS zoom translated image payload updated: overlays=\(overlays.count)",
+            level: .info
+        )
+    }
+
+    func toggleZoom(at point: CGPoint) {
+        guard imageView.image != nil else { return }
+        let anchor = contentViewAnchor(forDocumentPoint: point)
+        if magnification > minMagnification + 0.01 {
+            setMagnification(minMagnification, centeredAt: anchor)
+        } else {
+            let target = min(maxMagnification, max(minMagnification * 2.0, minMagnification + 0.01))
+            setMagnification(target, centeredAt: anchor)
+        }
+    }
+
+    func beginLongPressZoom(at point: CGPoint) {
+        guard imageView.image != nil, !isLongPressZoomed else { return }
+        isLongPressZoomed = true
+        longPressRestoreMagnification = magnification
+        let target = min(maxMagnification, max(minMagnification * 1.75, minMagnification + 0.01))
+        let anchor = contentViewAnchor(forDocumentPoint: point)
+        setMagnification(target, centeredAt: anchor)
+    }
+
+    func endLongPressZoom() {
+        guard isLongPressZoomed else { return }
+        isLongPressZoomed = false
+        let target = max(minMagnification, min(longPressRestoreMagnification, maxMagnification))
+        // Anchor at the current visible center so the view does not jump.
+        let anchor = NSPoint(
+            x: contentView.bounds.midX,
+            y: contentView.bounds.midY
+        )
+        setMagnification(target, centeredAt: anchor)
+    }
+
+    /// Converts a point in the document view (`imageView`) coordinate space to
+    /// the contentView coordinate space expected by `setMagnification(_:centeredAt:)`.
+    private func contentViewAnchor(forDocumentPoint point: CGPoint) -> CGPoint {
+        contentView.convert(point, from: imageView)
     }
 }
 #endif

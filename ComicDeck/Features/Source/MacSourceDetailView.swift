@@ -67,44 +67,53 @@ struct MacSourceDetailView: View {
             LabeledContent(AppLocalization.text("source.detail.version", "Version"), value: source.version)
             LabeledContent(AppLocalization.text("source.detail.script", "Script"), value: source.scriptFileName)
 
-            HStack(spacing: 8) {
-                Button {
-                    sourceManager.selectSource(source)
-                } label: {
-                    Label(
-                        isSelected ? AppLocalization.text("source.detail.selected", "Selected") : AppLocalization.text("source.action.use", "Use Source"),
-                        systemImage: isSelected ? "checkmark.circle.fill" : "checkmark.circle"
-                    )
-                }
-                .disabled(isSelected || sourceManager.isOperating(on: source.key))
-
-                if updateVersion != nil {
-                    Button {
-                        Task { await sourceManager.updateSource(source) }
-                    } label: {
-                        Label(
-                            sourceManager.isOperating(on: source.key)
-                                ? AppLocalization.text("source.action.updating", "Updating...")
-                                : AppLocalization.text("source.action.update", "Update"),
-                            systemImage: "square.and.arrow.down"
-                        )
-                    }
-                    .disabled(sourceManager.isOperating(on: source.key))
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    overviewActionButtons
                 }
 
-                Spacer(minLength: 0)
-
-                Button(role: .destructive) {
-                    Task { await sourceManager.uninstallSource(source) }
-                } label: {
-                    Label(AppLocalization.text("source.action.delete", "Delete"), systemImage: "trash")
+                VStack(alignment: .leading, spacing: 8) {
+                    overviewActionButtons
                 }
-                .disabled(sourceManager.isOperating(on: source.key))
             }
             .padding(.top, 4)
         } header: {
             Text(source.name)
         }
+    }
+
+    @ViewBuilder
+    private var overviewActionButtons: some View {
+        Button {
+            sourceManager.selectSource(source)
+        } label: {
+            Label(
+                isSelected ? AppLocalization.text("source.detail.selected", "Selected") : AppLocalization.text("source.action.use", "Use Source"),
+                systemImage: isSelected ? "checkmark.circle.fill" : "checkmark.circle"
+            )
+        }
+        .disabled(isSelected || sourceManager.isOperating(on: source.key))
+
+        if updateVersion != nil {
+            Button {
+                Task { await sourceManager.updateSource(source) }
+            } label: {
+                Label(
+                    sourceManager.isOperating(on: source.key)
+                        ? AppLocalization.text("source.action.updating", "Updating...")
+                        : AppLocalization.text("source.action.update", "Update"),
+                    systemImage: "square.and.arrow.down"
+                )
+            }
+            .disabled(sourceManager.isOperating(on: source.key))
+        }
+
+        Button(role: .destructive) {
+            Task { await sourceManager.uninstallSource(source) }
+        } label: {
+            Label(AppLocalization.text("source.action.delete", "Delete"), systemImage: "trash")
+        }
+        .disabled(sourceManager.isOperating(on: source.key))
     }
 
     // MARK: - Support

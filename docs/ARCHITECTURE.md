@@ -265,6 +265,8 @@ Design intent:
 - downloads and offline flows still use the existing eager full-request resolution path, while the reader uses the additive progressive request-session path
 - image caching and page-byte loading stay outside the view tree in `ReaderImagePipeline`; progressive loading only changes how `ImageRequest` values are generated
 - current-page export loads the selected page through `ReaderImagePipeline`, decodes with the shared decoded-image store, and renders translation overlays when the translated view is active
+- macOS reader image zoom uses `NSScrollView` (wrapped via `NSViewRepresentable`) rather than a SwiftUI `ScrollView` + `.scaleEffect` + `MagnifyGesture` stack to avoid a layout-solve feedback loop that pinned the main thread near 100% CPU whenever the reader was visible; zoom is driven by `NSScrollView.magnification` for native trackpad pinch and ⌥-scroll support, mirroring the iOS `UIScrollView`-based implementation
+- macOS page decode target size is bound to the `NSScrollView` bounds with `allowOriginalSize: false`, capping per-page decode cost (a single 2000×3000 page decodes to ~10–20 MB instead of ~96 MB) and avoiding memory-pressure callback loops
 
 ### Reader Translation
 

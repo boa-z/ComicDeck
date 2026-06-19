@@ -65,10 +65,11 @@ struct MacMainView: View {
             }
             .navigationTitle(AppLocalization.text("settings.about.app_name", "ComicDeck"))
             .frame(minWidth: 190)
+            .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 240)
         } detail: {
             detailView
         }
-        .frame(minWidth: 980, minHeight: 680)
+        .frame(minWidth: 820, minHeight: 600)
         .task {
             await vm.prepareIfNeeded()
         }

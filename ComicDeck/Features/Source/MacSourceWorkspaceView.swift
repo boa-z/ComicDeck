@@ -47,40 +47,7 @@ struct MacSourceWorkspaceView: View {
                 .navigationTitle(AppLocalization.text("source.management.title", "Sources"))
                 .searchable(text: $query, prompt: AppLocalization.text("source.management.search_placeholder", "Search sources"))
                 .toolbar {
-                    ToolbarItemGroup(placement: .primaryAction) {
-                        if !batchSelection.isEmpty {
-                            if !selectedUpdatableSources.isEmpty {
-                                Button {
-                                    Task { await updateSelectedSources() }
-                                } label: {
-                                    Label(AppLocalization.text("source.action.update_selected", "Update Selected"), systemImage: "square.and.arrow.down")
-                                }
-                                .disabled(batchWorking)
-                            }
-
-                            Button(role: .destructive) {
-                                showBatchDeleteConfirm = true
-                            } label: {
-                                Label(AppLocalization.text("source.action.delete_selected", "Delete Selected"), systemImage: "trash")
-                            }
-                            .disabled(batchWorking)
-
-                            Divider()
-                        }
-
-                        if hasAvailableUpdates {
-                            Button {
-                                Task { await updateAllInstalledSources() }
-                            } label: {
-                                if batchWorking {
-                                    ProgressView().controlSize(.small)
-                                } else {
-                                    Label(AppLocalization.text("source.action.update_all", "Update All"), systemImage: "arrow.down.circle")
-                                }
-                            }
-                            .disabled(batchWorking)
-                        }
-
+                    ToolbarItem(placement: .primaryAction) {
                         Button {
                             Task { await sourceManager.refreshRemoteSources(forceRefresh: true) }
                         } label: {
@@ -92,7 +59,50 @@ struct MacSourceWorkspaceView: View {
                         }
                         .disabled(sourceManager.refreshingIndex)
                     }
+
+                    ToolbarItem(placement: .primaryAction) {
+                        Menu {
+                            if !batchSelection.isEmpty {
+                                if !selectedUpdatableSources.isEmpty {
+                                    Button {
+                                        Task { await updateSelectedSources() }
+                                    } label: {
+                                        Label(AppLocalization.text("source.action.update_selected", "Update Selected"), systemImage: "square.and.arrow.down")
+                                    }
+                                    .disabled(batchWorking)
+                                }
+
+                                Button(role: .destructive) {
+                                    showBatchDeleteConfirm = true
+                                } label: {
+                                    Label(AppLocalization.text("source.action.delete_selected", "Delete Selected"), systemImage: "trash")
+                                }
+                                .disabled(batchWorking)
+
+                                Divider()
+                            }
+
+                            Button {
+                                Task { await updateAllInstalledSources() }
+                            } label: {
+                                Label(AppLocalization.text("source.action.update_all", "Update All"), systemImage: "arrow.down.circle")
+                            }
+                            .disabled(!hasAvailableUpdates || batchWorking)
+
+                            Button(AppLocalization.text("source.action.check_updates", "Check Updates")) {
+                                sourceManager.checkSourceUpdates()
+                            }
+                        } label: {
+                            if batchWorking {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Label(AppLocalization.text("tracking.sync.more", "More"), systemImage: "ellipsis.circle")
+                            }
+                        }
+                        .menuStyle(.button)
+                    }
                 }
+                .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 360)
         } detail: {
             detailView
         }
@@ -238,7 +248,7 @@ struct MacSourceWorkspaceView: View {
                     login: vm.login,
                     source: source
                 )
-                .frame(minWidth: 460, idealWidth: 560)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .navigationSubtitle(AppLocalization.text("source.detail.installed", "Installed"))
             } else {
                 emptyDetail
@@ -246,13 +256,13 @@ struct MacSourceWorkspaceView: View {
         case .remote(let key):
             if let item = sourceManager.remoteSources.first(where: { sourceManager.resolvedKey(for: $0) == key }) {
                 MacRemoteSourceDetailView(sourceManager: sourceManager, item: item)
-                    .frame(minWidth: 460, idealWidth: 560)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 emptyDetail
             }
         case .index, nil:
             MacSourceIndexDetailView(sourceManager: sourceManager)
-                .frame(minWidth: 460, idealWidth: 560)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -456,33 +466,13 @@ private struct MacSourceIndexDetailView: View {
 
                 Toggle(AppLocalization.text("source.management.auto_load_toggle", "Auto-load source index on open"), isOn: $sourceManager.autoLoadRemoteSources)
 
-                HStack {
-                    Button {
-                        Task { await sourceManager.refreshRemoteSources(forceRefresh: true) }
-                    } label: {
-                        if sourceManager.refreshingIndex {
-                            Label(AppLocalization.text("source.repository.refreshing", "Refreshing..."), systemImage: "arrow.clockwise")
-                        } else {
-                            Label(AppLocalization.text("source.action.refresh", "Refresh"), systemImage: "arrow.clockwise")
-                        }
-                    }
-                    .disabled(sourceManager.refreshingIndex)
-
-                    Button(AppLocalization.text("source.action.check_updates", "Check Updates")) {
-                        sourceManager.checkSourceUpdates()
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        indexActionButtons
                     }
 
-                    if !sourceManager.availableSourceUpdates.isEmpty {
-                        Button {
-                            Task { await sourceManager.updateAllSources() }
-                        } label: {
-                            if sourceManager.updatingAll {
-                                Label(AppLocalization.text("source.action.updating", "Updating..."), systemImage: "square.and.arrow.down")
-                            } else {
-                                Label(AppLocalization.text("source.action.update_all", "Update All"), systemImage: "square.and.arrow.down")
-                            }
-                        }
-                        .disabled(sourceManager.updatingAll)
+                    VStack(alignment: .leading, spacing: 8) {
+                        indexActionButtons
                     }
                 }
             }
@@ -501,6 +491,39 @@ private struct MacSourceIndexDetailView: View {
         }
         .formStyle(.grouped)
         .navigationSubtitle(AppLocalization.text("source.management.repository", "Source Index"))
+    }
+
+    @ViewBuilder
+    private var indexActionButtons: some View {
+        Group {
+            Button {
+                Task { await sourceManager.refreshRemoteSources(forceRefresh: true) }
+            } label: {
+                if sourceManager.refreshingIndex {
+                    Label(AppLocalization.text("source.repository.refreshing", "Refreshing..."), systemImage: "arrow.clockwise")
+                } else {
+                    Label(AppLocalization.text("source.action.refresh", "Refresh"), systemImage: "arrow.clockwise")
+                }
+            }
+            .disabled(sourceManager.refreshingIndex)
+
+            Button(AppLocalization.text("source.action.check_updates", "Check Updates")) {
+                sourceManager.checkSourceUpdates()
+            }
+
+            if !sourceManager.availableSourceUpdates.isEmpty {
+                Button {
+                    Task { await sourceManager.updateAllSources() }
+                } label: {
+                    if sourceManager.updatingAll {
+                        Label(AppLocalization.text("source.action.updating", "Updating..."), systemImage: "square.and.arrow.down")
+                    } else {
+                        Label(AppLocalization.text("source.action.update_all", "Update All"), systemImage: "square.and.arrow.down")
+                    }
+                }
+                .disabled(sourceManager.updatingAll)
+            }
+        }
     }
 }
 
