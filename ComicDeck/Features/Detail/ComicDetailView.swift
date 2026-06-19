@@ -44,6 +44,10 @@ struct ComicDetailView: View {
     private var sourceDisplayName: String {
         vm.sourceManager.installedSources.first(where: { $0.key == item.sourceKey })?.name ?? item.sourceKey
     }
+
+    private var detailIdentity: String {
+        "\(item.sourceKey)::\(item.id)"
+    }
     
     private func dedupedPreviewComments(_ comments: [ComicComment], maxCount: Int = 5) -> [ComicComment] {
         func normalize(_ text: String) -> String {
@@ -97,8 +101,11 @@ struct ComicDetailView: View {
                     toolbarMenu
                 }
             }
-            .task {
-                await model.load(using: vm, library: library)
+            .task(id: detailIdentity) {
+                let currentModel = ComicDetailScreenModel(item: item)
+                model = currentModel
+                didConsumeInitialReadRoute = false
+                await currentModel.load(using: vm, library: library)
             }
             .onChange(of: model.detail != nil) { _, isReady in
                 guard isReady else { return }
@@ -341,57 +348,9 @@ struct ComicDetailView: View {
         )
         .id("hero")
 
-        ComicTrackerSection(
-            providers: TrackerProvider.allCases.map {
-                ComicTrackerProviderState(
-                    provider: $0,
-                    account: vm.tracker.account(for: $0),
-                    binding: vm.tracker.binding(for: item, provider: $0),
-                    syncing: vm.tracker.syncing,
-                    statusText: vm.tracker.status
-                )
-            },
-            manualDefaultDirection: vm.tracker.manualSyncDefaultDirection,
-            onLink: { trackerSearchProvider = $0 },
-            onSync: { provider, direction in
-                syncTrackerBinding(detail: detail, provider: provider, direction: direction)
-            },
-            onUnlink: { unlinkTrackerBinding(provider: $0) }
-        )
-
-        ComicDetailTagsSection(groups: detail.tags) { namespace, tag in
-            Task { await onTagTap(namespace: namespace, tag: tag) }
-        }
-        .id(DetailAnchor.tags)
-        ComicDetailFavoriteSection(
-            effectiveIsFavorited: model.effectiveIsFavorited,
-            favoriteFolders: model.actionableFavoriteFolders,
-            isRootFavoriteWorking: model.rootFavoriteWorking,
-            favoriteStatus: model.favoriteStatus,
-            onToggleFavorite: {
-                model.startToggleFavorite(using: vm, isAdding: !model.effectiveIsFavorited)
-            },
-            onToggleFolderFavorite: { folder in
-                model.startToggleFavorite(using: vm, folderID: folder.id, isAdding: !folder.isFavorited)
-            },
-            isFolderFavoriteWorking: { folderID in
-                model.isFavoriteWorking(folderID: folderID)
-            }
-        )
-        if model.commentCapabilities.canLoad || !detail.comments.isEmpty || (detail.commentsCount ?? 0) > 0 {
-            ComicDetailCommentsSection(
-                title: "Comments (\(detail.commentsCount ?? detail.comments.count))",
-                canLoad: model.commentCapabilities.canLoad,
-                previewComments: model.showCommentPreview ? dedupedPreviewComments(detail.comments) : [],
-                isPreviewExpanded: model.showCommentPreview,
-                previewNote: previewNote(for: detail),
-                onTogglePreview: { model.showCommentPreview.toggle() },
-                onOpenComments: { model.showCommentsPage = true }
-            )
-            .id(DetailAnchor.comments)
-        }
         ComicDetailChaptersSection(
             chapters: displayedChapters(from: detail),
+            totalChapterCount: detail.chapters.count,
             chapterQuery: Binding(
                 get: { model.chapterQuery },
                 set: { model.chapterQuery = $0 }
@@ -402,6 +361,23 @@ struct ComicDetailView: View {
             ),
             continueChapterID: continueTarget(from: detail)?.chapterID,
             downloadStateByChapterID: downloadStateByChapterID(for: detail),
+            queueingAll: model.queueingAll,
+            queueAllProgressText: model.queueAllProgressText,
+            onQueueAll: {
+                if detail.chapters.isEmpty {
+                    let target = readTarget(from: detail)
+                    Task {
+                        await model.enqueueDownload(
+                            using: vm,
+                            library: library,
+                            chapterID: target.chapterID,
+                            chapterTitle: target.chapterTitle
+                        )
+                    }
+                } else {
+                    model.showQueueAllConfirm = true
+                }
+            },
             onReadSingleChapter: {
                 readRoute = ReaderLaunchContext.fromChapter(
                     item: item,
@@ -442,6 +418,62 @@ struct ComicDetailView: View {
             }
         )
         .id(DetailAnchor.chapters)
+
+        ComicDetailTagsSection(groups: detail.tags) { namespace, tag in
+            Task { await onTagTap(namespace: namespace, tag: tag) }
+        }
+        .id(DetailAnchor.tags)
+
+        if model.commentCapabilities.canLoad || !detail.comments.isEmpty || (detail.commentsCount ?? 0) > 0 {
+            ComicDetailCommentsSection(
+                title: AppLocalization.format(
+                    "detail.comments.title_count_format",
+                    "Comments (%lld)",
+                    Int64(detail.commentsCount ?? detail.comments.count)
+                ),
+                canLoad: model.commentCapabilities.canLoad,
+                previewComments: model.showCommentPreview ? dedupedPreviewComments(detail.comments) : [],
+                isPreviewExpanded: model.showCommentPreview,
+                previewNote: previewNote(for: detail),
+                onTogglePreview: { model.showCommentPreview.toggle() },
+                onOpenComments: { model.showCommentsPage = true }
+            )
+            .id(DetailAnchor.comments)
+        }
+
+        ComicTrackerSection(
+            providers: TrackerProvider.allCases.map {
+                ComicTrackerProviderState(
+                    provider: $0,
+                    account: vm.tracker.account(for: $0),
+                    binding: vm.tracker.binding(for: item, provider: $0),
+                    syncing: vm.tracker.syncing,
+                    statusText: vm.tracker.status
+                )
+            },
+            manualDefaultDirection: vm.tracker.manualSyncDefaultDirection,
+            onLink: { trackerSearchProvider = $0 },
+            onSync: { provider, direction in
+                syncTrackerBinding(detail: detail, provider: provider, direction: direction)
+            },
+            onUnlink: { unlinkTrackerBinding(provider: $0) }
+        )
+
+        ComicDetailFavoriteSection(
+            effectiveIsFavorited: model.effectiveIsFavorited,
+            favoriteFolders: model.actionableFavoriteFolders,
+            isRootFavoriteWorking: model.rootFavoriteWorking,
+            favoriteStatus: model.favoriteStatus,
+            onToggleFavorite: {
+                model.startToggleFavorite(using: vm, isAdding: !model.effectiveIsFavorited)
+            },
+            onToggleFolderFavorite: { folder in
+                model.startToggleFavorite(using: vm, folderID: folder.id, isAdding: !folder.isFavorited)
+            },
+            isFolderFavoriteWorking: { folderID in
+                model.isFavoriteWorking(folderID: folderID)
+            }
+        )
     }
 
     private var detailSearchQuery: String {

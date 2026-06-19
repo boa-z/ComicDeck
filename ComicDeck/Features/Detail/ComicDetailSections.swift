@@ -79,11 +79,26 @@ struct ComicDetailHeroSection: View {
 
     private var briefInfoItems: [BriefInfoItem] {
         var items: [BriefInfoItem] = [
-            .init(value: "\(chapterCount)", caption: "Chapters", icon: "books.vertical", action: onTapChapters),
-            .init(value: "\(commentCount)", caption: "Comments", icon: "text.bubble", action: onTapComments)
+            .init(
+                value: "\(chapterCount)",
+                caption: AppLocalization.text("detail.hero.metric.chapters", "Chapters"),
+                icon: "books.vertical",
+                action: onTapChapters
+            ),
+            .init(
+                value: "\(commentCount)",
+                caption: AppLocalization.text("detail.hero.metric.comments", "Comments"),
+                icon: "text.bubble",
+                action: onTapComments
+            )
         ]
         if !item.tags.isEmpty, let onTapTags {
-            items.append(.init(value: "\(item.tags.count)", caption: "Tags", icon: "tag", action: onTapTags))
+            items.append(.init(
+                value: "\(item.tags.count)",
+                caption: AppLocalization.text("detail.hero.metric.tags", "Tags"),
+                icon: "tag",
+                action: onTapTags
+            ))
         }
         return items
     }
@@ -150,7 +165,11 @@ struct ComicDetailHeroSection: View {
                         }
 
                     if needsExpansion {
-                        Button(showFullDescription ? "Show Less" : "Show More") {
+                        Button(
+                            showFullDescription
+                                ? AppLocalization.text("detail.hero.description.show_less", "Show Less")
+                                : AppLocalization.text("detail.hero.description.show_more", "Show More")
+                        ) {
                             showFullDescription.toggle()
                         }
                         .buttonStyle(.borderless)
@@ -174,7 +193,7 @@ struct ComicDetailHeroSection: View {
                     }
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Summary tags")
+                .accessibilityLabel(AppLocalization.text("detail.hero.summary_tags", "Summary tags"))
                 .accessibilityValue(item.tags.joined(separator: ", "))
             }
         }
@@ -211,7 +230,7 @@ struct ComicDetailHeroSection: View {
             HStack(spacing: 10) {
                 if showContinue {
                     actionButton(
-                        title: "Continue",
+                        title: AppLocalization.text("detail.hero.action.continue", "Continue"),
                         icon: "play.fill",
                         prominence: .primary,
                         action: onContinue
@@ -219,7 +238,7 @@ struct ComicDetailHeroSection: View {
                 }
 
                 actionButton(
-                    title: "Start",
+                    title: AppLocalization.text("detail.hero.action.start", "Start"),
                     icon: "book.fill",
                     prominence: showContinue ? .secondary : .primary,
                     action: onStart
@@ -228,7 +247,9 @@ struct ComicDetailHeroSection: View {
 
             HStack(spacing: 10) {
                 actionButton(
-                    title: isBookmarked ? "Bookmarked" : "Bookmark",
+                    title: isBookmarked
+                        ? AppLocalization.text("detail.hero.action.bookmarked", "Bookmarked")
+                        : AppLocalization.text("detail.hero.action.bookmark", "Bookmark"),
                     icon: isBookmarked ? "bookmark.fill" : "bookmark",
                     prominence: isBookmarked ? .tinted : .secondary,
                     disabled: bookmarkWorking,
@@ -237,7 +258,7 @@ struct ComicDetailHeroSection: View {
 
                 if canShowComments {
                     actionButton(
-                        title: "Comments",
+                        title: AppLocalization.text("detail.hero.action.comments", "Comments"),
                         icon: "text.bubble",
                         prominence: .secondary,
                         action: onOpenComments
@@ -247,7 +268,7 @@ struct ComicDetailHeroSection: View {
 
             HStack(spacing: 10) {
                 actionButton(
-                    title: hasChapters ? (queueingAll ? (queueAllProgressText.isEmpty ? "Queueing..." : queueAllProgressText) : "Queue All") : "Download",
+                    title: hasChapters ? queueAllTitle : AppLocalization.text("detail.hero.action.download", "Download"),
                     icon: "arrow.down.circle",
                     prominence: .secondary,
                     disabled: queueingAll,
@@ -259,6 +280,15 @@ struct ComicDetailHeroSection: View {
                     .accessibilityHidden(true)
             }
         }
+    }
+
+    private var queueAllTitle: String {
+        if queueingAll {
+            return queueAllProgressText.isEmpty
+                ? AppLocalization.text("detail.queue_all.queueing", "Queueing...")
+                : queueAllProgressText
+        }
+        return AppLocalization.text("detail.queue_all.action", "Queue All")
     }
 
     private func briefInfoButton(item: BriefInfoItem) -> some View {
@@ -290,7 +320,11 @@ struct ComicDetailHeroSection: View {
         .buttonStyle(.plain)
         .accessibilityLabel(item.caption)
         .accessibilityValue(item.value)
-        .accessibilityHint("Jump to \(item.caption.lowercased())")
+        .accessibilityHint(AppLocalization.format(
+            "detail.hero.metric.jump_hint_format",
+            "Jump to %@",
+            item.caption.lowercased()
+        ))
     }
 
     private func actionButton(
@@ -361,7 +395,10 @@ struct ComicDetailTagsSection: View {
 
     var body: some View {
         if !groups.isEmpty {
-            ComicDetailSectionCard(title: "Tags", subtitle: "Use tags to jump across source taxonomy") {
+            ComicDetailSectionCard(
+                title: AppLocalization.text("detail.tags.title", "Tags"),
+                subtitle: AppLocalization.text("detail.tags.subtitle", "Browse related comics from this source")
+            ) {
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
                     ForEach(groups) { group in
                         VStack(alignment: .leading, spacing: 8) {
@@ -393,7 +430,10 @@ struct ComicDetailFavoriteSection: View {
     let isFolderFavoriteWorking: (String) -> Bool
 
     var body: some View {
-        ComicDetailSectionCard(title: "Source Favorite", subtitle: "Sync the comic with source-side favorites") {
+        ComicDetailSectionCard(
+            title: AppLocalization.text("detail.favorite.title", "Source Favorite"),
+            subtitle: AppLocalization.text("detail.favorite.subtitle", "Keep this comic in your source account")
+        ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 HStack {
                     Label("Status", systemImage: effectiveIsFavorited ? "heart.fill" : "heart")
@@ -465,7 +505,10 @@ struct ComicDetailCommentsSection: View {
     let onOpenComments: () -> Void
 
     var body: some View {
-        ComicDetailSectionCard(title: title, subtitle: "Preview and inspect the source comment thread") {
+        ComicDetailSectionCard(
+            title: title,
+            subtitle: AppLocalization.text("detail.comments.subtitle", "Join the source discussion")
+        ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 if canLoad {
                     Button(action: onOpenComments) {
@@ -513,10 +556,14 @@ struct ComicDetailCommentsSection: View {
 
 struct ComicDetailChaptersSection: View {
     let chapters: [ComicChapter]
+    let totalChapterCount: Int
     let chapterQuery: Binding<String>
     let chapterDescending: Binding<Bool>
     let continueChapterID: String?
     let downloadStateByChapterID: [String: DownloadStatus]
+    let queueingAll: Bool
+    let queueAllProgressText: String
+    let onQueueAll: () -> Void
     let onReadSingleChapter: () -> Void
     let onDownloadSingleChapter: () -> Void
     let onReadChapter: (ComicChapter) -> Void
@@ -524,12 +571,12 @@ struct ComicDetailChaptersSection: View {
 
     var body: some View {
         ComicDetailSectionCard(
-            title: "Chapters",
-            subtitle: chapters.isEmpty ? "This source exposes a single chapter entry" : "\(chapters.count) chapters available"
+            title: AppLocalization.text("detail.chapters.title", "Chapters"),
+            subtitle: chapterSubtitle
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
-                if chapters.isEmpty {
-                    Button("Read (single chapter)") {
+                if totalChapterCount == 0 {
+                    Button(AppLocalization.text("detail.chapters.read_single", "Read Chapter")) {
                         onReadSingleChapter()
                     }
                     .buttonStyle(.borderedProminent)
@@ -537,12 +584,12 @@ struct ComicDetailChaptersSection: View {
                     Button {
                         onDownloadSingleChapter()
                     } label: {
-                        Label("Download Chapter 1", systemImage: "arrow.down.circle")
+                        Label(AppLocalization.text("detail.chapters.download_single", "Download Chapter"), systemImage: "arrow.down.circle")
                     }
                     .buttonStyle(.bordered)
                 } else {
                     HStack(spacing: AppSpacing.sm) {
-                        TextField("Search chapter", text: chapterQuery)
+                        TextField(AppLocalization.text("detail.chapters.search_placeholder", "Search chapter"), text: chapterQuery)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled(true)
                             .padding(.horizontal, 12)
@@ -556,17 +603,87 @@ struct ComicDetailChaptersSection: View {
                                 .frame(width: 42, height: 42)
                         }
                         .buttonStyle(.bordered)
-                        .accessibilityLabel(chapterDescending.wrappedValue ? "Sorted descending" : "Sorted ascending")
+                        .accessibilityLabel(
+                            chapterDescending.wrappedValue
+                                ? AppLocalization.text("detail.chapters.sort.descending", "Sorted descending")
+                                : AppLocalization.text("detail.chapters.sort.ascending", "Sorted ascending")
+                        )
                     }
 
-                    LazyVStack(spacing: 10) {
-                        ForEach(chapters) { chapter in
-                            chapterRow(chapter)
+                    HStack(spacing: AppSpacing.sm) {
+                        Button {
+                            onQueueAll()
+                        } label: {
+                            Label(queueAllTitle, systemImage: "arrow.down.circle")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(queueingAll)
+
+                        Text(downloadSummaryText)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    if chapters.isEmpty {
+                        ContentUnavailableView(
+                            AppLocalization.text("detail.chapters.no_results.title", "No Chapters Found"),
+                            systemImage: "magnifyingglass",
+                            description: Text(AppLocalization.text("detail.chapters.no_results.message", "Try a different chapter search."))
+                        )
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AppSpacing.lg)
+                    } else {
+                        LazyVStack(spacing: 10) {
+                            ForEach(chapters) { chapter in
+                                chapterRow(chapter)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    private var chapterSubtitle: String {
+        guard totalChapterCount > 0 else {
+            return AppLocalization.text("detail.chapters.subtitle.single_source", "This source exposes a single chapter entry")
+        }
+        if chapters.count == totalChapterCount {
+            return AppLocalization.format(
+                "detail.chapters.subtitle.count_format",
+                "%lld chapters available",
+                Int64(totalChapterCount)
+            )
+        }
+        return AppLocalization.format(
+            "detail.chapters.subtitle.filtered_format",
+            "%lld of %lld chapters shown",
+            Int64(chapters.count),
+            Int64(totalChapterCount)
+        )
+    }
+
+    private var queueAllTitle: String {
+        if queueingAll {
+            return queueAllProgressText.isEmpty
+                ? AppLocalization.text("detail.queue_all.queueing", "Queueing...")
+                : queueAllProgressText
+        }
+        return AppLocalization.text("detail.queue_all.action", "Queue All")
+    }
+
+    private var downloadSummaryText: String {
+        let offlineCount = downloadStateByChapterID.values.filter { $0 == .completed }.count
+        guard offlineCount > 0 else {
+            return AppLocalization.text("detail.chapters.download_hint", "Save every chapter for offline reading.")
+        }
+        return AppLocalization.format(
+            "detail.chapters.offline_count_format",
+            "%lld offline",
+            Int64(offlineCount)
+        )
     }
 
     private func chapterRow(_ chapter: ComicChapter) -> some View {
@@ -601,7 +718,7 @@ struct ComicDetailChaptersSection: View {
                 }
             } label: {
                 Image(systemName: downloadButtonIcon(for: downloadStatus))
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
             }
             .buttonStyle(.borderless)
             .disabled(downloadStatus == .completed || downloadStatus == .downloading || downloadStatus == .pending)
@@ -613,7 +730,7 @@ struct ComicDetailChaptersSection: View {
 
     private func badge(_ text: String, tint: Color) -> some View {
         Text(text)
-            .font(.caption2.weight(.semibold))
+            .font(.caption.weight(.semibold))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(tint.opacity(0.16), in: Capsule())
