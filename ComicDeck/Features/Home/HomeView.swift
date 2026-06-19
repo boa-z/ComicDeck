@@ -74,7 +74,6 @@ struct HomeView: View {
                     searchEntryCard
                     continueReadingSection
                     homeStatusSection
-                    quickActionsSection
                     if let latestOfflineItem {
                         offlineSpotlightSection(latestOfflineItem)
                     }
@@ -268,82 +267,6 @@ struct HomeView: View {
         }
     }
 
-    private var quickActionsSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            Text(AppLocalization.text("home.quick_actions.title", "Quick Actions"))
-                .font(.title3.weight(.semibold))
-
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: AppSpacing.md),
-                    GridItem(.flexible(), spacing: AppSpacing.md)
-                ],
-                spacing: AppSpacing.md
-            ) {
-                Button(action: onOpenDiscover) {
-                    quickActionCard(
-                        title: AppLocalization.text("home.quick.discover.title", "Discover"),
-                        subtitle: AppLocalization.text("home.quick.discover.subtitle", "Browse active sources"),
-                        value: sourceManager.selectedSource?.name ?? AppLocalization.text("home.quick.discover.none", "No source"),
-                        systemImage: "sparkles.rectangle.stack",
-                        tint: AppTint.accent
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button(action: onOpenLibrary) {
-                    quickActionCard(
-                        title: AppLocalization.text("home.quick.library.title", "Library"),
-                        subtitle: AppLocalization.text("home.quick.library.subtitle", "Bookmarks, shelves, history"),
-                        value: "\(library.favorites.count)",
-                        systemImage: "books.vertical",
-                        tint: AppTint.success
-                    )
-                }
-                .buttonStyle(.plain)
-
-                NavigationLink {
-                    HistoryView(vm: vm, onTagSearchRequested: onTagSearchRequested)
-                } label: {
-                    quickActionCard(
-                        title: AppLocalization.text("home.quick.history.title", "History"),
-                        subtitle: AppLocalization.text("home.quick.history.subtitle", "Resume recent reads"),
-                        value: "\(library.history.count)",
-                        systemImage: "clock.arrow.circlepath",
-                        tint: AppTint.warning
-                    )
-                }
-                .buttonStyle(.plain)
-
-                NavigationLink {
-                    DownloadManagerView(vm: vm)
-                } label: {
-                    quickActionCard(
-                        title: AppLocalization.text("home.quick.downloads.title", "Downloads"),
-                        subtitle: AppLocalization.text("home.quick.downloads.subtitle", "Offline chapters"),
-                        value: "\(completedDownloadsCount)",
-                        systemImage: "arrow.down.circle",
-                        tint: AppTint.accent
-                    )
-                }
-                .buttonStyle(.plain)
-
-                NavigationLink {
-                    SourceManagementView(vm: vm, sourceManager: sourceManager)
-                } label: {
-                    quickActionCard(
-                        title: AppLocalization.text("home.quick.sources.title", "Sources"),
-                        subtitle: AppLocalization.text("home.quick.sources.subtitle", "Installed and updates"),
-                        value: "\(sourceManager.installedSources.count)",
-                        systemImage: "tray.full",
-                        tint: AppTint.warning
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
     private var homeStatusSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text(AppLocalization.text("home.glance.title", "At a Glance"))
@@ -372,7 +295,7 @@ struct HomeView: View {
 
             HStack(spacing: AppSpacing.md) {
                 sourceStatusCard
-                librarySnapshotCard
+                sourcesSnapshotCard
             }
         }
     }
@@ -398,29 +321,30 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    private var librarySnapshotCard: some View {
-        Button(action: onOpenLibrary) {
+    private var sourcesSnapshotCard: some View {
+        NavigationLink {
+            SourceManagementView(vm: vm, sourceManager: sourceManager)
+        } label: {
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                Label(AppLocalization.text("home.library_snapshot.title", "Library Snapshot"), systemImage: "books.vertical")
+                Label(AppLocalization.text("home.sources_snapshot.title", "Sources"), systemImage: "tray.full")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text(
                     AppLocalization.format(
-                        "home.library_snapshot.bookmarks",
-                        "%@ bookmarks",
-                        String(library.favorites.count)
+                        "home.sources_snapshot.installed",
+                        "%@ installed",
+                        String(sourceManager.installedSources.count)
                     )
                 )
                     .font(.headline)
                     .foregroundStyle(.primary)
-                Text(
-                    AppLocalization.format(
-                        "home.library_snapshot.subtitle",
-                        "%@ shelves · %@ history records",
-                        String(library.favoriteCategories.count),
-                        String(library.history.count)
-                    )
-                )
+                Text(sourceManager.availableSourceUpdates.isEmpty
+                     ? AppLocalization.text("home.sources_snapshot.up_to_date", "All sources up to date")
+                     : AppLocalization.format(
+                         "home.sources_snapshot.updates",
+                         "%@ updates available",
+                         String(sourceManager.availableSourceUpdates.count)
+                     ))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -437,7 +361,7 @@ struct HomeView: View {
                 Text(AppLocalization.text("home.offline_spotlight.title", "Offline Spotlight"))
                     .font(.title3.weight(.semibold))
                 Spacer()
-                NavigationLink(AppLocalization.text("home.quick.downloads.title", "Downloads")) {
+                NavigationLink(AppLocalization.text("downloads.navigation.title", "Downloads")) {
                     DownloadManagerView(vm: vm)
                 }
                 .font(.subheadline.weight(.semibold))
@@ -624,33 +548,5 @@ struct HomeView: View {
             prominent ? AppTint.accent : AppSurface.subtle,
             in: RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous)
         )
-    }
-
-    private func quickActionCard(title: String, subtitle: String, value: String, systemImage: String, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            HStack {
-                Image(systemName: systemImage)
-                    .font(.headline)
-                    .foregroundStyle(tint)
-                    .frame(width: 32, height: 32)
-                    .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                Spacer(minLength: 0)
-                Text(value)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.primary)
-
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-        }
-        .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
-        .appCardStyle()
     }
 }
