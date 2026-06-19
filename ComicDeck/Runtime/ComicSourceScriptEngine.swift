@@ -136,6 +136,30 @@ nonisolated final class ComicSourceScriptEngine {
         UserDefaults.standard.set(value, forKey: key)
     }
 
+    func exportAccountData() -> [String: Any] {
+        let store = bridgeStoreRead()
+        return store["data"] as? [String: Any] ?? [:]
+    }
+
+    func importAccountData(_ data: [String: Any]) {
+        let sanitized = data.compactMapValues { sanitizePropertyList($0) }
+        var store = bridgeStoreRead()
+        store["data"] = sanitized
+        bridgeStoreWrite(store)
+        _ = try? callExpression(
+            """
+            (() => {
+              const source = this.__source_temp;
+              if (source && typeof source === 'object') {
+                source.__data = arguments[0] || {};
+              }
+              return true;
+            })()
+            """,
+            arguments: [sanitized]
+        )
+    }
+
     private func sanitizePropertyList(_ value: Any?) -> Any? {
         guard let value else { return nil }
         if value is NSNull { return nil }

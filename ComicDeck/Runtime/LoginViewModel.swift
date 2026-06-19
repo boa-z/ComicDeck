@@ -32,6 +32,9 @@ final class LoginViewModel {
     var registerURL = ""
     var cookieLoginFields: [String] = []
     var cookieLoginValues: [String] = []
+    var authProfiles: [WebLoginCookieStore.AuthProfile] = []
+    var activeAuthProfileID: String?
+    var newAuthProfileLabel = ""
     var searchOptionGroups: [SearchOptionGroup] = []
     var searchOptionValues: [String] = []
     var searchFeatureProfile: SearchFeatureProfile = .empty
@@ -66,9 +69,9 @@ final class LoginViewModel {
             registerURL = profile.registerWebsite ?? ""
             cookieLoginFields = profile.cookieFields
             cookieLoginValues = Array(repeating: "", count: profile.cookieFields.count)
-            hydrateCookieFieldsFromStore(sourceKey: source.key)
-
             loginURL = normalizedWebLoginURL ?? ""
+            refreshAuthProfiles(sourceKey: source.key)
+            hydrateCookieFieldsFromStore(sourceKey: source.key)
 
             let groups = try engine.getSearchOptionGroups()
             searchOptionGroups = groups
@@ -155,6 +158,12 @@ final class LoginViewModel {
             let result = try await self.runEngine {
                 try engine.loginSource(account: account, password: password)
             }
+            saveCurrentAuthProfile(
+                sourceKey: source.key,
+                suggestedLabel: account,
+                replacingActive: false,
+                engine: engine
+            )
             await refreshCurrentSourceLoginState(for: source)
             loginDebugLog("account login ok: key=\(source.key), result=\(result)", level: .info)
             status = "Login success: \(result)"
@@ -204,6 +213,7 @@ final class LoginViewModel {
                     fields: cookieLoginFields,
                     values: cookieLoginValues
                 )
+                saveCurrentAuthProfile(sourceKey: source.key, replacingActive: false, engine: engine)
             }
             await refreshCurrentSourceLoginState(for: source)
             status = isValid ? "Cookie login success" : "Cookie login failed"
@@ -283,6 +293,7 @@ final class LoginViewModel {
                 }
                 WebLoginCookieStore.persistCookies()
                 hydrateCookieFieldsFromStore(sourceKey: source.key)
+                saveCurrentAuthProfile(sourceKey: source.key, replacingActive: false, engine: engine)
                 await refreshCurrentSourceLoginState(for: source)
                 showLogin = false
                 loginDebugLog("onWebLoginPageChanged set showLogin=false after success", level: .info)
@@ -315,27 +326,98 @@ final class LoginViewModel {
         cookieLoginValues[index] = value
     }
 
+    func saveCurrentAuthProfile(
+        sourceKey: String,
+        suggestedLabel: String? = nil,
+        replacingActive: Bool = true,
+        engine: ComicSourceScriptEngine? = nil
+    ) {
+        let label = suggestedLabel?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            ? suggestedLabel!
+            : newAuthProfileLabel
+        let accountData = engine?.exportAccountData().compactMapValues(BackupJSONValue.init(propertyListValue:)) ?? [:]
+        let profile = WebLoginCookieStore.saveCurrentAuthProfile(
+            sourceKey: sourceKey,
+            label: label,
+            fields: cookieLoginFields,
+            values: cookieLoginValues,
+            hostHints: cookieHostHints(for: sourceKey),
+            accountData: accountData,
+            replacing: replacingActive ? activeAuthProfileID : nil
+        )
+        newAuthProfileLabel = ""
+        refreshAuthProfiles(sourceKey: sourceKey)
+        activeAuthProfileID = profile.id
+        status = "Saved account: \(profile.label)"
+    }
+
+    func saveCurrentAuthProfile(for source: InstalledSource, replacingActive: Bool = true) async {
+        do {
+            let engine = try await engine(for: source)
+            saveCurrentAuthProfile(sourceKey: source.key, replacingActive: replacingActive, engine: engine)
+        } catch {
+            saveCurrentAuthProfile(sourceKey: source.key, replacingActive: replacingActive)
+            status = "Saved account without source session data: \(error.localizedDescription)"
+        }
+    }
+
+    func switchAuthProfile(_ profile: WebLoginCookieStore.AuthProfile, for source: InstalledSource) async {
+        await applyAuthProfile(profile, for: source)
+        status = "Switched account: \(profile.label)"
+        await refreshCurrentSourceLoginState(for: source)
+    }
+
+    func deleteAuthProfile(_ profile: WebLoginCookieStore.AuthProfile, for source: InstalledSource) async {
+        WebLoginCookieStore.deleteAuthProfile(id: profile.id, sourceKey: source.key)
+        refreshAuthProfiles(sourceKey: source.key)
+        status = "Deleted account: \(profile.label)"
+        if let activeAuthProfileID,
+           let nextProfile = authProfiles.first(where: { $0.id == activeAuthProfileID }) {
+            await applyAuthProfile(nextProfile, for: source)
+        }
+        await refreshCurrentSourceLoginState(for: source)
+    }
+
     // MARK: - Private Helpers
+
+    private func applyAuthProfile(_ profile: WebLoginCookieStore.AuthProfile, for source: InstalledSource) async {
+        cookieLoginValues = WebLoginCookieStore.applyAuthProfile(
+            profile,
+            sourceKey: source.key,
+            fields: cookieLoginFields,
+            hostHints: cookieHostHints(for: source.key)
+        )
+        if let engine = try? await engine(for: source) {
+            try? await self.runEngine {
+                engine.importAccountData(profile.accountData.mapValues(\.propertyListValue))
+            }
+        }
+        refreshAuthProfiles(sourceKey: source.key)
+        activeAuthProfileID = profile.id
+    }
 
     private func computeLoggedStateDetail(
         engine: ComicSourceScriptEngine,
         sourceKey: String
     ) async throws -> (isLogged: Bool?, label: String) {
+        await applyActiveAuthProfileIfNeeded(engine: engine, sourceKey: sourceKey)
         let raw = try await self.runEngine {
             try engine.getIsLogged()
         }
-        if raw == true { return (true, "Logged In (Session)") }
 
         guard supportsCookieLogin, !cookieLoginFields.isEmpty else {
+            if raw == true { return (true, loggedInLabel(kind: "Session")) }
             if raw == false { return (false, "Logged Out") }
             return (nil, "Unknown")
         }
         hydrateCookieFieldsFromStore(sourceKey: sourceKey)
         let values = cookieLoginValues
         guard values.count == cookieLoginFields.count else {
+            if raw == true { return (true, loggedInLabel(kind: "Session")) }
             return (raw, raw == nil ? "Unknown" : "Logged Out")
         }
         guard values.contains(where: { !$0.isEmpty }) else {
+            if raw == true { return (true, loggedInLabel(kind: "Session")) }
             return (raw, raw == nil ? "Unknown" : "Logged Out")
         }
 
@@ -343,22 +425,36 @@ final class LoginViewModel {
             let valid = try await self.runEngine {
                 try engine.validateCookieLogin(values: values)
             }
-            if valid { return (true, "Logged In (Cookie)") }
+            if valid {
+                return (true, loggedInLabel(kind: "Cookie"))
+            }
         } catch {
             loginDebugLog("computeLoggedState cookie validate failed: \(error.localizedDescription)", level: .debug)
         }
+        if raw == true { return (true, loggedInLabel(kind: "Session")) }
         if raw == false { return (false, "Logged Out") }
         return (raw, raw == nil ? "Unknown" : "Logged Out")
     }
 
     private func hydrateCookieFieldsFromStore(sourceKey: String) {
         guard !cookieLoginFields.isEmpty else { return }
+        refreshAuthProfiles(sourceKey: sourceKey)
+        if let activeAuthProfileID,
+           let profile = authProfiles.first(where: { $0.id == activeAuthProfileID }) {
+            cookieLoginValues = WebLoginCookieStore.applyAuthProfile(
+                profile,
+                sourceKey: sourceKey,
+                fields: cookieLoginFields,
+                hostHints: cookieHostHints(for: sourceKey)
+            )
+            return
+        }
         if let saved = WebLoginCookieStore.loadCookieFormValues(sourceKey: sourceKey, fields: cookieLoginFields),
            saved.count == cookieLoginFields.count {
             cookieLoginValues = saved
             return
         }
-        let hints = cookieHostHints()
+        let hints = cookieHostHints(for: sourceKey)
         let extracted = WebLoginCookieStore.extractCookieValues(fields: cookieLoginFields, hostHints: hints)
         if extracted.count == cookieLoginFields.count, extracted.contains(where: { !$0.isEmpty }) {
             cookieLoginValues = extracted
@@ -366,14 +462,69 @@ final class LoginViewModel {
         }
     }
 
-    private func cookieHostHints() -> [String] {
+    private func refreshAuthProfiles(sourceKey: String) {
+        authProfiles = WebLoginCookieStore.authProfiles(sourceKey: sourceKey)
+        activeAuthProfileID = WebLoginCookieStore.activeAuthProfileID(sourceKey: sourceKey)
+        if activeAuthProfileID == nil, let first = authProfiles.first {
+            activeAuthProfileID = first.id
+            WebLoginCookieStore.setActiveAuthProfileID(first.id, sourceKey: sourceKey)
+        }
+    }
+
+    private func engine(for source: InstalledSource) async throws -> ComicSourceScriptEngine {
+        guard let sourceStore,
+              let sourceManagerViewModel
+        else {
+            throw ScriptEngineError.buildContextFailed
+        }
+        let script = try await sourceStore.readScript(fileName: source.scriptFileName)
+        return try sourceManagerViewModel.getOrCreateEngine(sourceKey: source.key, script: script)
+    }
+
+    private func applyActiveAuthProfileIfNeeded(engine: ComicSourceScriptEngine, sourceKey: String) async {
+        refreshAuthProfiles(sourceKey: sourceKey)
+        guard let activeAuthProfileID,
+              let profile = authProfiles.first(where: { $0.id == activeAuthProfileID })
+        else {
+            return
+        }
+        if supportsCookieLogin, !cookieLoginFields.isEmpty {
+            cookieLoginValues = WebLoginCookieStore.applyAuthProfile(
+                profile,
+                sourceKey: sourceKey,
+                fields: cookieLoginFields,
+                hostHints: cookieHostHints(for: sourceKey)
+            )
+        }
+        try? await self.runEngine {
+            engine.importAccountData(profile.accountData.mapValues(\.propertyListValue))
+        }
+    }
+
+    func canSaveCurrentAuthProfile(sourceKey: String) -> Bool {
+        WebLoginCookieStore.hasCookies(hostHints: cookieHostHints(for: sourceKey)) ||
+            currentSourceIsLogged == true ||
+            (!cookieLoginValues.isEmpty &&
+                cookieLoginValues.contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+    }
+
+    private func loggedInLabel(kind: String) -> String {
+        if let activeAuthProfileID,
+           let profile = authProfiles.first(where: { $0.id == activeAuthProfileID }) {
+            return "Logged In (\(profile.label))"
+        }
+        return "Logged In (\(kind))"
+    }
+
+    private func cookieHostHints(for sourceKey: String? = nil) -> [String] {
         var hints: [String] = []
         let urls = [loginURL, registerURL]
         for value in urls {
             guard let host = URL(string: value)?.host else { continue }
             hints.append(host)
         }
-        if let key = sourceManagerViewModel?.selectedSourceKey, key.lowercased().contains("ehentai") {
+        let key = sourceKey ?? sourceManagerViewModel?.selectedSourceKey ?? ""
+        if key.lowercased().contains("ehentai") {
             hints.append(contentsOf: ["e-hentai.org", "forums.e-hentai.org", "exhentai.org"])
         }
         return Array(Set(hints))
@@ -388,6 +539,9 @@ final class LoginViewModel {
         registerURL = ""
         cookieLoginFields = []
         cookieLoginValues = []
+        authProfiles = []
+        activeAuthProfileID = nil
+        newAuthProfileLabel = ""
         loginURL = ""
         searchOptionGroups = []
         searchOptionValues = []

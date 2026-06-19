@@ -38,7 +38,38 @@ struct SourceRuntimeBackupData: Codable, Hashable {
     let selectedSourceKey: String?
     let autoLoadRemoteSources: Bool?
     let cookieFormValues: [String: [String: String]]
+    let authProfiles: BackupJSONValue?
+    let activeAuthProfiles: [String: String]
     let sourceSettings: [String: BackupJSONValue]
+
+    init(
+        indexURL: String?,
+        selectedSourceKey: String?,
+        autoLoadRemoteSources: Bool?,
+        cookieFormValues: [String: [String: String]],
+        authProfiles: BackupJSONValue?,
+        activeAuthProfiles: [String: String],
+        sourceSettings: [String: BackupJSONValue]
+    ) {
+        self.indexURL = indexURL
+        self.selectedSourceKey = selectedSourceKey
+        self.autoLoadRemoteSources = autoLoadRemoteSources
+        self.cookieFormValues = cookieFormValues
+        self.authProfiles = authProfiles
+        self.activeAuthProfiles = activeAuthProfiles
+        self.sourceSettings = sourceSettings
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        indexURL = try container.decodeIfPresent(String.self, forKey: .indexURL)
+        selectedSourceKey = try container.decodeIfPresent(String.self, forKey: .selectedSourceKey)
+        autoLoadRemoteSources = try container.decodeIfPresent(Bool.self, forKey: .autoLoadRemoteSources)
+        cookieFormValues = try container.decodeIfPresent([String: [String: String]].self, forKey: .cookieFormValues) ?? [:]
+        authProfiles = try container.decodeIfPresent(BackupJSONValue.self, forKey: .authProfiles)
+        activeAuthProfiles = try container.decodeIfPresent([String: String].self, forKey: .activeAuthProfiles) ?? [:]
+        sourceSettings = try container.decodeIfPresent([String: BackupJSONValue].self, forKey: .sourceSettings) ?? [:]
+    }
 }
 
 struct TrackerBackupData: Codable, Hashable {

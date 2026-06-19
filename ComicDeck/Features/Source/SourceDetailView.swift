@@ -130,37 +130,59 @@ struct SourceDetailView: View {
         ComicDetailSectionCard(title: "Authentication", subtitle: "Login flows and session state for this source") {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 HStack {
-                    Label("Session", systemImage: "person.badge.key")
+                    Label(AppLocalization.text("source.detail.session", "Session"), systemImage: "person.badge.key")
                         .font(.subheadline.weight(.semibold))
                     Spacer()
-                    Text(login.currentSourceLoginStateLabel)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(loginStatusColor)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(login.currentSourceLoginStateLabel)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(loginStatusColor)
+                        if let activeProfile = activeAuthProfile {
+                            Text(activeProfile.label)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
 
-                Button("Refresh Login Status") {
-                    Task { await login.refreshCurrentSourceLoginState(for: source) }
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 10) {
+                        authActionButtons
+                    }
+                    VStack(alignment: .leading, spacing: 10) {
+                        authActionButtons
+                    }
                 }
-                .buttonStyle(.bordered)
+
+                if !login.authProfiles.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(AppLocalization.text("source.detail.accounts", "Accounts"))
+                            .font(.subheadline.weight(.semibold))
+
+                        ForEach(login.authProfiles) { profile in
+                            authProfileRow(profile)
+                        }
+                    }
+                }
 
                 if model.capabilityProfile.hasAccountLogin {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Account Login")
+                        Text(AppLocalization.text("source.login.account_login", "Account Login"))
                             .font(.subheadline.weight(.semibold))
 
-                        TextField("Account", text: $login.loginAccount)
+                        TextField(AppLocalization.text("source.login.account", "Account"), text: $login.loginAccount)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled(true)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
                             .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
 
-                        SecureField("Password", text: $login.loginPassword)
+                        SecureField(AppLocalization.text("source.login.password", "Password"), text: $login.loginPassword)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
                             .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
 
-                        Button("Login With Account") {
+                        Button(AppLocalization.text("source.login.login", "Login With Account")) {
                             Task { await login.loginWithAccount(for: source) }
                         }
                         .buttonStyle(.borderedProminent)
@@ -169,8 +191,15 @@ struct SourceDetailView: View {
 
                 if model.capabilityProfile.hasCookieLogin {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Cookie Login")
+                        Text(AppLocalization.text("source.login.cookie_login", "Cookie Login"))
                             .font(.subheadline.weight(.semibold))
+
+                        TextField(AppLocalization.text("source.detail.account_label", "Account label"), text: $login.newAuthProfileLabel)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled(true)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
 
                         ForEach(Array(login.cookieLoginFields.enumerated()), id: \.offset) { index, field in
                             TextField(
@@ -189,7 +218,7 @@ struct SourceDetailView: View {
                             .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
                         }
 
-                        Button("Validate Cookies") {
+                        Button(AppLocalization.text("source.detail.validate_cookies", "Validate Cookies")) {
                             Task { await login.loginWithCookies(for: source) }
                         }
                         .buttonStyle(.bordered)
@@ -198,7 +227,7 @@ struct SourceDetailView: View {
 
                 if model.capabilityProfile.hasWebLogin {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Web Login")
+                        Text(AppLocalization.text("source.login.web_login", "Web Login"))
                             .font(.subheadline.weight(.semibold))
 
                         if !login.loginURL.isEmpty {
@@ -208,7 +237,7 @@ struct SourceDetailView: View {
                                 .textSelection(.enabled)
                         }
 
-                        Button("Open Web Login") {
+                        Button(AppLocalization.text("source.login.open_web", "Open Web Login")) {
                             Task { await login.openWebLogin(for: source) }
                         }
                         .buttonStyle(.bordered)
@@ -217,12 +246,64 @@ struct SourceDetailView: View {
 
                 if !login.registerURL.isEmpty {
                     Link(destination: URL(string: login.registerURL)!) {
-                        Label("Open Register Page", systemImage: "arrow.up.right.square")
+                        Label(AppLocalization.text("source.management.open_register", "Open Register Page"), systemImage: "arrow.up.right.square")
                     }
                     .font(.footnote)
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var authActionButtons: some View {
+        Button(AppLocalization.text("source.detail.refresh_login", "Refresh Login Status")) {
+            Task { await login.refreshCurrentSourceLoginState(for: source) }
+        }
+        .buttonStyle(.bordered)
+
+        Button(AppLocalization.text("source.detail.save_current_account", "Save Current Account")) {
+            Task { await login.saveCurrentAuthProfile(for: source, replacingActive: false) }
+        }
+        .buttonStyle(.bordered)
+        .disabled(!canSaveAuthProfile)
+    }
+
+    private var activeAuthProfile: WebLoginCookieStore.AuthProfile? {
+        guard let id = login.activeAuthProfileID else { return nil }
+        return login.authProfiles.first { $0.id == id }
+    }
+
+    private var canSaveAuthProfile: Bool {
+        login.canSaveCurrentAuthProfile(sourceKey: source.key)
+    }
+
+    private func authProfileRow(_ profile: WebLoginCookieStore.AuthProfile) -> some View {
+        HStack(spacing: 10) {
+            Label(
+                profile.label,
+                systemImage: profile.id == login.activeAuthProfileID ? "checkmark.circle.fill" : "person.crop.circle"
+            )
+            .font(.subheadline)
+            .foregroundStyle(profile.id == login.activeAuthProfileID ? AppTint.success : .primary)
+
+            Spacer(minLength: 0)
+
+            Button(AppLocalization.text("source.detail.use_account", "Use")) {
+                Task { await login.switchAuthProfile(profile, for: source) }
+            }
+            .buttonStyle(.bordered)
+            .disabled(profile.id == login.activeAuthProfileID)
+
+            Button(role: .destructive) {
+                Task { await login.deleteAuthProfile(profile, for: source) }
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel(AppLocalization.format("source.detail.delete_account_label", "Delete %@", profile.label))
+        }
+        .padding(AppSpacing.md)
+        .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
     }
 
     private var settingsCard: some View {

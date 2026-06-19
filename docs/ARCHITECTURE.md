@@ -225,6 +225,8 @@ Design intent:
 
 The visible login sheet web view remains a separate feature-layer concern for interactive login and cookie capture.
 
+Source authentication can keep multiple saved account profiles per installed source. A profile captures cookie-login field values, a cookie snapshot, and source-script account data saved through `saveData`. Switching profiles restores that source session before rechecking login state, so account changes do not require changing the globally selected source.
+
 ## Reader Architecture
 
 Reader is split across composition, session state, rendering, and pipeline concerns.
@@ -395,6 +397,7 @@ Included:
 - reader preferences
 - source runtime preferences
 - source settings store
+- source authentication profiles
 - tracker accounts, bindings, sync preferences, and access tokens
 
 Excluded:

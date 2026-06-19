@@ -53,6 +53,14 @@ You can discover content in two main ways.
 
 ## Reading
 
+### Comic Detail
+
+The comic detail page prioritizes reading first:
+
+- use the primary hero action to continue from saved history or start reading
+- search, sort, open, or queue chapter downloads from the chapter section directly below the hero
+- use tags, comments, tracking, and source favorites lower on the page when you need related discovery or account sync
+
 ### Continue Reading
 
 ComicDeck keeps reading history and resume points.
@@ -279,6 +287,9 @@ On a source detail page you can:
 - delete it
 - change source-specific settings
 - complete supported login flows
+- save the current source session as an account profile
+- switch between saved account profiles for the same source
+- delete saved account profiles you no longer use
 
 ## Appearance and Diagnostics
 

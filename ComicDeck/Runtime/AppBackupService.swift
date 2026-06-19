@@ -18,6 +18,8 @@ enum AppBackupService {
         static let selectedSourceKey = "source.runtime.selected.source.key"
         static let autoLoadRemoteSources = "source.runtime.remote.autoload"
         static let cookieFormValues = "source.runtime.cookieFormValues"
+        static let sourceAuthProfiles = "source.runtime.authProfiles"
+        static let sourceActiveAuthProfiles = "source.runtime.activeAuthProfiles"
         static let sourceStorePrefix = "source.runtime.store."
         static let trackerTokenService = "boa.ComicDeck.Tracker"
         static let trackerAutomaticSyncEnabled = "tracking.sync.automatic.enabled"
@@ -62,6 +64,10 @@ enum AppBackupService {
             selectedSourceKey: defaults.string(forKey: DefaultsKey.selectedSourceKey),
             autoLoadRemoteSources: defaults.object(forKey: DefaultsKey.autoLoadRemoteSources) as? Bool,
             cookieFormValues: defaults.dictionary(forKey: DefaultsKey.cookieFormValues) as? [String: [String: String]] ?? [:],
+            authProfiles: defaults.data(forKey: DefaultsKey.sourceAuthProfiles).flatMap { data in
+                BackupJSONValue.string(data.base64EncodedString())
+            },
+            activeAuthProfiles: defaults.dictionary(forKey: DefaultsKey.sourceActiveAuthProfiles) as? [String: String] ?? [:],
             sourceSettings: sourceSettings
         )
         let tracker = makeTrackerBackupData(accounts: trackerAccounts, bindings: trackerBindings, defaults: defaults)
@@ -150,6 +156,11 @@ enum AppBackupService {
         set(sourceRuntime.selectedSourceKey, forKey: DefaultsKey.selectedSourceKey, in: defaults)
         set(sourceRuntime.autoLoadRemoteSources, forKey: DefaultsKey.autoLoadRemoteSources, in: defaults)
         defaults.set(sourceRuntime.cookieFormValues, forKey: DefaultsKey.cookieFormValues)
+        if case let .string(encoded)? = sourceRuntime.authProfiles,
+           let data = Data(base64Encoded: encoded) {
+            defaults.set(data, forKey: DefaultsKey.sourceAuthProfiles)
+        }
+        defaults.set(sourceRuntime.activeAuthProfiles, forKey: DefaultsKey.sourceActiveAuthProfiles)
 
         for (key, value) in sourceRuntime.sourceSettings {
             defaults.set(value.propertyListValue, forKey: key)
