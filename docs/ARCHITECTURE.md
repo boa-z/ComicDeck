@@ -25,7 +25,7 @@ Constraint:
 
 ## Product Composition
 
-`MainView` composes the top-level product areas.
+`MainView` composes the iOS top-level product areas. `MacMainView` composes the native macOS shell with a `NavigationSplitView` sidebar while sharing the same feature and runtime models.
 
 ### Primary Destinations
 
@@ -57,8 +57,15 @@ Responsibilities:
 Important files:
 
 - `MainView.swift`
+- `MacMainView.swift`
 - `ComicDeckApp.swift`
+- `ComicDeckMacApp.swift`
 - `ContentView.swift`
+
+Targets:
+
+- `ComicDeck`: iOS app target with the Widget/Live Activity extension dependency
+- `ComicDeckMac`: native macOS app target that shares `ComicDeck/` sources without Catalyst or Widget dependencies
 
 ### Feature Layer
 

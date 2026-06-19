@@ -1,11 +1,11 @@
 import WidgetKit
 import SwiftUI
 
-#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+#if os(iOS) && canImport(ActivityKit)
 import ActivityKit
 #endif
 
-#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+#if os(iOS) && canImport(ActivityKit)
 struct ComicDownloadActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         var comicTitle: String
@@ -20,7 +20,7 @@ struct ComicDownloadActivityAttributes: ActivityAttributes {
 }
 #endif
 
-#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+#if os(iOS) && canImport(ActivityKit)
 struct ComicDownloadLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ComicDownloadActivityAttributes.self) { context in
@@ -137,7 +137,7 @@ struct ComicDeckPlaceholderWidget: Widget {
 struct ComicDeckWidgetsBundle: WidgetBundle {
     var body: some Widget {
         ComicDeckPlaceholderWidget()
-        #if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+        #if os(iOS) && canImport(ActivityKit)
         ComicDownloadLiveActivityWidget()
         #endif
     }

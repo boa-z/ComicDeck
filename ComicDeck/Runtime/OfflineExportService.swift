@@ -1,5 +1,7 @@
 import Foundation
-import UIKit
+import CoreGraphics
+import ImageIO
+import UniformTypeIdentifiers
 
 enum OfflineExportFormat: String, CaseIterable, Identifiable {
     case zip
@@ -216,21 +218,26 @@ struct OfflineExportService {
     }
 
     private func writePDF(from imageFiles: [URL], to destinationURL: URL) throws {
-        let images = imageFiles.compactMap { UIImage(contentsOfFile: $0.path) }
+        let images = imageFiles.compactMap(Self.loadCGImage)
         guard !images.isEmpty else {
             throw OfflineExportServiceError.noReadableFiles
         }
 
-        let firstSize = images[0].size
-        let defaultBounds = CGRect(origin: .zero, size: CGSize(width: max(firstSize.width, 1), height: max(firstSize.height, 1)))
-        let renderer = UIGraphicsPDFRenderer(bounds: defaultBounds)
-        try renderer.writePDF(to: destinationURL) { context in
-            for image in images {
-                let size = CGSize(width: max(image.size.width, 1), height: max(image.size.height, 1))
-                context.beginPage(withBounds: CGRect(origin: .zero, size: size), pageInfo: [:])
-                image.draw(in: CGRect(origin: .zero, size: size))
-            }
+        guard let consumer = CGDataConsumer(url: destinationURL as CFURL) else {
+            throw OfflineExportServiceError.noReadableFiles
         }
+        var mediaBox = CGRect(origin: .zero, size: Self.cgImageSize(images[0]))
+        guard let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
+            throw OfflineExportServiceError.noReadableFiles
+        }
+
+        for image in images {
+            let pageBox = CGRect(origin: .zero, size: Self.cgImageSize(image))
+            context.beginPDFPage([kCGPDFContextMediaBox as String: pageBox] as CFDictionary)
+            context.draw(image, in: pageBox)
+            context.endPDFPage()
+        }
+        context.closePDF()
     }
 
     private func writeEPUB(title: String, author: String, imageFiles: [URL], destinationURL: URL) throws {
@@ -358,11 +365,31 @@ struct OfflineExportService {
     }
 
     private func jpegData(for imageURL: URL) throws -> Data {
-        guard let image = UIImage(contentsOfFile: imageURL.path),
-              let data = image.jpegData(compressionQuality: 0.92) else {
+        guard let image = Self.loadCGImage(from: imageURL) else {
             throw OfflineExportServiceError.noReadableFiles
         }
-        return data
+        let data = NSMutableData()
+        guard
+            let destination = CGImageDestinationCreateWithData(data as CFMutableData, UTType.jpeg.identifier as CFString, 1, nil)
+        else {
+            throw OfflineExportServiceError.noReadableFiles
+        }
+        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality as String: 0.92] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw OfflineExportServiceError.noReadableFiles
+        }
+        return data as Data
+    }
+
+    private static func loadCGImage(from url: URL) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            return nil
+        }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
+    private static func cgImageSize(_ image: CGImage) -> CGSize {
+        CGSize(width: max(CGFloat(image.width), 1), height: max(CGFloat(image.height), 1))
     }
 
     private static let containerXML = """

@@ -95,9 +95,9 @@ struct ComicDetailView: View {
 
         content
             .navigationTitle(item.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .platformNavigationBarTitleDisplayModeInline()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .platformTopBarTrailing) {
                     toolbarMenu
                 }
             }
@@ -572,7 +572,7 @@ struct ComicDetailView: View {
     }
 
     private func copyText(_ value: String) {
-        UIPasteboard.general.string = value
+        PlatformPasteboard.copy(value)
     }
 
     private func firstChapter(from detail: ComicDetail) -> (id: String, title: String) {
@@ -854,7 +854,7 @@ private struct CommentsPageView: View {
         }
         .navigationTitle(AppLocalization.text("comments.navigation.title", "Comments"))
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .platformTopBarLeading) {
                 Button(AppLocalization.text("common.close", "Close")) { dismiss() }
             }
             if initialReplyComment != nil {
@@ -863,7 +863,7 @@ private struct CommentsPageView: View {
                         .font(.headline)
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .platformTopBarTrailing) {
                 Button {
                     Task { await model.reload(using: vm, replyComment: initialReplyComment) }
                 } label: {

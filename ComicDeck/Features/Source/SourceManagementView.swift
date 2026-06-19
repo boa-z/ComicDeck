@@ -69,10 +69,10 @@ struct SourceManagementView: View {
         }
         .background(AppSurface.grouped.ignoresSafeArea())
         .navigationTitle(AppLocalization.text("source.management.installed", "Sources"))
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: AppLocalization.text("source.management.search_placeholder", "Search installed sources"))
+        .searchable(text: $query, prompt: AppLocalization.text("source.management.search_placeholder", "Search installed sources"))
         .toolbar {
             if !installedSources.isEmpty {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .platformTopBarTrailing) {
                     Button(isSelecting ? AppLocalization.text("common.done", "Done") : AppLocalization.text("source.action.select", "Select")) {
                         toggleSelecting()
                     }

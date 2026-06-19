@@ -9,7 +9,9 @@
 /* Begin PBXBuildFile section */
 		C1A0001A1111111100000001 /* ComicDeckWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C1A000011111111100000001 /* ComicDeckWidgets.appex */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C3D000031111111100000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = C3D000021111111100000001 /* GRDB */; };
+		C3D000041111111100000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = C3D000021111111100000001 /* GRDB */; };
 		E8F000031111111100000001 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = E8F000021111111100000001 /* SwiftSoup */; };
+		E8F000041111111100000001 /* SwiftSoup in Frameworks */ = {isa = PBXBuildFile; productRef = E8F000021111111100000001 /* SwiftSoup */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,6 +47,7 @@
 
 /* Begin PBXFileReference section */
 		C0E56FC72F5B32F900702D5B /* ComicDeck.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ComicDeck.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0E56FE12F5B32FB00702D5B /* ComicDeckMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = ComicDeckMac.app; path = ComicDeck.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1A000011111111100000001 /* ComicDeckWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ComicDeckWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C2B000011111111100000001 /* ComicDeckTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ComicDeckTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -84,6 +87,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C1A000311111111100000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C3D000041111111100000001 /* GRDB in Frameworks */,
+				E8F000041111111100000001 /* SwiftSoup in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C2B000031111111100000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -108,6 +120,7 @@
 			isa = PBXGroup;
 			children = (
 				C0E56FC72F5B32F900702D5B /* ComicDeck.app */,
+				C0E56FE12F5B32FB00702D5B /* ComicDeckMac.app */,
 				C1A000011111111100000001 /* ComicDeckWidgets.appex */,
 				C2B000011111111100000001 /* ComicDeckTests.xctest */,
 			);
@@ -165,6 +178,31 @@
 			productReference = C1A000011111111100000001 /* ComicDeckWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		C1A000321111111100000001 /* ComicDeckMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C1A000371111111100000001 /* Build configuration list for PBXNativeTarget "ComicDeckMac" */;
+			buildPhases = (
+				C1A000331111111100000001 /* Sources */,
+				C1A000311111111100000001 /* Frameworks */,
+				C1A000341111111100000001 /* Resources */,
+				C1A000351111111100000001 /* Inject Build Metadata */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C0E56FC92F5B32F900702D5B /* ComicDeck */,
+			);
+			name = ComicDeckMac;
+			packageProductDependencies = (
+				C3D000021111111100000001 /* GRDB */,
+				E8F000021111111100000001 /* SwiftSoup */,
+			);
+			productName = ComicDeckMac;
+			productReference = C0E56FE12F5B32FB00702D5B /* ComicDeckMac.app */;
+			productType = "com.apple.product-type.application";
+		};
 		C2B000041111111100000001 /* ComicDeckTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C2B0000A1111111100000001 /* Build configuration list for PBXNativeTarget "ComicDeckTests" */;
@@ -204,6 +242,9 @@
 					C1A0000D1111111100000001 = {
 						CreatedOnToolsVersion = 26.3;
 					};
+					C1A000321111111100000001 = {
+						CreatedOnToolsVersion = 26.3;
+					};
 					C2B000041111111100000001 = {
 						CreatedOnToolsVersion = 26.3;
 						TestTargetID = C0E56FC62F5B32F900702D5B;
@@ -229,6 +270,7 @@
 			projectRoot = "";
 			targets = (
 				C0E56FC62F5B32F900702D5B /* ComicDeck */,
+				C1A000321111111100000001 /* ComicDeckMac */,
 				C1A0000D1111111100000001 /* ComicDeckWidgets */,
 				C2B000041111111100000001 /* ComicDeckTests */,
 			);
@@ -244,6 +286,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C1A000101111111100000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C1A000341111111100000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -279,6 +328,25 @@
 			shellPath = /bin/sh;
 			shellScript = "METADATA_PLIST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/BuildMetadata.plist\"\nGIT_BIN=\"/usr/bin/git\"\nREPO_ROOT=\"${SRCROOT}\"\n\nif [ ! -d \"${REPO_ROOT}/.git\" ] && [ -d \"${PROJECT_DIR}/.git\" ]; then\n  REPO_ROOT=\"${PROJECT_DIR}\"\nfi\nif [ ! -d \"${REPO_ROOT}/.git\" ] && [ -d \"${PROJECT_DIR}/../.git\" ]; then\n  REPO_ROOT=\"${PROJECT_DIR}/..\"\nfi\n\nif [ -n \"${GITHUB_REF_NAME}\" ]; then\n  GIT_BRANCH=\"${GITHUB_REF_NAME}\"\nelse\n  GIT_BRANCH=$(${GIT_BIN} -C \"${REPO_ROOT}\" symbolic-ref --short -q HEAD 2>/dev/null || ${GIT_BIN} -C \"${REPO_ROOT}\" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)\nfi\n\nif [ -n \"${GITHUB_SHA}\" ]; then\n  GIT_COMMIT=\"${GITHUB_SHA}\"\nelse\n  GIT_COMMIT=$(${GIT_BIN} -C \"${REPO_ROOT}\" rev-parse --short=7 HEAD 2>/dev/null || echo unknown)\nfi\n\nif [ \"${GIT_BRANCH}\" = \"HEAD\" ]; then\n  GIT_BRANCH=$(${GIT_BIN} -C \"${REPO_ROOT}\" branch --contains HEAD --format='%(refname:short)' 2>/dev/null | head -n 1)\nfi\n\n[ -n \"${GIT_BRANCH}\" ] || GIT_BRANCH=\"unknown\"\nGIT_COMMIT=$(echo \"${GIT_COMMIT}\" | cut -c1-7)\n[ -n \"${GIT_COMMIT}\" ] || GIT_COMMIT=\"unknown\"\n\n/bin/mkdir -p \"$(dirname \"${METADATA_PLIST}\")\"\n/usr/libexec/PlistBuddy -c \"Clear dict\" \"${METADATA_PLIST}\" 2>/dev/null || true\n/usr/libexec/PlistBuddy -c \"Add :CDGitBranch string ${GIT_BRANCH}\" \"${METADATA_PLIST}\"\n/usr/libexec/PlistBuddy -c \"Add :CDGitCommit string ${GIT_COMMIT}\" \"${METADATA_PLIST}\"\n";
 		};
+		C1A000351111111100000001 /* Inject Build Metadata */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Inject Build Metadata";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BuildMetadata.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "METADATA_PLIST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/BuildMetadata.plist\"\nGIT_BIN=\"/usr/bin/git\"\nREPO_ROOT=\"${SRCROOT}\"\n\nif [ ! -d \"${REPO_ROOT}/.git\" ] && [ -d \"${PROJECT_DIR}/.git\" ]; then\n  REPO_ROOT=\"${PROJECT_DIR}\"\nfi\nif [ ! -d \"${REPO_ROOT}/.git\" ] && [ -d \"${PROJECT_DIR}/../.git\" ]; then\n  REPO_ROOT=\"${PROJECT_DIR}/..\"\nfi\n\nif [ -n \"${GITHUB_REF_NAME}\" ]; then\n  GIT_BRANCH=\"${GITHUB_REF_NAME}\"\nelse\n  GIT_BRANCH=$(${GIT_BIN} -C \"${REPO_ROOT}\" symbolic-ref --short -q HEAD 2>/dev/null || ${GIT_BIN} -C \"${REPO_ROOT}\" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)\nfi\n\nif [ -n \"${GITHUB_SHA}\" ]; then\n  GIT_COMMIT=\"${GITHUB_SHA}\"\nelse\n  GIT_COMMIT=$(${GIT_BIN} -C \"${REPO_ROOT}\" rev-parse --short=7 HEAD 2>/dev/null || echo unknown)\nfi\n\nif [ \"${GIT_BRANCH}\" = \"HEAD\" ]; then\n  GIT_BRANCH=$(${GIT_BIN} -C \"${REPO_ROOT}\" branch --contains HEAD --format='%(refname:short)' 2>/dev/null | head -n 1)\nfi\n\n[ -n \"${GIT_BRANCH}\" ] || GIT_BRANCH=\"unknown\"\nGIT_COMMIT=$(echo \"${GIT_COMMIT}\" | cut -c1-7)\n[ -n \"${GIT_COMMIT}\" ] || GIT_COMMIT=\"unknown\"\n\n/bin/mkdir -p \"$(dirname \"${METADATA_PLIST}\")\"\n/usr/libexec/PlistBuddy -c \"Clear dict\" \"${METADATA_PLIST}\" 2>/dev/null || true\n/usr/libexec/PlistBuddy -c \"Add :CDGitBranch string ${GIT_BRANCH}\" \"${METADATA_PLIST}\"\n/usr/libexec/PlistBuddy -c \"Add :CDGitCommit string ${GIT_COMMIT}\" \"${METADATA_PLIST}\"\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -290,6 +358,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C1A0000E1111111100000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C1A000331111111100000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -489,11 +564,9 @@
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				"SWIFT_ENABLE_EXPLICIT_MODULES[sdk=macosx*]" = NO;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
@@ -551,11 +624,9 @@
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				"SWIFT_ENABLE_EXPLICIT_MODULES[sdk=macosx*]" = NO;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
@@ -659,6 +730,79 @@
 			};
 			name = Release;
 		};
+		C1A000361111111100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = YOUR_DEVELOPMENT_TEAM;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
+				ENABLE_FILE_ACCESS_PICTURE_FOLDER = readwrite;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = ComicDeck;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = boa.ComicDeck.mac;
+				PRODUCT_NAME = ComicDeck;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		C1A000381111111100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = YOUR_DEVELOPMENT_TEAM;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readwrite;
+				ENABLE_FILE_ACCESS_PICTURE_FOLDER = readwrite;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = ComicDeck;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 0.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = boa.ComicDeck.mac;
+				PRODUCT_NAME = ComicDeck;
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 		C2B000091111111100000001 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -744,6 +888,15 @@
 			buildConfigurations = (
 				C1A000151111111100000001 /* Debug */,
 				C1A000161111111100000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C1A000371111111100000001 /* Build configuration list for PBXNativeTarget "ComicDeckMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C1A000361111111100000001 /* Debug */,
+				C1A000381111111100000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

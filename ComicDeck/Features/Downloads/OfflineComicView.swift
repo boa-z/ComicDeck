@@ -77,7 +77,7 @@ struct OfflineComicView: View {
             .padding(.bottom, AppSpacing.xl)
         }
         .navigationTitle(group.comicTitle)
-        .navigationBarTitleDisplayMode(.inline)
+        .platformNavigationBarTitleDisplayModeInline()
         .background(AppSurface.grouped.ignoresSafeArea())
         .sheet(item: $sharedExportURL) { shareFile in
             ActivityShareSheet(items: [shareFile.url])

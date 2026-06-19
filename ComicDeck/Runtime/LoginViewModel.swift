@@ -578,14 +578,27 @@ final class LoginViewModel {
         guard let queue = engineExecutionQueue else {
             throw ScriptEngineError.buildContextFailed
         }
+        let workBox = EngineWorkBox(work)
         return try await withCheckedThrowingContinuation { continuation in
             queue.async {
                 do {
-                    continuation.resume(returning: try work())
+                    continuation.resume(returning: try workBox.run())
                 } catch {
                     continuation.resume(throwing: error)
                 }
             }
         }
+    }
+}
+
+private final class EngineWorkBox<T>: @unchecked Sendable {
+    nonisolated(unsafe) private let work: () throws -> T
+
+    nonisolated init(_ work: @escaping () throws -> T) {
+        self.work = work
+    }
+
+    nonisolated func run() throws -> T {
+        try work()
     }
 }

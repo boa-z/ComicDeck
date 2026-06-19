@@ -188,7 +188,7 @@ struct FavoritesView: View {
 
     @ToolbarContentBuilder
     private var favoritesToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
+        ToolbarItem(placement: .platformTopBarLeading) {
             Button {
                 requestRefresh(forceNetwork: true)
             } label: {
@@ -200,18 +200,18 @@ struct FavoritesView: View {
             }
             .disabled(model.refreshing)
         }
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: .platformTopBarTrailing) {
             Button(model.isSelecting ? "Done" : "Select") {
                 model.toggleSelecting()
             }
         }
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: .platformTopBarTrailing) {
             sourceContextMenu
         }
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: .platformTopBarTrailing) {
             folderContextMenu
         }
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: .platformTopBarTrailing) {
             Button {
                 toggleBrowseMode()
             } label: {
@@ -244,11 +244,11 @@ struct FavoritesView: View {
                         get: { Int(model.pageInput) ?? model.currentPage },
                         set: { model.pageInput = String($0) }
                     ), format: .number)
-                    .keyboardType(.numberPad)
+                    .platformKeyboardNumberPad()
                 }
             }
             .navigationTitle("Select Page")
-            .navigationBarTitleDisplayMode(.inline)
+            .platformNavigationBarTitleDisplayModeInline()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -267,7 +267,7 @@ struct FavoritesView: View {
                 }
             }
         }
-        .presentationDetents([.height(220)])
+        .platformPresentationDetentsPagePicker()
     }
 
     private var pagerBar: some View {
@@ -644,12 +644,12 @@ struct HistoryView: View {
         .navigationTitle("History")
         .toolbar {
             if !model.items.isEmpty {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .platformTopBarTrailing) {
                     Button(model.isSelecting ? "Done" : "Select") {
                         model.toggleSelecting()
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .platformTopBarTrailing) {
                     Button(role: .destructive) {
                         model.showClearConfirm = true
                     } label: {
@@ -657,7 +657,7 @@ struct HistoryView: View {
                     }
                     .disabled(model.isSelecting)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .platformTopBarTrailing) {
                     Button {
                         toggleHistoryBrowseMode()
                     } label: {

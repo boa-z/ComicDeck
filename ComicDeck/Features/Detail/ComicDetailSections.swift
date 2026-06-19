@@ -590,7 +590,7 @@ struct ComicDetailChaptersSection: View {
                 } else {
                     HStack(spacing: AppSpacing.sm) {
                         TextField(AppLocalization.text("detail.chapters.search_placeholder", "Search chapter"), text: chapterQuery)
-                            .textInputAutocapitalization(.never)
+                            .platformTextInputAutocapitalizationNever()
                             .autocorrectionDisabled(true)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)

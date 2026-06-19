@@ -44,7 +44,7 @@ struct SourceDetailView: View {
         }
         .background(AppSurface.grouped.ignoresSafeArea())
         .navigationTitle(source.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .platformNavigationBarTitleDisplayModeInline()
         .task(id: source.key) {
             await model.load(source: source, using: vm)
             seedTextDrafts()
@@ -171,7 +171,7 @@ struct SourceDetailView: View {
                             .font(.subheadline.weight(.semibold))
 
                         TextField(AppLocalization.text("source.login.account", "Account"), text: $login.loginAccount)
-                            .textInputAutocapitalization(.never)
+                            .platformTextInputAutocapitalizationNever()
                             .autocorrectionDisabled(true)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
@@ -195,7 +195,7 @@ struct SourceDetailView: View {
                             .font(.subheadline.weight(.semibold))
 
                         TextField(AppLocalization.text("source.detail.account_label", "Account label"), text: $login.newAuthProfileLabel)
-                            .textInputAutocapitalization(.words)
+                            .platformTextInputAutocapitalizationWords()
                             .autocorrectionDisabled(true)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
@@ -211,7 +211,7 @@ struct SourceDetailView: View {
                                     set: { login.updateCookieField(at: index, value: $0) }
                                 )
                             )
-                            .textInputAutocapitalization(.never)
+                            .platformTextInputAutocapitalizationNever()
                             .autocorrectionDisabled(true)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
@@ -398,7 +398,7 @@ struct SourceDetailView: View {
                         set: { textSettingDrafts[setting.key] = $0 }
                     )
                 )
-                .textInputAutocapitalization(.never)
+                .platformTextInputAutocapitalizationNever()
                 .autocorrectionDisabled(true)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)

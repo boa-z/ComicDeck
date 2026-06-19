@@ -17,18 +17,18 @@ struct WebDAVSyncView: View {
 
             Section("Server") {
                 TextField("Directory URL", text: $model.webDAVDirectoryURL)
-                    .textInputAutocapitalization(.never)
+                    .platformTextInputAutocapitalizationNever()
                     .autocorrectionDisabled()
-                    .keyboardType(.URL)
+                    .platformKeyboardURL()
 
                 TextField("Username", text: $model.webDAVUsername)
-                    .textInputAutocapitalization(.never)
+                    .platformTextInputAutocapitalizationNever()
                     .autocorrectionDisabled()
 
                 SecureField("Password", text: $model.webDAVPassword)
 
                 TextField("Remote File Name", text: $model.webDAVRemoteFileName)
-                    .textInputAutocapitalization(.never)
+                    .platformTextInputAutocapitalizationNever()
                     .autocorrectionDisabled()
 
                 Toggle("Upload timestamped snapshots", isOn: $model.webDAVUploadSnapshots)
@@ -146,7 +146,7 @@ struct WebDAVSyncView: View {
             }
         }
         .navigationTitle("WebDAV Sync")
-        .navigationBarTitleDisplayMode(.inline)
+        .platformNavigationBarTitleDisplayModeInline()
         .alert("WebDAV Error", isPresented: Binding(
             get: { model.webDAVError != nil },
             set: { if !$0 { model.webDAVError = nil } }

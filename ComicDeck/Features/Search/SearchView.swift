@@ -24,20 +24,19 @@ struct SearchView: View {
                     get: { model.keyword },
                     set: { model.keyword = $0 }
                 ),
-                placement: .navigationBarDrawer(displayMode: .automatic),
                 prompt: AppLocalization.text("search.placeholder", "Search keyword")
             )
             .onSubmit(of: .search) {
                 Task { await performSearch() }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .platformTopBarLeading) {
                     if model.isSearching {
                         ProgressView()
                             .controlSize(.small)
                     }
                 }
-                ToolbarItemGroup(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .platformTopBarTrailing) {
                     ComicBrowseModePicker(mode: Binding(
                         get: { browseMode },
                         set: { browseMode = $0 }
@@ -501,7 +500,7 @@ struct SearchSettingsSheet: View {
             }
             .navigationTitle("Search Settings")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .platformTopBarTrailing) {
                     Button("Done") { dismiss() }
                 }
             }

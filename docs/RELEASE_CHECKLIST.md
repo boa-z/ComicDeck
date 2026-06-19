@@ -8,12 +8,12 @@ Confirm:
 2. release archive succeeds
 3. app launches cleanly on a fresh install
 4. GitHub Actions produces an unsigned `.ipa` artifact
-5. GitHub Actions produces a Mac Catalyst `.dmg` artifact
-6. GitHub Actions produces a Mac Catalyst `.app.zip` artifact
-7. nightly release includes `ComicDeck.ipa`, `ComicDeck-maccatalyst.dmg`, and `apps.json` release assets
+5. GitHub Actions produces a native macOS `.dmg` artifact
+6. GitHub Actions produces a native macOS `.app.zip` artifact
+7. nightly release includes `ComicDeck.ipa`, `ComicDeck-macos.dmg`, and `apps.json` release assets
 8. nightly `apps.json` update includes the direct GitHub release `.ipa` URL at the app top level and in the nightly release channel
 9. AltStore source parsing fields remain present, including `developerName`, `subtitle`, `localizedDescription`, `category`, and top-level source metadata
-10. the Mac Catalyst `.dmg` mounts cleanly and contains `ComicDeck.app` plus an `Applications` shortcut
+10. the native macOS `.dmg` mounts cleanly and contains `ComicDeck.app` plus an `Applications` shortcut
 
 Recommended command:
 
@@ -22,6 +22,17 @@ xcodebuild -project ComicDeck.xcodeproj \
   -scheme ComicDeck \
   -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath /tmp/ComicDeckDerivedData \
+  CODE_SIGNING_ALLOWED=NO \
+  build
+```
+
+Native macOS command:
+
+```bash
+xcodebuild -project ComicDeck.xcodeproj \
+  -scheme ComicDeckMac \
+  -destination 'generic/platform=macOS' \
+  -derivedDataPath /tmp/ComicDeckMacDerivedData \
   CODE_SIGNING_ALLOWED=NO \
   build
 ```

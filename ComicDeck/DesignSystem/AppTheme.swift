@@ -70,11 +70,11 @@ struct AppRadius {
 }
 
 enum AppSurface {
-    static let background = Color(uiColor: .secondarySystemBackground)
-    static let grouped = Color(uiColor: .systemGroupedBackground)
-    static let card = Color(uiColor: .systemBackground)
-    static let elevated = Color(uiColor: .tertiarySystemBackground)
-    static let subtle = Color(uiColor: .secondarySystemFill)
+    static let background = PlatformColors.secondarySystemBackground
+    static let grouped = PlatformColors.systemGroupedBackground
+    static let card = PlatformColors.systemBackground
+    static let elevated = PlatformColors.tertiarySystemBackground
+    static let subtle = PlatformColors.secondarySystemFill
     static let readerOverlay = Color.black.opacity(0.42)
     static let border = Color.primary.opacity(0.08)
 }

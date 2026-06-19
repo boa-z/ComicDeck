@@ -1,11 +1,10 @@
 import SwiftUI
-import UIKit
 import ImageIO
 
 struct PlainRemoteImage: View {
     let request: URLRequest
     let overlays: [ReaderTextBlock]
-    @State private var uiImage: UIImage?
+    @State private var uiImage: PlatformImage?
     @State private var imageSize: CGSize?
     @State private var errorText: String?
     @State private var loading = false
@@ -14,7 +13,7 @@ struct PlainRemoteImage: View {
     var body: some View {
         ZStack {
             if let uiImage {
-                Image(uiImage: uiImage)
+                Image(platformImage: uiImage)
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -36,7 +35,7 @@ struct PlainRemoteImage: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .aspectRatio(ReaderPlainImageLayout.displayAspectRatio(for: imageSize ?? uiImage?.size), contentMode: .fit)
+        .aspectRatio(ReaderPlainImageLayout.displayAspectRatio(for: imageSize ?? uiImage?.platformSize), contentMode: .fit)
         .background(Color.black)
         .background {
             GeometryReader { proxy in
@@ -96,7 +95,7 @@ struct PlainRemoteImage: View {
             }
             let targetSize = ReaderPlainImageLayout.decodeTargetSize(
                 for: containerWidth,
-                imageSize: sourceSize ?? imageSize ?? uiImage?.size
+                imageSize: sourceSize ?? imageSize ?? uiImage?.platformSize
             )
             readerDebugLog(
                 "plain image load start: url=\(request.url?.absoluteString ?? "nil"), isFile=\(request.url?.isFileURL == true), width=\(Int(containerWidth.rounded())), source=\(Int(sourceSize?.width ?? 0))x\(Int(sourceSize?.height ?? 0)), target=\(Int(targetSize.width.rounded()))x\(Int(targetSize.height.rounded()))",
@@ -117,10 +116,10 @@ struct PlainRemoteImage: View {
                 return
             }
             let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
-            imageSize = baseImage.size
+            imageSize = baseImage.platformSize
             uiImage = image
             readerDebugLog(
-                "plain translated image ready: overlays=\(overlays.count), size=\(Int(image.size.width))x\(Int(image.size.height))",
+                "plain translated image ready: overlays=\(overlays.count), size=\(Int(image.platformSize.width))x\(Int(image.platformSize.height))",
                 level: .info
             )
         } catch is CancellationError {

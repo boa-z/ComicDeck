@@ -1,11 +1,17 @@
 import SwiftUI
+
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 struct ShareFile: Identifiable {
     let url: URL
     var id: String { url.absoluteString }
 }
 
+#if os(iOS)
 struct ActivityShareSheet: UIViewControllerRepresentable {
     let items: [Any]
 
@@ -58,3 +64,48 @@ final class ActivityShareHostViewController: UIViewController {
         present(controller, animated: true)
     }
 }
+#elseif os(macOS)
+struct ActivityShareSheet: NSViewRepresentable {
+    let items: [Any]
+
+    func makeNSView(context: Context) -> ActivityShareHostView {
+        ActivityShareHostView(items: items)
+    }
+
+    func updateNSView(_ nsView: ActivityShareHostView, context: Context) {
+        nsView.update(items: items)
+    }
+}
+
+final class ActivityShareHostView: NSView {
+    private var items: [Any]
+    private var hasPresented = false
+
+    init(items: [Any]) {
+        self.items = items
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        presentShareIfNeeded()
+    }
+
+    func update(items: [Any]) {
+        self.items = items
+        presentShareIfNeeded()
+    }
+
+    private func presentShareIfNeeded() {
+        guard !hasPresented, window != nil else { return }
+        hasPresented = true
+        let picker = NSSharingServicePicker(items: items)
+        picker.show(relativeTo: bounds, of: self, preferredEdge: .minY)
+    }
+}
+#endif

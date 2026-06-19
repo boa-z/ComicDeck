@@ -104,8 +104,8 @@ struct TranslationSettingsView: View {
                             AppLocalization.text("reader.translation.settings.koharu_url.placeholder", "http://127.0.0.1:8080"),
                             text: $translationKoharuBaseURL
                         )
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.URL)
+                        .platformTextInputAutocapitalizationNever()
+                        .platformKeyboardURL()
                         .autocorrectionDisabled()
                         .textContentType(.URL)
 
@@ -132,7 +132,7 @@ struct TranslationSettingsView: View {
                                     AppLocalization.text("reader.translation.settings.koharu_llm.provider_id.placeholder", "openai"),
                                     text: $translationKoharuLLMProviderID
                                 )
-                                .textInputAutocapitalization(.never)
+                                .platformTextInputAutocapitalizationNever()
                                 .autocorrectionDisabled()
                             }
                         }
@@ -145,7 +145,7 @@ struct TranslationSettingsView: View {
                                     AppLocalization.text("reader.translation.settings.koharu_llm.model_id.placeholder", "gpt-4.1-mini"),
                                     text: $translationKoharuLLMModelID
                                 )
-                                .textInputAutocapitalization(.never)
+                                .platformTextInputAutocapitalizationNever()
                                 .autocorrectionDisabled()
 
                                 Text(AppLocalization.text("reader.translation.settings.koharu_llm.temperature", "Temperature"))
@@ -154,7 +154,7 @@ struct TranslationSettingsView: View {
                                     AppLocalization.text("reader.translation.settings.koharu_llm.temperature.placeholder", "0.4"),
                                     text: $translationKoharuLLMTemperatureRaw
                                 )
-                                .keyboardType(.decimalPad)
+                                .platformKeyboardDecimalPad()
 
                                 Text(AppLocalization.text("reader.translation.settings.koharu_llm.max_tokens", "Max tokens"))
                                     .font(.subheadline.weight(.semibold))
@@ -162,7 +162,7 @@ struct TranslationSettingsView: View {
                                     AppLocalization.text("reader.translation.settings.koharu_llm.max_tokens.placeholder", "1024"),
                                     text: $translationKoharuLLMMaxTokensRaw
                                 )
-                                .keyboardType(.numberPad)
+                                .platformKeyboardNumberPad()
 
                                 Text(AppLocalization.text("reader.translation.settings.koharu_llm.system_prompt", "Custom system prompt"))
                                     .font(.subheadline.weight(.semibold))
@@ -213,6 +213,6 @@ struct TranslationSettingsView: View {
             }
         }
         .navigationTitle(AppLocalization.text("settings.translation.title", "Translation"))
-        .navigationBarTitleDisplayMode(.inline)
+        .platformNavigationBarTitleDisplayModeInline()
     }
 }

@@ -49,7 +49,7 @@ struct AppleTranslationProvider: TranslationProvider {
         guard normalized.contains(where: { !$0.isEmpty }) else { return texts }
 
         #if canImport(Translation)
-        if #available(iOS 18.0, macCatalyst 26.0, *) {
+        if #available(iOS 18.0, macOS 26.0, *) {
             let resolvedSourceLanguage = sourceLanguage?.localeLanguage ?? detectSourceLanguage(in: normalized)
             let availability = LanguageAvailability()
             let status = await availability.status(from: resolvedSourceLanguage, to: targetLanguage.localeLanguage)
@@ -88,7 +88,7 @@ struct AppleTranslationProvider: TranslationProvider {
     }
 
     #if canImport(Translation)
-    @available(iOS 18.0, macCatalyst 26.0, *)
+    @available(iOS 18.0, macOS 26.0, *)
     private nonisolated func translateBatch(
         _ texts: [String],
         sourceLanguage: Locale.Language,

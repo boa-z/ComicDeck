@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 struct CoverArtworkView: View {
     let urlString: String?
@@ -11,8 +10,8 @@ struct CoverArtworkView: View {
     var body: some View {
         Group {
             if let fileURL,
-               let image = UIImage(contentsOfFile: fileURL.path) {
-                Image(uiImage: image)
+               let image = PlatformImage(contentsOfFile: fileURL.path) {
+                Image(platformImage: image)
                     .resizable()
                     .scaledToFill()
                     .frame(width: width, height: height)

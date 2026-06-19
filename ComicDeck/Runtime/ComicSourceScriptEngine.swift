@@ -1,7 +1,11 @@
 import Foundation
 import JavaScriptCore
 import CryptoKit
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 import CommonCrypto
 
 final class NSLockProtected<Value>: @unchecked Sendable {
@@ -72,7 +76,7 @@ struct IndexedImageRequest: Hashable, Sendable {
     let request: ImageRequest
 }
 
-nonisolated final class ComicSourceScriptEngine {
+nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
     private struct ReaderPageRequestSessionState {
         let comicID: String
         let chapterID: String
@@ -3585,12 +3589,16 @@ nonisolated final class ComicSourceScriptEngine {
         let launchUrl: @convention(block) (String) -> Void = { urlStr in
             guard let url = URL(string: urlStr) else { return }
             DispatchQueue.main.async {
+                #if os(iOS)
                 UIApplication.shared.open(url)
+                #elseif os(macOS)
+                NSWorkspace.shared.open(url)
+                #endif
             }
         }
         let copyToClipboard: @convention(block) (String) -> Void = { text in
             DispatchQueue.main.async {
-                UIPasteboard.general.string = text
+                PlatformPasteboard.copy(text)
             }
         }
         bridgeUI.setObject(bridgeBlock(showMessage), forKeyedSubscript: "showMessage" as NSString)
@@ -4225,6 +4233,7 @@ private enum BridgeUIRuntime {
     static func showDialog(title: String, message: String, actions: [String]) -> Int {
         let normalized = actions.isEmpty ? ["OK"] : actions
         return runBlockingOnMain(defaultValue: 0) {
+            #if os(iOS)
             guard let host = topController() else { return 0 }
             var selected = 0
             let semaphore = DispatchSemaphore(value: 0)
@@ -4239,12 +4248,23 @@ private enum BridgeUIRuntime {
             host.present(alert, animated: true)
             _ = semaphore.wait(timeout: .now() + 120)
             return selected
+            #elseif os(macOS)
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.informativeText = message
+            for (idx, label) in normalized.enumerated() {
+                alert.addButton(withTitle: label.isEmpty ? "Action \(idx + 1)" : label)
+            }
+            let response = alert.runModal()
+            return max(0, response.rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue)
+            #endif
         }
     }
 
     @MainActor
     static func showInputDialog(title: String) -> String? {
         runBlockingOnMain(defaultValue: nil) {
+            #if os(iOS)
             guard let host = topController() else { return nil }
             var text: String?
             let semaphore = DispatchSemaphore(value: 0)
@@ -4263,9 +4283,21 @@ private enum BridgeUIRuntime {
             host.present(alert, animated: true)
             _ = semaphore.wait(timeout: .now() + 180)
             return text
+            #elseif os(macOS)
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "Cancel")
+            let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+            alert.accessoryView = input
+            let response = alert.runModal()
+            guard response == .alertFirstButtonReturn else { return nil }
+            return input.stringValue
+            #endif
         }
     }
 
+    #if os(iOS)
     private static func topController() -> UIViewController? {
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         var keyWindow: UIWindow?
@@ -4284,6 +4316,7 @@ private enum BridgeUIRuntime {
         }
         return top
     }
+    #endif
 }
 
 nonisolated private func runBlockingOnMain<T>(defaultValue: T, _ work: @escaping @MainActor () -> T) -> T {

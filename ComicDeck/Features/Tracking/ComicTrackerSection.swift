@@ -154,7 +154,7 @@ struct TrackerSearchSheet: View {
             List {
                 Section {
                     TextField("Search \(provider.title) manga", text: $query)
-                        .textInputAutocapitalization(.never)
+                        .platformTextInputAutocapitalizationNever()
                         .autocorrectionDisabled()
                 }
 
@@ -209,10 +209,10 @@ struct TrackerSearchSheet: View {
             }
             .navigationTitle("Link \(provider.title)")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .platformTopBarLeading) {
                     Button("Close") { dismiss() }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .platformTopBarTrailing) {
                     Button("Search") {
                         Task { await search() }
                     }

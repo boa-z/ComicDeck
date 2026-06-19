@@ -1,7 +1,13 @@
 import SwiftUI
+#if os(iOS)
 import UIKit
 import Photos
+#endif
+#if os(iOS)
 import GameController
+#elseif os(macOS)
+import AppKit
+#endif
 
 private enum TapAction {
     case previous
@@ -170,9 +176,9 @@ struct ComicReaderView: View {
         case .black:
             return .black
         case .auto:
-            return readerMode == .vertical ? .black : Color(uiColor: .systemBackground)
+            return readerMode == .vertical ? .black : PlatformColors.systemBackground
         case .system:
-            return Color(uiColor: .systemBackground)
+            return PlatformColors.systemBackground
         }
     }
 
@@ -197,8 +203,8 @@ struct ComicReaderView: View {
     private var baseReaderContent: some View {
         readerBody
             .navigationBarBackButtonHidden(!session.loading)
-            .toolbar(.hidden, for: .tabBar)
-            .statusBarHidden(!session.showControls)
+            .platformHideTabBar()
+            .platformStatusBarHidden(!session.showControls)
             .focusable(true)
             .focused($isReaderFocused)
             .sheet(item: $sharedPageExport) { shareFile in
@@ -249,7 +255,7 @@ struct ComicReaderView: View {
                     ),
                     keepScreenOn: $keepScreenOn
                 )
-                .presentationDetents([.medium])
+                .platformPresentationDetentsMedium()
             }
     }
 
@@ -282,12 +288,16 @@ struct ComicReaderView: View {
                 session.markVisible()
                 applyCurrentTranslationPreferences()
                 isReaderFocused = true
+                #if os(iOS)
                 UIApplication.shared.isIdleTimerDisabled = keepScreenOn
+                #endif
                 installKeyboardMonitoring()
                 installMemoryPressureMonitoring()
             }
             .onChange(of: keepScreenOn) { _, enabled in
+                #if os(iOS)
                 UIApplication.shared.isIdleTimerDisabled = enabled
+                #endif
             }
             .onDisappear {
                 handleDisappear()
@@ -448,7 +458,7 @@ struct ComicReaderView: View {
     }
 
     private func installKeyboardMonitoring() {
-        #if targetEnvironment(macCatalyst)
+        #if os(iOS)
         attachKeyboardHandler()
         if keyboardDidConnectObserver == nil {
             keyboardDidConnectObserver = NotificationCenter.default.addObserver(
@@ -476,6 +486,7 @@ struct ComicReaderView: View {
     }
 
     private func installMemoryPressureMonitoring() {
+        #if os(iOS)
         memoryPressureObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil,
@@ -488,10 +499,11 @@ struct ComicReaderView: View {
                 readerDebugLog("memory pressure: trimmed all caches", level: .warn)
             }
         }
+        #endif
     }
 
     private func uninstallKeyboardMonitoring() {
-        #if targetEnvironment(macCatalyst)
+        #if os(iOS)
         clearKeyboardHandler()
         if let observer = keyboardDidConnectObserver {
             NotificationCenter.default.removeObserver(observer)
@@ -509,7 +521,7 @@ struct ComicReaderView: View {
     }
 
     private func attachKeyboardHandler() {
-        #if targetEnvironment(macCatalyst)
+        #if os(iOS)
         GCKeyboard.coalesced?.keyboardInput?.keyChangedHandler = { _, _, keyCode, pressed in
             guard pressed else { return }
             Task { @MainActor in
@@ -520,13 +532,13 @@ struct ComicReaderView: View {
     }
 
     private func clearKeyboardHandler() {
-        #if targetEnvironment(macCatalyst)
+        #if os(iOS)
         GCKeyboard.coalesced?.keyboardInput?.keyChangedHandler = nil
         #endif
     }
 
+    #if os(iOS)
     private func handleKeyboardKey(_ keyCode: GCKeyCode) {
-        #if targetEnvironment(macCatalyst)
         switch keyCode {
         case GCKeyCode.leftArrow, GCKeyCode.keypad4:
             previousPage()
@@ -539,8 +551,8 @@ struct ComicReaderView: View {
         default:
             break
         }
-        #endif
     }
+    #endif
 
     private var loadingOverlay: some View {
         VStack(spacing: 6) {
@@ -690,7 +702,7 @@ struct ComicReaderView: View {
         }
     }
 
-    private func makeCurrentPageExportImage() async throws -> UIImage {
+    private func makeCurrentPageExportImage() async throws -> PlatformImage {
         let pageIndex = session.currentPage
         guard session.imageRequests.indices.contains(pageIndex), let request = session.imageRequests[pageIndex] else {
             throw ReaderPageExportError.currentPageUnavailable
@@ -700,7 +712,7 @@ struct ComicReaderView: View {
            let renderedAsset = session.translationRenderedAssets[pageIndex],
            !renderedAsset.localFilePath.isEmpty,
            FileManager.default.fileExists(atPath: renderedAsset.localFilePath),
-           let image = UIImage(contentsOfFile: renderedAsset.localFilePath) {
+           let image = PlatformImage(contentsOfFile: renderedAsset.localFilePath) {
             return image
         }
 
@@ -709,11 +721,16 @@ struct ComicReaderView: View {
         }
 
         let data = try await ReaderImagePipeline.shared.loadData(for: urlRequest, priority: .visible)
+        #if os(iOS)
+        let exportScale = UITraitCollection.current.displayScale
+        #else
+        let exportScale: CGFloat = 2
+        #endif
         guard let baseImage = ReaderDecodedImageStore.shared.image(
             for: urlRequest,
             data: data,
-            targetSize: .zero,
-            scale: UITraitCollection.current.displayScale,
+            targetSize: CGSize.zero,
+            scale: exportScale,
             allowOriginalSize: true
         ) else {
             throw ReaderPageExportError.imageDecodeFailed
@@ -727,8 +744,8 @@ struct ComicReaderView: View {
         return ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
     }
 
-    private func writeTemporaryPageExport(_ image: UIImage) throws -> URL {
-        guard let data = image.pngData() else {
+    private func writeTemporaryPageExport(_ image: PlatformImage) throws -> URL {
+        guard let data = image.platformPNGData else {
             throw ReaderPageExportError.imageWriteFailed
         }
         let fileName = "comicdeck-\(safeExportFileName(item.title))-p\(displayedPageIndex).png"
@@ -747,6 +764,7 @@ struct ComicReaderView: View {
     }
 
     private func saveImageToPhotos(at url: URL) async throws {
+        #if os(iOS)
         let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
         let resolvedStatus = status == .notDetermined
             ? await PHPhotoLibrary.requestAuthorization(for: .addOnly)
@@ -757,6 +775,9 @@ struct ComicReaderView: View {
         try await PHPhotoLibrary.shared().performChanges {
             PHAssetCreationRequest.forAsset().addResource(with: .photo, fileURL: url, options: nil)
         }
+        #elseif os(macOS)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+        #endif
     }
 
     private func applyCurrentTranslationPreferences() {
@@ -789,9 +810,12 @@ struct ComicReaderView: View {
         chapterNavigationTask?.cancel()
         chapterNavigationTask = nil
         prefetcher.cancel()
+        #if os(iOS)
         UIApplication.shared.isIdleTimerDisabled = false
+        #endif
         uninstallKeyboardMonitoring()
 
+        #if os(iOS)
         let app = UIApplication.shared
         var bgTaskID: UIBackgroundTaskIdentifier = .invalid
         bgTaskID = app.beginBackgroundTask(withName: "ReaderCleanup") {
@@ -806,6 +830,14 @@ struct ComicReaderView: View {
             app.endBackgroundTask(bgTaskID)
             bgTaskID = .invalid
         }
+        #elseif os(macOS)
+        Task { @MainActor in
+            await ReaderImagePipeline.shared.cancelPrefetchSession()
+            await session.close(using: vm)
+            await persistHistoryNow()
+            session.finishReadingSession(using: library)
+        }
+        #endif
     }
 
     private func load() async {
@@ -978,4 +1010,3 @@ struct ComicReaderView: View {
         }
     }
 }
-

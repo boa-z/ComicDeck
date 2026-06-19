@@ -164,7 +164,7 @@ struct TrackerSubscriptionDetailView: View {
         }
         .background(AppSurface.grouped.ignoresSafeArea())
         .navigationTitle(row.entry.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .platformNavigationBarTitleDisplayModeInline()
         .sheet(item: $sourceSearchRoute) { route in
             TrackerSourceBindingSearchSheet(
                 vm: vm,
@@ -631,13 +631,12 @@ struct TrackerSourceBindingSearchSheet: View {
             }
             .background(AppSurface.grouped.ignoresSafeArea())
             .navigationTitle(AppLocalization.text("tracking.source_binding.title", "Bind Source"))
-            .navigationBarTitleDisplayMode(.inline)
+            .platformNavigationBarTitleDisplayModeInline()
             .searchable(
                 text: Binding(
                     get: { model.keyword },
                     set: { model.keyword = $0 }
                 ),
-                placement: .navigationBarDrawer(displayMode: .automatic),
                 prompt: AppLocalization.text("tracking.source_binding.search_prompt", "Search keyword")
             )
             .onSubmit(of: .search) {
@@ -648,12 +647,12 @@ struct TrackerSourceBindingSearchSheet: View {
                 Task { await search(model.keyword) }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .platformTopBarLeading) {
                     if model.isSearching {
                         ProgressView().controlSize(.small)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .platformTopBarTrailing) {
                     Button(AppLocalization.text("common.done", "Done")) { dismiss() }
                 }
             }

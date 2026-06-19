@@ -1,7 +1,8 @@
 import SwiftUI
+
+#if os(iOS)
 import UIKit
 
-#if targetEnvironment(macCatalyst)
 struct ReaderKeyboardHost: UIViewRepresentable {
     let onLeftArrow: () -> Void
     let onRightArrow: () -> Void

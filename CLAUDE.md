@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     CODE_SIGNING_ALLOWED=NO \
     build
   ```
-- CI packaging for unsigned IPA and Mac Catalyst DMG is defined in `.github/workflows/build.yml` (uses `xcodebuild` archive/build plus `.github/build_github.sh` and `.github/build_macos_dmg.sh`).
+- CI packaging for unsigned IPA and native macOS DMG is defined in `.github/workflows/build.yml` (uses `xcodebuild` archive/build plus `.github/build_github.sh` and `.github/build_macos_dmg.sh`).
 
 ## Architecture overview
 - Layered dependency flow: `App -> Features -> Runtime -> Core`, with `Features -> Core` as the only shortcut. `Core` must not depend on `Features`.

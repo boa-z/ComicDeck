@@ -1,5 +1,5 @@
 import Foundation
-#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+#if os(iOS) && canImport(ActivityKit)
 import ActivityKit
 #endif
 
@@ -478,7 +478,7 @@ final class SourceRuntime {
                 requests: requests
             )
             var message = library.status
-#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+#if os(iOS) && canImport(ActivityKit)
             if #available(iOS 16.1, *), !ActivityAuthorizationInfo().areActivitiesEnabled {
                 message = "Download queued. Live Activities is disabled in system settings."
             }
@@ -555,11 +555,12 @@ final class SourceRuntime {
         )
     }
 
-    private func runEngine<T>(_ work: @escaping () throws -> T) async throws -> T {
-        try await withCheckedThrowingContinuation { continuation in
+    private func runEngine<T: Sendable>(_ work: @escaping () throws -> T) async throws -> T {
+        let workBox = SourceRuntimeEngineWorkBox(work)
+        return try await withCheckedThrowingContinuation { continuation in
             engineExecutionQueue.async {
                 do {
-                    continuation.resume(returning: try work())
+                    continuation.resume(returning: try workBox.run())
                 } catch {
                     continuation.resume(throwing: error)
                 }
@@ -586,5 +587,17 @@ final class SourceRuntime {
             group.cancelAll()
             return result
         }
+    }
+}
+
+private final class SourceRuntimeEngineWorkBox<T>: @unchecked Sendable {
+    nonisolated(unsafe) private let work: () throws -> T
+
+    nonisolated init(_ work: @escaping () throws -> T) {
+        self.work = work
+    }
+
+    nonisolated func run() throws -> T {
+        try work()
     }
 }

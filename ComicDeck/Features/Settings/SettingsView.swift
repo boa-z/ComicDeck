@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 import UniformTypeIdentifiers
 
 @MainActor
@@ -368,7 +367,7 @@ private struct DebugLogsView: View {
             }
         }
         .navigationTitle(AppLocalization.text("settings.diagnostics.debug_logs", "Debug Logs"))
-        .navigationBarTitleDisplayMode(.inline)
+        .platformNavigationBarTitleDisplayModeInline()
         .alert(AppLocalization.text("settings.debug.copied_title", "Copied to Clipboard"), isPresented: $copiedAlertVisible) {
             Button(AppLocalization.text("common.ok", "OK"), role: .cancel) {}
         } message: {
@@ -394,7 +393,7 @@ private struct DebugLogsView: View {
                     .disabled(!console.activeLogFileExists() || model.sharingLog)
 
                     Button {
-                        UIPasteboard.general.string = filteredLines.joined(separator: "\n")
+                        PlatformPasteboard.copy(filteredLines.joined(separator: "\n"))
                         copiedAlertVisible = true
                     } label: {
                         Label(AppLocalization.text("common.copy", "Copy"), systemImage: "doc.on.doc")
@@ -473,7 +472,7 @@ private struct AboutView: View {
             }
         }
         .navigationTitle("About")
-        .navigationBarTitleDisplayMode(.inline)
+        .platformNavigationBarTitleDisplayModeInline()
     }
 
     private func aboutRow(title: String, value: String) -> some View {

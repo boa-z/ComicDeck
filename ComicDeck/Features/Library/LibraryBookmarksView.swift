@@ -150,17 +150,17 @@ struct LibraryBookmarksView: View {
         .navigationTitle("Bookmarks")
         .searchable(text: $searchText, prompt: "Search bookmarks")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .platformTopBarTrailing) {
                 Button("Shelves") {
                     showShelfManager = true
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .platformTopBarTrailing) {
                 Button(model.isSelecting ? "Done" : "Select") {
                     model.toggleSelecting()
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .platformTopBarTrailing) {
                 ComicBrowseModePicker(
                     mode: Binding(
                         get: { browseMode },
@@ -335,7 +335,7 @@ struct LibraryBookmarksView: View {
     private func selectionBadge(isSelected: Bool) -> some View {
         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
             .font(.title3)
-            .foregroundStyle(isSelected ? AppTint.accent : Color(uiColor: .tertiaryLabel))
+            .foregroundStyle(isSelected ? AppTint.accent : PlatformColors.tertiaryLabel)
             .padding(4)
             .background(.thinMaterial, in: Circle())
     }

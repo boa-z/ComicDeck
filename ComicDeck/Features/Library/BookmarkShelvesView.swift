@@ -45,38 +45,60 @@ private struct BookmarkShelfReorderView: View {
     @Bindable var model: BookmarkShelvesScreenModel
     @Environment(LibraryViewModel.self) private var library
     @Environment(\.dismiss) private var dismiss
+    #if os(iOS)
     @State private var editMode: EditMode = .active
+    #endif
 
     var body: some View {
         NavigationStack {
             List {
+                #if os(iOS)
                 ForEach(model.reorderCategories) { category in
-                    HStack(spacing: AppSpacing.md) {
-                        Image(systemName: "line.3.horizontal")
-                            .foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(category.name)
-                                .font(.headline)
-                            Text("\(library.bookmarkCount(in: category)) bookmarks")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                    reorderRow(category)
                 }
                 .onMove { from, to in
                     model.reorderCategories.move(fromOffsets: from, toOffset: to)
                 }
+                #else
+                ForEach(Array(model.reorderCategories.enumerated()), id: \.element.id) { index, category in
+                    HStack(spacing: AppSpacing.md) {
+                        reorderRow(category)
+
+                        Spacer(minLength: 0)
+
+                        Button {
+                            moveCategory(at: index, by: -1)
+                        } label: {
+                            Image(systemName: "chevron.up")
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(index == 0)
+                        .help(AppLocalization.text("library.shelves.move_up", "Move Up"))
+
+                        Button {
+                            moveCategory(at: index, by: 1)
+                        } label: {
+                            Image(systemName: "chevron.down")
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(index == model.reorderCategories.count - 1)
+                        .help(AppLocalization.text("library.shelves.move_down", "Move Down"))
+                    }
+                }
+                #endif
             }
+            #if os(iOS)
             .environment(\.editMode, $editMode)
+            #endif
             .navigationTitle(AppLocalization.text("library.shelves.reorder", "Reorder Shelves"))
-            .navigationBarTitleDisplayMode(.inline)
+            .platformNavigationBarTitleDisplayModeInline()
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .platformTopBarLeading) {
                     Button(AppLocalization.text("common.cancel", "Cancel")) {
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .platformTopBarTrailing) {
                     Button(AppLocalization.text("common.save", "Save")) {
                         Task {
                             await library.reorderBookmarkShelves(model.reorderCategories)
@@ -86,6 +108,28 @@ private struct BookmarkShelfReorderView: View {
                 }
             }
         }
+    }
+
+    private func reorderRow(_ category: LibraryCategory) -> some View {
+        HStack(spacing: AppSpacing.md) {
+            Image(systemName: "line.3.horizontal")
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(category.name)
+                    .font(.headline)
+                Text("\(library.bookmarkCount(in: category)) bookmarks")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func moveCategory(at index: Int, by offset: Int) {
+        let destination = index + offset
+        guard model.reorderCategories.indices.contains(index),
+              model.reorderCategories.indices.contains(destination)
+        else { return }
+        model.reorderCategories.swapAt(index, destination)
     }
 }
 
@@ -113,10 +157,10 @@ struct BookmarkShelvesView: View {
         }
         .scrollContentBackground(.hidden)
         .background(AppSurface.grouped.ignoresSafeArea())
-        .listStyle(.insetGrouped)
+        .platformInsetGroupedListStyle()
         .navigationTitle(AppLocalization.text("library.shelves.title", "Shelves"))
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .platformTopBarTrailing) {
                 if library.favoriteCategories.count > 1 {
                     Button(AppLocalization.text("library.shelves.reorder", "Reorder")) {
                         model.beginReorder(with: library.favoriteCategories)
@@ -170,7 +214,7 @@ struct BookmarkShelvesView: View {
             NavigationStack {
                 addFavoritesSheet(for: category)
             }
-            .presentationDetents([.medium, .large])
+            .platformPresentationDetentsMediumLarge()
         }
         .sheet(isPresented: $model.showingReorder) {
             BookmarkShelfReorderView(model: model)
@@ -329,7 +373,7 @@ struct BookmarkShelvesView: View {
                                 .foregroundStyle(
                                     model.selectedFavoriteKeys.contains(model.favoriteKey(for: favorite))
                                         ? AppTint.accent
-                                        : Color(uiColor: .tertiaryLabel)
+                                        : PlatformColors.tertiaryLabel
                                 )
                         }
                     }
@@ -339,12 +383,12 @@ struct BookmarkShelvesView: View {
         }
         .navigationTitle("Add to \(category.name)")
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .platformTopBarLeading) {
                 Button("Cancel") {
                     model.categoryToAddFavorites = nil
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .platformTopBarTrailing) {
                 Button("Add") {
                     let favorites = availableFavorites.filter { model.selectedFavoriteKeys.contains(model.favoriteKey(for: $0)) }
                     Task { await library.addBookmarks(favorites, to: category) }
@@ -471,7 +515,7 @@ private struct BookmarkShelfDetailView: View {
         }
         .navigationTitle(category.name)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .platformTopBarTrailing) {
                 ComicBrowseModePicker(
                     mode: Binding(
                         get: { browseMode },

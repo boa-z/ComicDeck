@@ -40,10 +40,10 @@ struct SourceRepositoryView: View {
         }
         .background(AppSurface.grouped.ignoresSafeArea())
         .navigationTitle("Source Index")
-        .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search source index")
+        .platformNavigationBarTitleDisplayModeInline()
+        .searchable(text: $query, prompt: "Search source index")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .platformTopBarTrailing) {
                 Button {
                     Task { await sourceManager.refreshRemoteSources(forceRefresh: true) }
                 } label: {
@@ -66,7 +66,7 @@ struct SourceRepositoryView: View {
         ComicDetailSectionCard(title: "Source Index", subtitle: "Provide your own source index URL and manage update checks") {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 TextField("index.json URL", text: $sourceManager.indexURL)
-                    .textInputAutocapitalization(.never)
+                    .platformTextInputAutocapitalizationNever()
                     .autocorrectionDisabled(true)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)

@@ -32,7 +32,7 @@ struct DiscoverView: View {
             .background(AppSurface.grouped)
             .navigationTitle(AppLocalization.text("discover.navigation.title", "Discover"))
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .platformTopBarTrailing) {
                     Button(action: onOpenSearch) {
                         Image(systemName: "magnifyingglass")
                     }
@@ -102,7 +102,7 @@ struct ExploreView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .listStyle(.insetGrouped)
+        .platformInsetGroupedListStyle()
         .scrollContentBackground(.visible)
         .background(AppSurface.grouped)
         .navigationDestination(item: $route) { target in
@@ -346,7 +346,7 @@ struct CategoryView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .listStyle(.insetGrouped)
+        .platformInsetGroupedListStyle()
         .scrollContentBackground(.visible)
         .background(AppSurface.grouped)
         .navigationDestination(item: $navTarget) { target in
@@ -446,7 +446,7 @@ struct CategoryComicsPageView: View {
         .background(AppSurface.grouped)
         .navigationTitle(item.label)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .platformTopBarTrailing) {
                 ComicBrowseModePicker(mode: Binding(
                     get: { browseMode },
                     set: { browseMode = $0 }
@@ -478,7 +478,7 @@ struct CategoryComicsPageView: View {
             categoryFiltersSection
             categoryResultsSection
         }
-        .listStyle(.insetGrouped)
+        .platformInsetGroupedListStyle()
     }
 
     private var categoryGrid: some View {
@@ -675,7 +675,7 @@ struct CategoryRankingPageView: View {
         .background(AppSurface.grouped)
         .navigationTitle("Ranking")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .platformTopBarTrailing) {
                 ComicBrowseModePicker(mode: Binding(
                     get: { browseMode },
                     set: { browseMode = $0 }
@@ -707,7 +707,7 @@ struct CategoryRankingPageView: View {
             rankingFiltersSection
             rankingResultsSection
         }
-        .listStyle(.insetGrouped)
+        .platformInsetGroupedListStyle()
     }
 
     private var rankingGrid: some View {

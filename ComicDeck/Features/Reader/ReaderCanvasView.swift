@@ -37,26 +37,10 @@ struct ReaderCanvasView: View {
     }
 
     private var horizontalReader: some View {
+        #if os(iOS)
         TabView(selection: $currentPage) {
             ForEach(Array(imageRequests.enumerated()), id: \.offset) { idx, request in
-                ReaderPageView(
-                    pageIndex: idx,
-                    request: shouldLoadPage(at: idx) ? request : nil,
-                    nonce: reloadNonce,
-                    supportsZoom: true,
-                    translationEnabled: translationEnabled,
-                    translationShowOriginal: translationShowOriginal,
-                    overlays: translationBlocks[idx] ?? [],
-                    renderedAsset: translationRenderedAssets[idx],
-                    resolvedPageCount: resolvedPageCount,
-                    totalPages: totalPages,
-                    isLoadingMore: isLoadingMore,
-                    reloadPageAction: { reloadPageAction(idx) },
-                    translatePageAction: translationEnabled ? { translatePageAction?(idx) } : nil,
-                    toggleTranslationAction: translationEnabled ? toggleTranslationAction : nil,
-                    onLongPressZoomStart: onLongPressZoomStart,
-                    onLongPressZoomEnd: onLongPressZoomEnd
-                )
+                horizontalPage(at: idx, request: shouldLoadPage(at: idx) ? request : nil)
                     .tag(idx)
             }
         }
@@ -64,6 +48,33 @@ struct ReaderCanvasView: View {
         .background(Color.black)
         .tabViewStyle(.page(indexDisplayMode: .never))
         .environment(\.layoutDirection, readerMode == .rtl ? .rightToLeft : .leftToRight)
+        #elseif os(macOS)
+        horizontalPage(at: currentPage, request: imageRequests.indices.contains(currentPage) ? imageRequests[currentPage] : nil)
+            .id("\(currentPage)-\(reloadNonce)")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
+        #endif
+    }
+
+    private func horizontalPage(at idx: Int, request: ImageRequest?) -> some View {
+        ReaderPageView(
+            pageIndex: idx,
+            request: request,
+            nonce: reloadNonce,
+            supportsZoom: true,
+            translationEnabled: translationEnabled,
+            translationShowOriginal: translationShowOriginal,
+            overlays: translationBlocks[idx] ?? [],
+            renderedAsset: translationRenderedAssets[idx],
+            resolvedPageCount: resolvedPageCount,
+            totalPages: totalPages,
+            isLoadingMore: isLoadingMore,
+            reloadPageAction: { reloadPageAction(idx) },
+            translatePageAction: translationEnabled ? { translatePageAction?(idx) } : nil,
+            toggleTranslationAction: translationEnabled ? toggleTranslationAction : nil,
+            onLongPressZoomStart: onLongPressZoomStart,
+            onLongPressZoomEnd: onLongPressZoomEnd
+        )
     }
 
     private func verticalReader(viewportHeight: CGFloat) -> some View {

@@ -1,13 +1,19 @@
-import UIKit
+import Foundation
 import ImageIO
+
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 final class ReaderDecodedImageStore {
     static let shared = ReaderDecodedImageStore()
 
     private final class CacheBox {
-        let image: UIImage
+        let image: PlatformImage
 
-        init(_ image: UIImage) {
+        init(_ image: PlatformImage) {
             self.image = image
         }
     }
@@ -29,7 +35,7 @@ final class ReaderDecodedImageStore {
         targetSize: CGSize,
         scale: CGFloat,
         allowOriginalSize: Bool
-    ) -> UIImage? {
+    ) -> PlatformImage? {
         let key = cacheKey(for: request, targetSize: targetSize, scale: scale, allowOriginalSize: allowOriginalSize)
         if let cached = cache.object(forKey: key as NSString) {
             return cached.image
@@ -42,7 +48,7 @@ final class ReaderDecodedImageStore {
         ) else {
             return nil
         }
-        cache.setObject(CacheBox(image), forKey: key as NSString, cost: image.memoryCost)
+        cache.setObject(CacheBox(image), forKey: key as NSString, cost: image.platformMemoryCost)
         return image
     }
 
@@ -62,9 +68,9 @@ final class ReaderDecodedImageStore {
         targetSize: CGSize,
         scale: CGFloat,
         allowOriginalSize: Bool
-    ) -> UIImage? {
+    ) -> PlatformImage? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-            return UIImage(data: data)
+            return PlatformImage(data: data)
         }
 
         let pixelWidth = max(Int((max(targetSize.width, 1) * scale).rounded(.up)), 1)
@@ -75,7 +81,7 @@ final class ReaderDecodedImageStore {
             guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
                   let srcWidth = properties[kCGImagePropertyPixelWidth] as? Int,
                   let srcHeight = properties[kCGImagePropertyPixelHeight] as? Int else {
-                return UIImage(data: data)
+                return PlatformImage(data: data)
             }
             maxPixelSize = max(srcWidth, srcHeight)
         } else {
@@ -90,17 +96,12 @@ final class ReaderDecodedImageStore {
         ]
 
         if let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
-            return UIImage(cgImage: cgImage, scale: scale, orientation: .up)
+            #if os(iOS)
+            return PlatformImage(cgImage: cgImage, scale: scale, orientation: .up)
+            #elseif os(macOS)
+            return PlatformImage(cgImage: cgImage, size: CGSize(width: cgImage.width, height: cgImage.height))
+            #endif
         }
-        return UIImage(data: data)
-    }
-}
-
-private extension UIImage {
-    var memoryCost: Int {
-        guard let cgImage else {
-            return Int(size.width * size.height * scale * scale * 4)
-        }
-        return cgImage.bytesPerRow * cgImage.height
+        return PlatformImage(data: data)
     }
 }

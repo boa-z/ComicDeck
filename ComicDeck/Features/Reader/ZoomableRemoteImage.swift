@@ -1,4 +1,6 @@
 import SwiftUI
+
+#if os(iOS)
 import UIKit
 
 struct ZoomableRemoteImage: UIViewRepresentable {
@@ -40,7 +42,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
         private var loadTask: Task<Void, Never>?
         private var currentKey = ""
         private var currentRequest: URLRequest?
-        private var lastRenderedBaseImage: UIImage?
+        private var lastRenderedBaseImage: PlatformImage?
         private var lastRenderedOverlays: [ReaderTextBlock]?
         private let displayScale: CGFloat
 
@@ -114,7 +116,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
             let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
             view.setImage(image)
             readerDebugLog(
-                "zoom translated image ready: overlays=\(overlays.count), size=\(Int(image.size.width.rounded()))x\(Int(image.size.height.rounded()))",
+                "zoom translated image ready: overlays=\(overlays.count), size=\(Int(image.platformSize.width.rounded()))x\(Int(image.platformSize.height.rounded()))",
                 level: .info
             )
         }
@@ -134,7 +136,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     private let loadingLabel = UILabel()
     private let errorLabel = UILabel()
     var currentOverlays: [ReaderTextBlock] = []
-    var baseImage: UIImage?
+    var baseImage: PlatformImage?
     private var lastBoundsSize: CGSize = .zero
     private var shouldResetZoomOnNextLayout = false
     var onLongPressZoomStart: ((CGPoint) -> Void)?
@@ -218,7 +220,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
         }
     }
 
-    func setImage(_ image: UIImage) {
+    func setImage(_ image: PlatformImage) {
         imageView.image = image
         errorLabel.isHidden = true
         setLoading(false)
@@ -228,7 +230,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
         recalculateZoomScales(resetToMinimum: true)
     }
 
-    func setBaseImage(_ image: UIImage) {
+    func setBaseImage(_ image: PlatformImage) {
         baseImage = image
     }
 
@@ -351,3 +353,97 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
         return CGRect(x: center.x - width * 0.5, y: center.y - height * 0.5, width: width, height: height)
     }
 }
+#elseif os(macOS)
+struct ZoomableRemoteImage: View {
+    let request: URLRequest
+    let overlays: [ReaderTextBlock]
+    var displayScale: CGFloat = 2.0
+    var onLongPressZoomStart: ((CGPoint) -> Void)?
+    var onLongPressZoomEnd: (() -> Void)?
+
+    @State private var image: PlatformImage?
+    @State private var imageSize: CGSize?
+    @State private var errorText: String?
+    @State private var scale: CGFloat = 1
+    @State private var lastScale: CGFloat = 1
+
+    var body: some View {
+        ZStack {
+            if let image {
+                ScrollView([.horizontal, .vertical]) {
+                    Image(platformImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .scaleEffect(scale)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .gesture(
+                            MagnifyGesture()
+                                .onChanged { value in
+                                    scale = min(max(lastScale * value.magnification, 1), 4)
+                                }
+                                .onEnded { _ in
+                                    lastScale = scale
+                                }
+                        )
+                        .onTapGesture(count: 2) {
+                            scale = scale > 1.01 ? 1 : 2
+                            lastScale = scale
+                        }
+                }
+            } else if let errorText {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.yellow)
+                    Text(AppLocalization.text("reader.error.image_load_failed", "Failed to load image"))
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.85))
+                    Text(errorText)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(3)
+                }
+                .padding()
+            } else {
+                ProgressView()
+                    .controlSize(.large)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black)
+        .task(id: "\(urlRequestKey(request))|\(overlays.count)") {
+            await load()
+        }
+    }
+
+    private func load() async {
+        errorText = nil
+        image = nil
+        do {
+            let data = try await ReaderImagePipeline.shared.loadData(for: request, priority: .visible)
+            guard !Task.isCancelled else { return }
+            guard let baseImage = ReaderDecodedImageStore.shared.image(
+                for: request,
+                data: data,
+                targetSize: imageSize ?? .zero,
+                scale: displayScale,
+                allowOriginalSize: true
+            ) else {
+                throw ReaderImagePipelineError.invalidResponse
+            }
+            let rendered = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
+            imageSize = rendered.platformSize
+            image = rendered
+            scale = 1
+            lastScale = 1
+        } catch is CancellationError {
+            return
+        } catch {
+            errorText = error.localizedDescription
+            readerDebugLog(
+                "macOS image request error: \(error.localizedDescription), url=\(request.url?.absoluteString ?? "")",
+                level: .error
+            )
+        }
+    }
+}
+#endif

@@ -150,7 +150,7 @@ struct TrackerSubscriptionsView: View {
         .background(AppSurface.grouped.ignoresSafeArea())
         .navigationTitle(providerLibraryTitle)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: .platformTopBarTrailing) {
                 Button {
                     Task { await loadIfConnected() }
                 } label: {

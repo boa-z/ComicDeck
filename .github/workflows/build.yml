@@ -153,11 +153,13 @@ jobs:
           name: ${{ steps.artifact_metadata.outputs.artifact_name }}.ipa
           path: ${{ steps.artifact_metadata.outputs.artifact_name }}.ipa
 
-  build-macos-catalyst:
-    name: Build Mac Catalyst DMG
+  build-macos-native:
+    name: Build Native macOS DMG
     runs-on: macos-latest
     env:
-      derived_data_path: build-maccatalyst
+      derived_data_path: build-macos-native
+      mac_scheme: ComicDeckMac
+      mac_product_name: ComicDeck
     outputs:
       dmg_artifact: ${{ steps.artifact_metadata.outputs.artifact_name }}.dmg
 
@@ -172,13 +174,8 @@ jobs:
       - name: Set Scheme
         id: scheme
         run: |
-          if [ "$scheme" = "default" ]; then
-            scheme_list=$(xcodebuild -list -json | tr -d "\n")
-            scheme=$(echo "$scheme_list" | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
-            echo "Using default scheme: $scheme"
-          else
-            echo "Using configured scheme: $scheme"
-          fi
+          scheme="$mac_scheme"
+          echo "Using native macOS scheme: $scheme"
           echo "scheme=$scheme" >> "$GITHUB_OUTPUT"
 
       - name: Set filetype_parameter
@@ -226,14 +223,14 @@ jobs:
 
           short_sha=$(echo "${GITHUB_SHA}" | cut -c1-7)
           version_label="${marketing_version}+${build_version}"
-          artifact_name="${scheme}-${version_label}-${short_sha}-maccatalyst"
+          artifact_name="${scheme}-${version_label}-${short_sha}-macos"
           echo "marketing_version=$marketing_version" >> "$GITHUB_OUTPUT"
           echo "build_version=$build_version" >> "$GITHUB_OUTPUT"
           echo "version_label=$version_label" >> "$GITHUB_OUTPUT"
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
           echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
 
-      - name: Build Mac Catalyst App
+      - name: Build Native macOS App
         env:
           scheme: ${{ steps.scheme.outputs.scheme }}
           filetype_parameter: ${{ steps.filetype_parameter.outputs.filetype_parameter }}
@@ -243,7 +240,7 @@ jobs:
           xcodebuild build \
             -scheme "$scheme" \
             -"$filetype_parameter" "$file_to_build" \
-            -destination "generic/platform=macOS,variant=Mac Catalyst" \
+            -destination "generic/platform=macOS" \
             -derivedDataPath "$derived_data_path" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
@@ -253,16 +250,16 @@ jobs:
             PROVISIONING_PROFILE="" \
             CODE_SIGN_IDENTITY="" \
             SWIFT_ENABLE_EXPLICIT_MODULES=NO \
-            -configuration Release | tee build-maccatalyst.log
+            -configuration Release | tee build-macos-native.log
 
-      - name: Resolve Mac Catalyst App Path
+      - name: Resolve Native macOS App Path
         if: success()
         env:
           scheme: ${{ steps.scheme.outputs.scheme }}
         run: |
-          app_path=$(find "$derived_data_path/Build/Products" -maxdepth 2 -type d -name "$scheme.app" | head -n 1)
+          app_path=$(find "$derived_data_path/Build/Products" -maxdepth 2 -type d -name "$mac_product_name.app" | head -n 1)
           if [ -z "$app_path" ]; then
-            echo "Mac Catalyst app not found under $derived_data_path/Build/Products" >&2
+            echo "Native macOS app not found under $derived_data_path/Build/Products" >&2
             find "$derived_data_path/Build/Products" -maxdepth 2 -type d | sort || true
             exit 1
           fi
@@ -278,8 +275,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-maccatalyst.log
-          path: build-maccatalyst.log
+          name: build-macos-native.log
+          path: build-macos-native.log
 
       - name: Upload Mac App Artifact
         if: success()
@@ -307,7 +304,7 @@ jobs:
     name: Nightly Release
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.release__nightly) || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) }}
     runs-on: ubuntu-latest
-    needs: [build-ios, build-macos-catalyst]
+    needs: [build-ios, build-macos-native]
     permissions:
       contents: write
     concurrency:
@@ -327,13 +324,13 @@ jobs:
       - name: Download DMG Artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ needs.build-macos-catalyst.outputs.dmg_artifact }}
+          name: ${{ needs.build-macos-native.outputs.dmg_artifact }}
           path: release-assets
 
       - name: Prepare Release Assets
         run: |
           mv "release-assets/${{ needs.build-ios.outputs.ipa_artifact }}" ComicDeck.ipa
-          mv "release-assets/${{ needs.build-macos-catalyst.outputs.dmg_artifact }}" ComicDeck-maccatalyst.dmg
+          mv "release-assets/${{ needs.build-macos-native.outputs.dmg_artifact }}" ComicDeck-macos.dmg
 
       - name: Get Commit Info
         id: commit_info
@@ -368,6 +365,6 @@ jobs:
             Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
           files: |
             ComicDeck.ipa
-            ComicDeck-maccatalyst.dmg
+            ComicDeck-macos.dmg
             .github/apps.json
           overwrite_files: true

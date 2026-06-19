@@ -1,4 +1,10 @@
+import Foundation
+
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 enum ReaderTranslatedImageRenderer {
     private struct TranslationBlock {
@@ -7,17 +13,19 @@ enum ReaderTranslatedImageRenderer {
         let sourceTexts: [String]
     }
 
-    static func render(_ image: UIImage, overlays: [ReaderTextBlock]) -> UIImage {
+    static func render(_ image: PlatformImage, overlays: [ReaderTextBlock]) -> PlatformImage {
         guard !overlays.isEmpty else { return image }
-        let blocks = mergeOverlaysIntoBlocks(overlays, imageSize: image.size)
+        let imageSize = image.platformSize
+        let blocks = mergeOverlaysIntoBlocks(overlays, imageSize: imageSize)
+        #if os(iOS)
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = image.scale
         format.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+        let renderer = UIGraphicsImageRenderer(size: imageSize, format: format)
         let rendered = renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: image.size))
+            image.draw(in: CGRect(origin: .zero, size: imageSize))
             for block in blocks {
-                let layout = layoutRect(for: block.text, in: block.rect, imageSize: image.size)
+                let layout = layoutRect(for: block.text, in: block.rect, imageSize: imageSize)
                 UIColor.white.withAlphaComponent(0.94).setFill()
                 UIBezierPath(roundedRect: layout.rect, cornerRadius: 8).fill()
                 NSString(string: block.text).draw(in: layout.rect.insetBy(dx: 6, dy: 4), withAttributes: layout.attributes)
@@ -27,8 +35,24 @@ enum ReaderTranslatedImageRenderer {
                 )
             }
         }
+        #elseif os(macOS)
+        let rendered = NSImage(size: imageSize)
+        rendered.lockFocus()
+        image.draw(in: CGRect(origin: .zero, size: imageSize))
+        for block in blocks {
+            let layout = layoutRect(for: block.text, in: block.rect, imageSize: imageSize)
+            NSColor.white.withAlphaComponent(0.94).setFill()
+            NSBezierPath(roundedRect: layout.rect, xRadius: 8, yRadius: 8).fill()
+            NSString(string: block.text).draw(in: layout.rect.insetBy(dx: 6, dy: 4), withAttributes: layout.attributes)
+            readerDebugLog(
+                "translated block layout: sourceRect=\(block.rect), drawnRect=\(layout.rect), font=\(layout.font.pointSize), merged=\(block.sourceTexts.count)",
+                level: .debug
+            )
+        }
+        rendered.unlockFocus()
+        #endif
         readerDebugLog(
-            "translated image rendered: overlays=\(overlays.count), blocks=\(blocks.count), size=\(Int(rendered.size.width.rounded()))x\(Int(rendered.size.height.rounded()))",
+            "translated image rendered: overlays=\(overlays.count), blocks=\(blocks.count), size=\(Int(rendered.platformSize.width.rounded()))x\(Int(rendered.platformSize.height.rounded()))",
             level: .info
         )
         return rendered
@@ -91,7 +115,7 @@ enum ReaderTranslatedImageRenderer {
         return (sameRow && horizontalGap <= 36) || (overlapsHorizontally && verticalGap <= 28) || (overlapsVertically && horizontalGap <= 24)
     }
 
-    private static func layoutRect(for text: String, in originRect: CGRect, imageSize: CGSize) -> (rect: CGRect, attributes: [NSAttributedString.Key: Any], font: UIFont) {
+    private static func layoutRect(for text: String, in originRect: CGRect, imageSize: CGSize) -> (rect: CGRect, attributes: [NSAttributedString.Key: Any], font: PlatformFont) {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .left
         paragraph.lineBreakMode = .byWordWrapping
@@ -99,10 +123,10 @@ enum ReaderTranslatedImageRenderer {
         let fontSizes: [CGFloat] = [16, 15, 14, 13, 12, 11, 10]
 
         for fontSize in fontSizes {
-            let font = UIFont.systemFont(ofSize: fontSize, weight: .medium)
+            let font = PlatformFont.systemFont(ofSize: fontSize, weight: .medium)
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: font,
-                .foregroundColor: UIColor.black,
+                .foregroundColor: PlatformColor.black,
                 .paragraphStyle: paragraph
             ]
             let textRect = NSString(string: text).boundingRect(
@@ -123,10 +147,10 @@ enum ReaderTranslatedImageRenderer {
             }
         }
 
-        let font = UIFont.systemFont(ofSize: 10, weight: .medium)
+        let font = PlatformFont.systemFont(ofSize: 10, weight: .medium)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: UIColor.black,
+            .foregroundColor: PlatformColor.black,
             .paragraphStyle: paragraph
         ]
         return (clamp(originRect.integral, imageSize: imageSize), attributes, font)

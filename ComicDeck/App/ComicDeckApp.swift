@@ -1,5 +1,6 @@
 import SwiftUI
 
+#if os(iOS)
 @main
 struct ComicDeck: App {
     var body: some Scene {
@@ -8,3 +9,4 @@ struct ComicDeck: App {
         }
     }
 }
+#endif

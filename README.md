@@ -1,21 +1,32 @@
 # ComicDeck
 
-SwiftUI-based iOS comic library, discovery, download, and reading app.
+SwiftUI-based iOS and native macOS comic library, discovery, download, and reading app.
 
 ## Quick Start
 
 ### Requirements
 
-- Xcode with iOS Simulator support
-- iOS project build tooling available locally
+- Xcode with iOS Simulator and macOS SDK support
+- iOS and macOS project build tooling available locally
 
-### Build
+### iOS Build
 
 ```bash
 xcodebuild -project ComicDeck.xcodeproj \
   -scheme ComicDeck \
   -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath /tmp/ComicDeckDerivedData \
+  CODE_SIGNING_ALLOWED=NO \
+  build
+```
+
+### Native macOS Build
+
+```bash
+xcodebuild -project ComicDeck.xcodeproj \
+  -scheme ComicDeckMac \
+  -destination 'generic/platform=macOS' \
+  -derivedDataPath /tmp/ComicDeckMacDerivedData \
   CODE_SIGNING_ALLOWED=NO \
   build
 ```
@@ -67,7 +78,7 @@ Tracker setup notes:
 
 ```text
 ComicDeck/
-  App/             App entry and top-level composition
+  App/             iOS and macOS app entries plus top-level composition
   Core/            Shared models, storage, logging, bootstrap, network helpers
   DesignSystem/    Theme, spacing, surfaces, reusable visual tokens
   Features/        User-facing feature modules
@@ -99,10 +110,10 @@ The About screen reads build metadata from the app bundle:
 ### GitHub Actions
 The repository includes automated workflows in `.github/workflows/`.
 
-- `build.yml`: Builds unsigned iOS `.ipa` artifacts and Mac Catalyst `.dmg` artifacts, publishes default-branch and manually requested nightly releases, and attaches the AltStore source manifest to the nightly release.
+- `build.yml`: Builds unsigned iOS `.ipa` artifacts and native macOS `.dmg` artifacts, publishes default-branch and manually requested nightly releases, and attaches the AltStore source manifest to the nightly release.
 - `update_source.yml`: Regenerates the AltStore-compatible source manifest (`apps.json`) from the nightly release and uploads it back to the release asset.
 
-Mac Catalyst release notes:
+Native macOS release notes:
 - The macOS artifact is a `.dmg` containing `ComicDeck.app` and an `Applications` shortcut.
 - A versioned `.app.zip` artifact is also uploaded for direct inspection and manual packaging.
 - The app is unsigned and not notarized.

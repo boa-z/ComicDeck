@@ -139,7 +139,7 @@ struct TrackingSettingsView: View {
                     get: { tokens[provider] ?? "" },
                     set: { tokens[provider] = $0 }
                 ))
-                .textInputAutocapitalization(.never)
+                .platformTextInputAutocapitalizationNever()
                 .autocorrectionDisabled()
                 .font(.callout.monospaced())
 
@@ -162,12 +162,12 @@ struct TrackingSettingsView: View {
     private var aniListSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             TextField("AniList OAuth client ID", text: $aniListClientID)
-                .textInputAutocapitalization(.never)
+                .platformTextInputAutocapitalizationNever()
                 .autocorrectionDisabled()
                 .font(.callout.monospaced())
 
             SecureField("AniList OAuth client secret", text: $aniListClientSecret)
-                .textInputAutocapitalization(.never)
+                .platformTextInputAutocapitalizationNever()
                 .autocorrectionDisabled()
                 .font(.callout.monospaced())
 

@@ -3151,6 +3151,23 @@
     "History" : {
 
     },
+    "history.action.clear" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear History"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清除历史"
+          }
+        }
+      }
+    },
     "history.clear_all" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9991,6 +10008,9 @@
     "Username" : {
 
     },
+    "v%@" : {
+
+    },
     "Validate Connection" : {
 
     },
@@ -10066,23 +10086,6 @@
     },
     "榜单" : {
 
-    },
-    "history.action.clear" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clear History"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清除历史"
-          }
-        }
-      }
     }
   },
   "version" : "1.0"

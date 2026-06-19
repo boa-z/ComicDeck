@@ -83,7 +83,10 @@ extension AniListOAuthSession: ASWebAuthenticationPresentationContextProviding {
            let keyWindow = windowScene.windows.first(where: \.isKeyWindow) {
             return keyWindow
         }
-        return ASPresentationAnchor()
+        if let windowScene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
+            return ASPresentationAnchor(windowScene: windowScene)
+        }
+        return UIWindow()
         #else
         return ASPresentationAnchor()
         #endif

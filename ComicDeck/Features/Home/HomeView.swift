@@ -101,13 +101,13 @@ struct HomeView: View {
                 )
             }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .platformTopBarLeading) {
                     Button(action: onOpenSettings) {
                         Image(systemName: "gearshape")
                     }
                     .accessibilityLabel(AppLocalization.text("home.action.settings", "Open settings"))
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .platformTopBarTrailing) {
                     Button(action: onOpenSearch) {
                         Image(systemName: "magnifyingglass")
                     }
