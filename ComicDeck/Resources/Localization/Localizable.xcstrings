@@ -2596,23 +2596,6 @@
         }
       }
     },
-    "home.chapter.page" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Page %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "第 %@ 页"
-          }
-        }
-      }
-    },
     "home.continue.page_updated" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2966,40 +2949,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "离线推荐"
-          }
-        }
-      }
-    },
-    "home.recent_reading.empty" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your recent reading will appear here once you open a chapter."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开章节后，最近阅读会显示在这里。"
-          }
-        }
-      }
-    },
-    "home.recent_reading.title" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recent Reading"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近阅读"
           }
         }
       }

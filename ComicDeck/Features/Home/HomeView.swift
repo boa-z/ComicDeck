@@ -49,10 +49,6 @@ struct HomeView: View {
         library.history.first
     }
 
-    private var recentHistory: [ReadingHistoryItem] {
-        Array(library.history.prefix(8))
-    }
-
     private var completedDownloadsCount: Int {
         library.offlineChapters.lazy.filter { $0.integrityStatus == .complete }.count
     }
@@ -77,7 +73,6 @@ struct HomeView: View {
                     if let latestOfflineItem {
                         offlineSpotlightSection(latestOfflineItem)
                     }
-                    recentReadingSection
                 }
                 .padding(.horizontal, AppSpacing.screen)
                 .padding(.top, AppSpacing.md)
@@ -418,65 +413,6 @@ struct HomeView: View {
                 .appCardStyle()
             }
             .buttonStyle(.plain)
-        }
-    }
-
-    private var recentReadingSection: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
-            HStack {
-                Text(AppLocalization.text("home.recent_reading.title", "Recent Reading"))
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                if !recentHistory.isEmpty {
-                    Button(AppLocalization.text("home.action.library", "Library"), action: onOpenLibrary)
-                        .font(.subheadline.weight(.semibold))
-                }
-            }
-
-            if recentHistory.isEmpty {
-                Text(AppLocalization.text("home.recent_reading.empty", "Your recent reading will appear here once you open a chapter."))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .appCardStyle()
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: AppSpacing.md) {
-                        ForEach(recentHistory, id: \.id) { item in
-                            Button {
-                                openRecentReading(item)
-                            } label: {
-                                VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                                    CoverArtworkView(urlString: item.coverURL, width: 128, height: 182)
-                                        .frame(width: 128, height: 182)
-
-                                    Text(item.title)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(2)
-
-                                    Text(
-                                        item.chapter?.isEmpty == false
-                                            ? item.chapter!
-                                            : AppLocalization.format("home.chapter.page", "Page %@", String(item.page))
-                                    )
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-
-                                    Text(model.relativeText(for: item.updatedAt))
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                }
-                                .frame(width: 148, alignment: .leading)
-                                .appCardStyle()
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
         }
     }
 
