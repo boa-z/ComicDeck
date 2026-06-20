@@ -174,7 +174,7 @@ struct SourceScopedSearchView: View {
         @ViewBuilder label: () -> Label
     ) -> some View {
         NavigationLink {
-            ComicDetailView(vm: vm, item: item) { tag, tagSourceKey in
+            ComicDetailRoutingView(vm: vm, item: item) { tag, tagSourceKey in
                 Task { await search(tag, sourceKey: tagSourceKey) }
             }
             .environment(library)

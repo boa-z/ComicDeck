@@ -377,7 +377,7 @@ struct TrackerSubscriptionDetailView: View {
             }
 
             NavigationLink {
-                ComicDetailView(
+                ComicDetailRoutingView(
                     vm: vm,
                     item: ComicSummary(
                         id: group.comicID,

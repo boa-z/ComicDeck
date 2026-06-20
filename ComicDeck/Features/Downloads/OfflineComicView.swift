@@ -135,7 +135,7 @@ struct OfflineComicView: View {
             if let latestReadableChapter {
                 HStack(spacing: AppSpacing.sm) {
                     NavigationLink {
-                        ComicReaderView(
+                        ReaderRoutingView(
                             vm: vm,
                             item: ComicSummary(
                                 id: latestReadableChapter.comicID,
@@ -225,7 +225,7 @@ struct OfflineComicView: View {
             VStack(spacing: AppSpacing.sm) {
                 ForEach(sortedReaderChapters) { item in
                     NavigationLink {
-                        ComicReaderView(
+                        ReaderRoutingView(
                             vm: vm,
                             item: ComicSummary(
                                 id: item.comicID,

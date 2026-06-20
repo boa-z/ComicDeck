@@ -794,7 +794,7 @@ struct DownloadedChapterFilesView: View {
 
                 if item.canReadOffline {
                     NavigationLink("Read Offline") {
-                        ComicReaderView(
+                        ReaderRoutingView(
                             vm: vm,
                             item: ComicSummary(
                                 id: item.comicID,

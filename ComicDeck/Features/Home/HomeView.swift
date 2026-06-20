@@ -91,7 +91,7 @@ struct HomeView: View {
             )
             .navigationTitle(AppLocalization.text("home.navigation.title", "Home"))
             .navigationDestination(item: $selectedDetailItem) { item in
-                ComicDetailView(
+                ComicDetailRoutingView(
                     vm: vm,
                     item: item,
                     onTagSelected: onTagSearchRequested,
@@ -363,7 +363,7 @@ struct HomeView: View {
             }
 
             NavigationLink {
-                ComicReaderView(
+                ReaderRoutingView(
                     vm: vm,
                     item: ComicSummary(
                         id: item.comicID,

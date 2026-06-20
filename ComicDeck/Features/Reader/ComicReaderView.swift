@@ -1,11 +1,7 @@
-import SwiftUI
 #if os(iOS)
+import SwiftUI
 import UIKit
 import Photos
-#endif
-#if os(macOS)
-import AppKit
-#endif
 
 private enum TapAction {
     case previous
@@ -187,20 +183,7 @@ struct ComicReaderView: View {
     }
 
     var body: some View {
-        #if os(macOS)
-        MacReaderWindowView(
-            vm: vm,
-            item: item,
-            chapterID: chapterID,
-            chapterTitle: chapterTitle,
-            localChapterDirectory: localChapterDirectory,
-            initialPage: initialPage,
-            chapterSequence: chapterSequence
-        )
-        .environment(library)
-        #else
         baseReaderView
-        #endif
     }
 
     private var baseReaderView: some View {
@@ -216,16 +199,6 @@ struct ComicReaderView: View {
             .platformStatusBarHidden(!session.showControls)
             .focusable(true)
             .focused($isReaderFocused)
-            #if os(macOS)
-            .onKeyPress(.leftArrow) { previousPage(); return .handled }
-            .onKeyPress(.rightArrow) { nextPage(); return .handled }
-            .onKeyPress(.upArrow) { openPreviousChapter(); return .handled }
-            .onKeyPress(.downArrow) { openNextChapter(); return .handled }
-            .onKeyPress(.space) {
-                if readerMode == .vertical { nextPage() } else { openNextChapter() }
-                return .handled
-            }
-            #endif
             .sheet(item: $sharedPageExport) { shareFile in
                 ActivityShareSheet(items: [shareFile.url])
             }
@@ -639,11 +612,7 @@ struct ComicReaderView: View {
         }
 
         let data = try await ReaderImagePipeline.shared.loadData(for: urlRequest, priority: .visible)
-        #if os(iOS)
         let exportScale = UITraitCollection.current.displayScale
-        #else
-        let exportScale: CGFloat = 2
-        #endif
         guard let baseImage = await ReaderDecodedImageStore.shared.imageAsync(
             for: urlRequest,
             data: data,
@@ -682,7 +651,6 @@ struct ComicReaderView: View {
     }
 
     private func saveImageToPhotos(at url: URL) async throws {
-        #if os(iOS)
         let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
         let resolvedStatus = status == .notDetermined
             ? await PHPhotoLibrary.requestAuthorization(for: .addOnly)
@@ -693,9 +661,6 @@ struct ComicReaderView: View {
         try await PHPhotoLibrary.shared().performChanges {
             PHAssetCreationRequest.forAsset().addResource(with: .photo, fileURL: url, options: nil)
         }
-        #elseif os(macOS)
-        NSWorkspace.shared.activateFileViewerSelecting([url])
-        #endif
     }
 
     private func applyCurrentTranslationPreferences() {
@@ -732,7 +697,6 @@ struct ComicReaderView: View {
         platformMonitor.disableKeepScreenOn()
         platformMonitor.uninstall()
 
-        #if os(iOS)
         let app = UIApplication.shared
         var bgTaskID: UIBackgroundTaskIdentifier = .invalid
         bgTaskID = app.beginBackgroundTask(withName: "ReaderCleanup") {
@@ -747,14 +711,6 @@ struct ComicReaderView: View {
             app.endBackgroundTask(bgTaskID)
             bgTaskID = .invalid
         }
-        #elseif os(macOS)
-        Task { @MainActor in
-            await ReaderImagePipeline.shared.cancelPrefetchSession()
-            await session.close(using: vm)
-            await persistHistoryNow()
-            session.finishReadingSession(using: library)
-        }
-        #endif
     }
 
     private func load() async {
@@ -927,3 +883,4 @@ struct ComicReaderView: View {
         }
     }
 }
+#endif

@@ -145,7 +145,7 @@ struct ExploreView: View {
                 Section(selected.title) {
                     ForEach(model.comics) { item in
                         NavigationLink {
-                            ComicDetailView(vm: vm, item: item) { tag, sourceKey in
+                            ComicDetailRoutingView(vm: vm, item: item) { tag, sourceKey in
                                 let keyword = tag.trimmingCharacters(in: .whitespacesAndNewlines)
                                 guard !keyword.isEmpty else { return }
                                 route = .search(sourceKey: sourceKey, keyword: keyword)
@@ -166,7 +166,7 @@ struct ExploreView: View {
                     Section(part.title) {
                         ForEach(part.comics) { item in
                             NavigationLink {
-                                ComicDetailView(vm: vm, item: item) { tag, sourceKey in
+                                ComicDetailRoutingView(vm: vm, item: item) { tag, sourceKey in
                                     let keyword = tag.trimmingCharacters(in: .whitespacesAndNewlines)
                                     guard !keyword.isEmpty else { return }
                                     route = .search(sourceKey: sourceKey, keyword: keyword)
@@ -190,7 +190,7 @@ struct ExploreView: View {
                         Section {
                             ForEach(items) { item in
                                 NavigationLink {
-                                    ComicDetailView(vm: vm, item: item) { tag, sourceKey in
+                                    ComicDetailRoutingView(vm: vm, item: item) { tag, sourceKey in
                                         let keyword = tag.trimmingCharacters(in: .whitespacesAndNewlines)
                                         guard !keyword.isEmpty else { return }
                                         route = .search(sourceKey: sourceKey, keyword: keyword)
@@ -207,7 +207,7 @@ struct ExploreView: View {
                         Section(part.title) {
                             ForEach(part.comics) { item in
                                 NavigationLink {
-                                    ComicDetailView(vm: vm, item: item) { tag, sourceKey in
+                                    ComicDetailRoutingView(vm: vm, item: item) { tag, sourceKey in
                                         let keyword = tag.trimmingCharacters(in: .whitespacesAndNewlines)
                                         guard !keyword.isEmpty else { return }
                                         route = .search(sourceKey: sourceKey, keyword: keyword)
@@ -628,7 +628,7 @@ struct CategoryComicsPageView: View {
         @ViewBuilder label: () -> Label
     ) -> some View {
         NavigationLink {
-            ComicDetailView(vm: vm, item: comic) { tag, source in
+            ComicDetailRoutingView(vm: vm, item: comic) { tag, source in
                 let keyword = tag.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !keyword.isEmpty else { return }
                 navTarget = .search(sourceKey: source, keyword: keyword)
@@ -852,7 +852,7 @@ struct CategoryRankingPageView: View {
         @ViewBuilder label: () -> Label
     ) -> some View {
         NavigationLink {
-            ComicDetailView(vm: vm, item: comic) { tag, source in
+            ComicDetailRoutingView(vm: vm, item: comic) { tag, source in
                 let keyword = tag.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !keyword.isEmpty else { return }
                 navTarget = .search(sourceKey: source, keyword: keyword)

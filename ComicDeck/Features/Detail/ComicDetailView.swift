@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 
 @MainActor
@@ -84,16 +85,6 @@ struct ComicDetailView: View {
     }
 
     var body: some View {
-        #if os(macOS)
-        MacComicDetailWorkspaceView(
-            vm: vm,
-            item: item,
-            onTagSelected: onTagSelected,
-            initialReadRoute: initialReadRoute,
-            onConsumeInitialReadRoute: onConsumeInitialReadRoute,
-            onNavigateBack: onNavigateBack
-        )
-        #else
         let showCommentsBinding = Binding(
             get: { model.showCommentsPage },
             set: { model.showCommentsPage = $0 }
@@ -149,7 +140,7 @@ struct ComicDetailView: View {
                 .environment(vm.tracker)
             }
             .navigationDestination(item: $readRoute) { route in
-                ComicReaderView(
+                ReaderRoutingView(
                     vm: vm,
                     item: route.item,
                     chapterID: route.chapterID,
@@ -189,7 +180,6 @@ struct ComicDetailView: View {
                     Text(AppLocalization.text("detail.queue_all.message", "This will queue \(detail.chapters.count) chapters."))
                 }
             }
-        #endif
     }
 
     private func maybeOpenInitialReadRoute() {
@@ -705,40 +695,6 @@ struct ComicDetailView: View {
 }
 
 @MainActor
-struct CommentPreviewRow: View {
-    let comment: ComicComment
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(comment.userName)
-                    .font(.subheadline.weight(.semibold))
-                if let time = comment.timeText, !time.isEmpty {
-                    Text(time)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let score = comment.score {
-                    Text("♥ \(score)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if let replyCount = comment.replyCount, replyCount > 0 {
-                    Text("↩ \(replyCount)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            RichTextContent(text: comment.content)
-                .font(.subheadline)
-                .lineLimit(4)
-                .textSelection(.enabled)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-@MainActor
 private struct CommentsPageView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var vm: ReaderViewModel
@@ -1086,3 +1042,4 @@ private struct CommentItemRow: View {
         } catch {}
     }
 }
+#endif

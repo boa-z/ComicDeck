@@ -525,7 +525,7 @@ private struct BookmarkShelfDetailView: View {
             }
         }
         .navigationDestination(item: $selectedDetailItem) { item in
-            ComicDetailView(vm: vm, item: item, onTagSelected: onTagSearchRequested, onNavigateBack: { selectedDetailItem = nil })
+            ComicDetailRoutingView(vm: vm, item: item, onTagSelected: onTagSearchRequested, onNavigateBack: { selectedDetailItem = nil })
         }
     }
 

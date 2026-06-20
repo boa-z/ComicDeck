@@ -157,7 +157,7 @@ struct SearchView: View {
         @ViewBuilder label: () -> Label
     ) -> some View {
         NavigationLink {
-            ComicDetailView(vm: vm, item: item) { tag, sourceKey in
+            ComicDetailRoutingView(vm: vm, item: item) { tag, sourceKey in
                 Task {
                     await model.searchByTag(
                         tag,

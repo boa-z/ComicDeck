@@ -117,7 +117,7 @@ struct FavoritesView: View {
         }
         .background(AppSurface.grouped)
         .navigationDestination(item: $selectedDetailItem) { item in
-            ComicDetailView(
+            ComicDetailRoutingView(
                 vm: vm,
                 item: item,
                 onTagSelected: { tag, sourceKey in
@@ -630,7 +630,7 @@ struct HistoryView: View {
         }
         .background(AppSurface.grouped)
         .navigationDestination(item: $selectedDetailItem) { item in
-            ComicDetailView(
+            ComicDetailRoutingView(
                 vm: vm,
                 item: item,
                 onTagSelected: { tag, sourceKey in

@@ -84,7 +84,7 @@ struct LibraryHomeView: View {
             .background(AppSurface.grouped.ignoresSafeArea())
             .navigationTitle(AppLocalization.text("library.navigation.title", "Library"))
             .navigationDestination(item: $selectedDetailItem) { item in
-                ComicDetailView(
+                ComicDetailRoutingView(
                     vm: vm,
                     item: item,
                     onTagSelected: onTagSearchRequested,
@@ -237,7 +237,7 @@ struct LibraryHomeView: View {
                 HStack(spacing: AppSpacing.md) {
                     ForEach(recentCompletedDownloads) { item in
                         NavigationLink {
-                            ComicReaderView(
+                            ReaderRoutingView(
                                 vm: vm,
                                 item: ComicSummary(
                                     id: item.comicID,
