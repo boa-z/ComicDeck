@@ -24,7 +24,7 @@ extension Image {
 }
 
 extension PlatformImage {
-    var platformSize: CGSize {
+    nonisolated var platformSize: CGSize {
         #if os(iOS)
         size
         #elseif os(macOS)
@@ -60,7 +60,7 @@ extension PlatformImage {
         #endif
     }
 
-    var platformMemoryCost: Int {
+    nonisolated var platformMemoryCost: Int {
         #if os(iOS)
         guard let cgImage else {
             return Int(size.width * size.height * scale * scale * 4)

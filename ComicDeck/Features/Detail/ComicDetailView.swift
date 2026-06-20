@@ -84,6 +84,16 @@ struct ComicDetailView: View {
     }
 
     var body: some View {
+        #if os(macOS)
+        MacComicDetailWorkspaceView(
+            vm: vm,
+            item: item,
+            onTagSelected: onTagSelected,
+            initialReadRoute: initialReadRoute,
+            onConsumeInitialReadRoute: onConsumeInitialReadRoute,
+            onNavigateBack: onNavigateBack
+        )
+        #else
         let showCommentsBinding = Binding(
             get: { model.showCommentsPage },
             set: { model.showCommentsPage = $0 }
@@ -179,6 +189,7 @@ struct ComicDetailView: View {
                     Text(AppLocalization.text("detail.queue_all.message", "This will queue \(detail.chapters.count) chapters."))
                 }
             }
+        #endif
     }
 
     private func maybeOpenInitialReadRoute() {

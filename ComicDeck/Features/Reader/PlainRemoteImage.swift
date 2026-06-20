@@ -101,7 +101,7 @@ struct PlainRemoteImage: View {
                 "plain image load start: url=\(request.url?.absoluteString ?? "nil"), isFile=\(request.url?.isFileURL == true), width=\(Int(containerWidth.rounded())), source=\(Int(sourceSize?.width ?? 0))x\(Int(sourceSize?.height ?? 0)), target=\(Int(targetSize.width.rounded()))x\(Int(targetSize.height.rounded()))",
                 level: .debug
             )
-            guard let baseImage = ReaderDecodedImageStore.shared.image(
+            guard let baseImage = await ReaderDecodedImageStore.shared.imageAsync(
                 for: request,
                 data: data,
                 targetSize: targetSize,
@@ -115,7 +115,7 @@ struct PlainRemoteImage: View {
                 readerDebugLog("plain image render cancelled", level: .warn)
                 return
             }
-            let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
+            let image = await ReaderTranslatedImageRenderer.renderAsync(baseImage, overlays: overlays)
             imageSize = baseImage.platformSize
             uiImage = image
             readerDebugLog(
@@ -148,7 +148,7 @@ struct PlainRemoteImage: View {
     }
 }
 
-enum ReaderPlainImageLayout {
+nonisolated enum ReaderPlainImageLayout {
     static let fallbackAspectRatio: CGFloat = 0.7
 
     static func displayAspectRatio(for imageSize: CGSize?) -> CGFloat {

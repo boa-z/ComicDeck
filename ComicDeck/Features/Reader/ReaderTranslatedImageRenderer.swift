@@ -6,7 +6,7 @@ import UIKit
 import AppKit
 #endif
 
-enum ReaderTranslatedImageRenderer {
+nonisolated enum ReaderTranslatedImageRenderer {
     private struct TranslationBlock {
         let rect: CGRect
         let text: String
@@ -36,9 +36,23 @@ enum ReaderTranslatedImageRenderer {
             }
         }
         #elseif os(macOS)
-        let rendered = NSImage(size: imageSize)
-        rendered.lockFocus()
-        image.draw(in: CGRect(origin: .zero, size: imageSize))
+        let pixelWidth = max(Int(imageSize.width.rounded(.up)), 1)
+        let pixelHeight = max(Int(imageSize.height.rounded(.up)), 1)
+        guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                data: nil,
+                width: pixelWidth,
+                height: pixelHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+              ) else {
+            return image
+        }
+        if let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+            context.draw(cgImage, in: CGRect(origin: .zero, size: imageSize))
+        }
         for block in blocks {
             let layout = layoutRect(for: block.text, in: block.rect, imageSize: imageSize)
             NSColor.white.withAlphaComponent(0.94).setFill()
@@ -49,13 +63,23 @@ enum ReaderTranslatedImageRenderer {
                 level: .debug
             )
         }
-        rendered.unlockFocus()
+        guard let outputCGImage = context.makeImage() else {
+            return image
+        }
+        let rendered = NSImage(cgImage: outputCGImage, size: imageSize)
         #endif
         readerDebugLog(
             "translated image rendered: overlays=\(overlays.count), blocks=\(blocks.count), size=\(Int(rendered.platformSize.width.rounded()))x\(Int(rendered.platformSize.height.rounded()))",
             level: .info
         )
         return rendered
+    }
+
+    static func renderAsync(_ image: PlatformImage, overlays: [ReaderTextBlock]) async -> PlatformImage {
+        guard !overlays.isEmpty else { return image }
+        return await Task.detached(priority: .userInitiated) {
+            render(image, overlays: overlays)
+        }.value
     }
 
     private static func mergeOverlaysIntoBlocks(_ overlays: [ReaderTextBlock], imageSize: CGSize) -> [TranslationBlock] {

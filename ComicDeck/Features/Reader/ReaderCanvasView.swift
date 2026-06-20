@@ -50,7 +50,6 @@ struct ReaderCanvasView: View {
         .environment(\.layoutDirection, readerMode == .rtl ? .rightToLeft : .leftToRight)
         #elseif os(macOS)
         horizontalPage(at: currentPage, request: imageRequests.indices.contains(currentPage) ? imageRequests[currentPage] : nil)
-            .id("\(currentPage)-\(reloadNonce)")
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
         #endif

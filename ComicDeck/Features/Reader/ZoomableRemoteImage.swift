@@ -64,15 +64,15 @@ struct ZoomableRemoteImage: UIViewRepresentable {
             currentKey = key
             cancel()
             view?.setLoading(true)
-            loadTask = Task { [weak self, displayScale] in
+            loadTask = Task.detached(priority: .userInitiated) { [weak self, displayScale] in
                 do {
                     let data = try await ReaderImagePipeline.shared.loadData(for: request, priority: .visible)
-                    guard !Task.isCancelled else { return }
+                    try Task.checkCancellation()
                     let targetSize = await MainActor.run {
                         self?.view?.bounds.size ?? .zero
                     }
-                    guard !Task.isCancelled else { return }
-                    guard let baseImage = ReaderDecodedImageStore.shared.image(
+                    try Task.checkCancellation()
+                    guard let baseImage = await ReaderDecodedImageStore.shared.imageAsync(
                         for: request,
                         data: data,
                         targetSize: targetSize,
@@ -113,12 +113,17 @@ struct ZoomableRemoteImage: UIViewRepresentable {
             lastRenderedBaseImage = baseImage
             lastRenderedOverlays = overlays
 
-            let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
-            view.setImage(image)
-            readerDebugLog(
-                "zoom translated image ready: overlays=\(overlays.count), size=\(Int(image.platformSize.width.rounded()))x\(Int(image.platformSize.height.rounded()))",
-                level: .info
-            )
+            Task { [weak self] in
+                let image = await ReaderTranslatedImageRenderer.renderAsync(baseImage, overlays: overlays)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.view?.setImage(image)
+                }
+                readerDebugLog(
+                    "zoom translated image ready: overlays=\(overlays.count), size=\(Int(image.platformSize.width.rounded()))x\(Int(image.platformSize.height.rounded()))",
+                    level: .info
+                )
+            }
         }
 
         @objc private func handleDoubleTap(_ recognizer: UITapGestureRecognizer) {
@@ -355,6 +360,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
 }
 #elseif os(macOS)
 import AppKit
+import ImageIO
 
 /// macOS zoomable image wrapper.
 ///
@@ -433,25 +439,34 @@ struct ZoomableRemoteImage: NSViewRepresentable {
             guard key != currentKey else { return }
             currentKey = key
             cancel()
+            lastRenderedBaseImage = nil
+            lastRenderedOverlays = nil
+            view?.baseImage = nil
+            view?.imageView.image = nil
             view?.setLoading(true)
-            loadTask = Task { [weak self, displayScale] in
+            loadTask = Task.detached(priority: .userInitiated) { [weak self, displayScale] in
                 do {
                     let data = try await ReaderImagePipeline.shared.loadData(for: request, priority: .visible)
-                    guard !Task.isCancelled else { return }
-                    let targetSize = await MainActor.run {
-                        self?.view?.bounds.size ?? .zero
+                    try Task.checkCancellation()
+                    let viewportSize = await MainActor.run {
+                        self?.view?.contentView.bounds.size ?? self?.view?.bounds.size ?? .zero
                     }
-                    guard !Task.isCancelled else { return }
-                    let resolvedTarget = ReaderPlainImageLayout.decodeTargetSize(
-                        for: max(targetSize.width, 1),
-                        imageSize: nil
+                    try Task.checkCancellation()
+                    let sourceSize = Self.imageSourceSize(from: data)
+                    let resolvedTarget = Self.decodeTargetSize(
+                        viewportSize: viewportSize,
+                        sourceSize: sourceSize
                     )
-                    guard let baseImage = ReaderDecodedImageStore.shared.image(
+                    readerDebugLog(
+                        "macOS image load start: url=\(request.url?.absoluteString ?? "nil"), bytes=\(data.count), viewport=\(Int(viewportSize.width.rounded()))x\(Int(viewportSize.height.rounded())), source=\(Int(sourceSize?.width ?? 0))x\(Int(sourceSize?.height ?? 0)), target=\(Int(resolvedTarget.width.rounded()))x\(Int(resolvedTarget.height.rounded()))",
+                        level: .debug
+                    )
+                    guard let baseImage = await ReaderDecodedImageStore.shared.imageAsync(
                         for: request,
                         data: data,
                         targetSize: resolvedTarget,
                         scale: displayScale,
-                        allowOriginalSize: false
+                        allowOriginalSize: true
                     ) else {
                         throw ReaderImagePipelineError.invalidResponse
                     }
@@ -474,6 +489,37 @@ struct ZoomableRemoteImage: NSViewRepresentable {
             }
         }
 
+        private nonisolated static func decodeTargetSize(
+            viewportSize: CGSize,
+            sourceSize: CGSize?
+        ) -> CGSize {
+            guard viewportSize.width > 1, viewportSize.height > 1 else {
+                return .zero
+            }
+            guard let sourceSize, sourceSize.width > 0, sourceSize.height > 0 else {
+                return viewportSize
+            }
+            let widthScale = viewportSize.width / sourceSize.width
+            let heightScale = viewportSize.height / sourceSize.height
+            let fitScale = max(min(widthScale, heightScale), 0.001)
+            return CGSize(
+                width: max(sourceSize.width * fitScale, 1),
+                height: max(sourceSize.height * fitScale, 1)
+            )
+        }
+
+        private nonisolated static func imageSourceSize(from data: Data) -> CGSize? {
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+                  let width = properties[kCGImagePropertyPixelWidth] as? CGFloat,
+                  let height = properties[kCGImagePropertyPixelHeight] as? CGFloat,
+                  width > 0,
+                  height > 0 else {
+                return nil
+            }
+            return CGSize(width: width, height: height)
+        }
+
         func cancel() {
             loadTask?.cancel()
             loadTask = nil
@@ -488,12 +534,17 @@ struct ZoomableRemoteImage: NSViewRepresentable {
             lastRenderedBaseImage = baseImage
             lastRenderedOverlays = overlays
 
-            let image = ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
-            view.setImage(image, resetViewport: shouldResetViewport)
-            readerDebugLog(
-                "macOS zoom translated image ready: overlays=\(overlays.count), size=\(Int(image.platformSize.width.rounded()))x\(Int(image.platformSize.height.rounded()))",
-                level: .info
-            )
+            Task { [weak self] in
+                let image = await ReaderTranslatedImageRenderer.renderAsync(baseImage, overlays: overlays)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.view?.setImage(image, resetViewport: shouldResetViewport)
+                }
+                readerDebugLog(
+                    "macOS zoom translated image ready: overlays=\(overlays.count), size=\(Int(image.platformSize.width.rounded()))x\(Int(image.platformSize.height.rounded()))",
+                    level: .info
+                )
+            }
         }
 
         @objc private func handleDoubleClick(_ recognizer: NSClickGestureRecognizer) {
@@ -563,7 +614,8 @@ final class ZoomingImageScrollView: NSScrollView {
 
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.imageAlignment = .alignCenter
-        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.translatesAutoresizingMaskIntoConstraints = true
+        imageView.autoresizingMask = []
         documentView = imageView
 
         // Gestures attach to the clip view so they keep working while zoomed.

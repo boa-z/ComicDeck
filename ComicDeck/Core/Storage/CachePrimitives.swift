@@ -199,7 +199,7 @@ actor HybridDataCache {
         try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
-    func lookupData(forKey key: String) -> DataCacheHit? {
+    func lookupData(forKey key: String) async -> DataCacheHit? {
         let now = Date()
         pruneExpiredMemoryEntries(now: now)
         if var entry = memoryEntries[key] {
@@ -212,20 +212,29 @@ actor HybridDataCache {
             return DataCacheHit(data: entry.data, source: .memory)
         }
 
-        guard var metadata = readMetadata(forKey: key) else { return nil }
-        guard metadata.expiresAt > now else {
-            removeDiskValue(forKey: key)
-            return nil
-        }
-
+        let metaURL = metadataFileURL(forKey: key)
         let dataURL = dataFileURL(forKey: key)
-        guard let data = try? Data(contentsOf: dataURL) else {
+        let diskResult = await Task.detached(priority: .utility) { () -> (metadata: DiskEntryMetadata?, data: Data?) in
+            guard let metaData = try? Data(contentsOf: metaURL),
+                  let metadata = try? JSONDecoder().decode(DiskEntryMetadata.self, from: metaData) else {
+                return (nil, nil)
+            }
+            guard metadata.expiresAt > now else {
+                return (nil, nil)
+            }
+            let data = try? Data(contentsOf: dataURL)
+            return (metadata, data)
+        }.value
+
+        guard let metadata = diskResult.metadata else { return nil }
+        guard let data = diskResult.data else {
             removeDiskValue(forKey: key)
             return nil
         }
 
-        metadata.lastAccessAt = now
-        persistMetadata(metadata, forKey: key)
+        var updatedMetadata = metadata
+        updatedMetadata.lastAccessAt = now
+        persistMetadata(updatedMetadata, forKey: key)
         storeMemoryValue(data, forKey: key, now: now)
         return DataCacheHit(data: data, source: .disk)
     }
@@ -233,11 +242,19 @@ actor HybridDataCache {
     func store(_ data: Data, forKey key: String) {
         let now = Date()
         storeMemoryValue(data, forKey: key, now: now)
-        do {
-            try writeDiskValue(data, forKey: key, now: now)
-            try pruneDiskIfNeeded(now: now)
-        } catch {
-            return
+        let dataURL = dataFileURL(forKey: key)
+        let metaURL = metadataFileURL(forKey: key)
+        let metadata = DiskEntryMetadata(
+            key: key,
+            createdAt: now,
+            lastAccessAt: now,
+            expiresAt: now.addingTimeInterval(policy.diskTTL),
+            byteCount: Int64(data.count)
+        )
+        Task.detached(priority: .utility) {
+            try? data.write(to: dataURL, options: .atomic)
+            let encoded = try? JSONEncoder().encode(metadata)
+            try? encoded?.write(to: metaURL, options: .atomic)
         }
     }
 

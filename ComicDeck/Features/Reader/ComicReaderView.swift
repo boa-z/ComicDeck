@@ -187,7 +187,20 @@ struct ComicReaderView: View {
     }
 
     var body: some View {
+        #if os(macOS)
+        MacReaderWindowView(
+            vm: vm,
+            item: item,
+            chapterID: chapterID,
+            chapterTitle: chapterTitle,
+            localChapterDirectory: localChapterDirectory,
+            initialPage: initialPage,
+            chapterSequence: chapterSequence
+        )
+        .environment(library)
+        #else
         baseReaderView
+        #endif
     }
 
     private var baseReaderView: some View {
@@ -631,7 +644,7 @@ struct ComicReaderView: View {
         #else
         let exportScale: CGFloat = 2
         #endif
-        guard let baseImage = ReaderDecodedImageStore.shared.image(
+        guard let baseImage = await ReaderDecodedImageStore.shared.imageAsync(
             for: urlRequest,
             data: data,
             targetSize: CGSize.zero,
@@ -646,7 +659,7 @@ struct ComicReaderView: View {
         }
         let overlays = session.translationBlocks(for: pageIndex)
         guard !overlays.isEmpty else { return baseImage }
-        return ReaderTranslatedImageRenderer.render(baseImage, overlays: overlays)
+        return await ReaderTranslatedImageRenderer.renderAsync(baseImage, overlays: overlays)
     }
 
     private func writeTemporaryPageExport(_ image: PlatformImage) throws -> URL {
@@ -691,6 +704,7 @@ struct ComicReaderView: View {
 
     private func handleInitialTask() async {
         verticalCoordinator.prepareForContent(currentPage: session.currentPage)
+        await vm.prepareIfNeeded()
         prefetchGeneration = await ReaderImagePipeline.shared.beginPrefetchSession()
         lastPrefetchedPage = session.currentPage
 

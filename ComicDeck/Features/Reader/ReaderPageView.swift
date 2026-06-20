@@ -49,13 +49,6 @@ struct ReaderPageView: View {
                             "page render appear: page=\(pageIndex), zoom=\(supportsZoom), translationEnabled=\(translationEnabled), overlays=\(overlayCount), renderedAsset=\(renderedRequest != nil), url=\(urlRequest.url?.absoluteString ?? request.url)",
                             level: .debug
                         )
-                        if let fileURL = urlRequest.url, fileURL.isFileURL {
-                            let exists = FileManager.default.fileExists(atPath: fileURL.path)
-                            readerDebugLog(
-                                "page file check: page=\(pageIndex), path=\(fileURL.path), exists=\(exists)",
-                                level: .debug
-                            )
-                        }
                     }
                     .onChange(of: overlayCount) { _, count in
                         readerDebugLog(

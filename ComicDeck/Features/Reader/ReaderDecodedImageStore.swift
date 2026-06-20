@@ -36,11 +36,11 @@ final class ReaderDecodedImageStore {
         scale: CGFloat,
         allowOriginalSize: Bool
     ) -> PlatformImage? {
-        let key = cacheKey(for: request, targetSize: targetSize, scale: scale, allowOriginalSize: allowOriginalSize)
+        let key = Self.cacheKey(for: request, targetSize: targetSize, scale: scale, allowOriginalSize: allowOriginalSize)
         if let cached = cache.object(forKey: key as NSString) {
             return cached.image
         }
-        guard let image = decodeImage(
+        guard let image = Self.decodeImage(
             data: data,
             targetSize: targetSize,
             scale: scale,
@@ -52,7 +52,26 @@ final class ReaderDecodedImageStore {
         return image
     }
 
-    private func cacheKey(
+    func imageAsync(
+        for request: URLRequest,
+        data: Data,
+        targetSize: CGSize,
+        scale: CGFloat,
+        allowOriginalSize: Bool
+    ) async -> PlatformImage? {
+        let key = Self.cacheKey(for: request, targetSize: targetSize, scale: scale, allowOriginalSize: allowOriginalSize)
+        if let cached = cache.object(forKey: key as NSString) {
+            return cached.image
+        }
+        let image = await Task.detached(priority: .userInitiated) { [data, targetSize, scale, allowOriginalSize] in
+            Self.decodeImage(data: data, targetSize: targetSize, scale: scale, allowOriginalSize: allowOriginalSize)
+        }.value
+        guard let image else { return nil }
+        cache.setObject(CacheBox(image), forKey: key as NSString, cost: image.platformMemoryCost)
+        return image
+    }
+
+    private nonisolated static func cacheKey(
         for request: URLRequest,
         targetSize: CGSize,
         scale: CGFloat,
@@ -63,7 +82,7 @@ final class ReaderDecodedImageStore {
         return "\(urlRequestKey(request))|\(width)x\(height)@\(scale)|\(allowOriginalSize)"
     }
 
-    private func decodeImage(
+    private nonisolated static func decodeImage(
         data: Data,
         targetSize: CGSize,
         scale: CGFloat,

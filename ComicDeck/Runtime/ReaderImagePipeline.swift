@@ -45,7 +45,7 @@ actor ReaderImagePipeline {
     private let cache: HybridDataCache
     private var inFlight: [String: Task<Data, Error>] = [:]
     private var activeCount = 0
-    private var waiters: [(priority: LoadPriority, continuation: CheckedContinuation<Void, Never>)] = []
+    private var waiters: [(id: UUID, priority: LoadPriority, continuation: CheckedContinuation<Void, Never>)] = []
     private let maxConcurrent = 6
     private let maxVisibleSlots = 4
     private var metrics = ReaderImageCacheMetrics()
@@ -85,7 +85,9 @@ actor ReaderImagePipeline {
         let url = request.url
         let isFileURL = url?.isFileURL == true || url?.scheme?.lowercased() == "file"
         if isFileURL, let url {
-            return try Data(contentsOf: url)
+            return try await Task.detached(priority: .userInitiated) {
+                try Data(contentsOf: url)
+            }.value
         }
 
         let key = RequestCacheKeyBuilder.key(for: request)
@@ -194,25 +196,29 @@ actor ReaderImagePipeline {
             return
         }
         await withCheckedContinuation { continuation in
-            waiters.append((priority: priority, continuation: continuation))
+            waiters.append((id: UUID(), priority: priority, continuation: continuation))
             waiters.sort { $0.priority < $1.priority }
         }
+        guard !Task.isCancelled else { return }
         activeCount += 1
     }
 
     private func waitForVisibleSlot() async {
         while activeCount >= maxVisibleSlots {
             await withCheckedContinuation { continuation in
-                waiters.append((priority: .prefetch, continuation: continuation))
+                waiters.append((id: UUID(), priority: .prefetch, continuation: continuation))
             }
+            guard !Task.isCancelled else { return }
         }
     }
 
     private func releaseSlot() {
         activeCount = max(0, activeCount - 1)
-        guard !waiters.isEmpty else { return }
-        let next = waiters.removeFirst()
-        next.continuation.resume()
+        while !waiters.isEmpty {
+            let next = waiters.removeFirst()
+            next.continuation.resume()
+            return
+        }
     }
 }
 
@@ -288,6 +294,6 @@ func imageRequestKey(_ req: ImageRequest) -> String {
     ].joined(separator: "|")
 }
 
-func urlRequestKey(_ req: URLRequest) -> String {
+nonisolated func urlRequestKey(_ req: URLRequest) -> String {
     RequestCacheKeyBuilder.key(for: req)
 }

@@ -48,18 +48,24 @@ final class RuntimeDebugConsole {
 
     func append(_ message: String) {
         guard Self.isEnabled else { return }
+        bufferedLines.append(message)
+        if bufferedLines.count > maxLines {
+            bufferedLines.removeFirst(bufferedLines.count - maxLines)
+        }
+        lines = bufferedLines
+        let timestamp = formatter.string(from: Date())
+        let line = "[\(timestamp)] \(message)"
         writeQueue.async { [weak self] in
-            Task { @MainActor in
-                self?.appendSerialized(message)
-            }
+            self?.appendToFileSync(line)
         }
     }
 
     func clear() {
+        bufferedLines.removeAll(keepingCapacity: true)
+        lines.removeAll(keepingCapacity: true)
+        lastWriteError = nil
         writeQueue.async { [weak self] in
-            Task { @MainActor in
-                self?.clearSerialized()
-            }
+            self?.truncateLogFileSync()
         }
     }
 
@@ -92,32 +98,7 @@ final class RuntimeDebugConsole {
         return exportURL
     }
 
-    private func appendSerialized(_ message: String) {
-        let timestamp = formatter.string(from: Date())
-        let line = "[\(timestamp)] \(message)"
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            self.bufferedLines.append(line)
-            if self.bufferedLines.count > self.maxLines {
-                self.bufferedLines.removeFirst(self.bufferedLines.count - self.maxLines)
-            }
-            self.appendToFile(line)
-            let snapshot = self.bufferedLines
-            self.lines = snapshot
-        }
-    }
-
-    private func clearSerialized() {
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            self.bufferedLines.removeAll(keepingCapacity: true)
-            self.truncateLogFile()
-            self.lines.removeAll(keepingCapacity: true)
-            self.lastWriteError = nil
-        }
-    }
-
-    private nonisolated func appendToFile(_ line: String) {
+    private func appendToFileSync(_ line: String) {
         do {
             try ensureLogsDirectory()
             let data = Data((line + "\n").utf8)
@@ -129,29 +110,19 @@ final class RuntimeDebugConsole {
             } else {
                 try data.write(to: activeLogFileURL, options: .atomic)
             }
-            Task { @MainActor [weak self] in
-                self?.lastWriteError = nil
-            }
         } catch {
-            Task { @MainActor [weak self] in
-                self?.lastWriteError = error.localizedDescription
-            }
+            // Silently ignore write errors in release builds
         }
     }
 
-    private nonisolated func truncateLogFile() {
+    private func truncateLogFileSync() {
         do {
             try ensureLogsDirectory()
             if FileManager.default.fileExists(atPath: activeLogFileURL.path) {
                 try Data().write(to: activeLogFileURL, options: .atomic)
             }
-            Task { @MainActor [weak self] in
-                self?.lastWriteError = nil
-            }
         } catch {
-            Task { @MainActor [weak self] in
-                self?.lastWriteError = error.localizedDescription
-            }
+            // Silently ignore
         }
     }
 

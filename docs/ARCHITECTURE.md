@@ -267,6 +267,7 @@ Design intent:
 - current-page export loads the selected page through `ReaderImagePipeline`, decodes with the shared decoded-image store, and renders translation overlays when the translated view is active
 - macOS reader image zoom uses `NSScrollView` (wrapped via `NSViewRepresentable`) rather than a SwiftUI `ScrollView` + `.scaleEffect` + `MagnifyGesture` stack to avoid a layout-solve feedback loop that pinned the main thread near 100% CPU whenever the reader was visible; zoom is driven by `NSScrollView.magnification` for native trackpad pinch and ⌥-scroll support, mirroring the iOS `UIScrollView`-based implementation
 - macOS page decode target size is bound to the `NSScrollView` bounds with `allowOriginalSize: false`, capping per-page decode cost (a single 2000×3000 page decodes to ~10–20 MB instead of ~96 MB) and avoiding memory-pressure callback loops
+- macOS detail and reader screens use platform-specific shells (`MacComicDetailWorkspaceView`, `MacReaderWindowView`) that reuse `ComicDetailScreenModel`, `ReaderSession`, and `ReaderImagePipeline` but do not reuse the iOS card/overlay/tap-zone screen composition; this keeps desktop navigation, split panes, toolbars, keyboard control, and reader lifecycle independent from compact mobile layout assumptions
 
 ### Reader Translation
 
