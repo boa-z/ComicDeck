@@ -72,10 +72,9 @@ struct ComicReaderView: View {
     @AppStorage("Translation.targetLanguage") private var translationTargetLanguageRaw = ReaderTranslationLanguage.chineseSimplified.rawValue
 
     @State private var debugConsole = RuntimeDebugConsole.shared
-    @State private var session: ReaderSession
+    @State private var controller: ReaderController
     @State private var verticalCoordinator = ReaderVerticalCoordinator()
     @State private var showSettings = false
-    @State private var historySaveTask: Task<Void, Never>? = nil
     @FocusState private var isReaderFocused: Bool
     @State private var platformMonitor = ReaderPlatformMonitor()
     @State private var isLongPressZoomed = false
@@ -83,13 +82,6 @@ struct ComicReaderView: View {
     @State private var pageExportInProgress = false
     @State private var pageExportError: String?
     @State private var pageExportSuccessMessage: String?
-
-    private let prefetcher = ReaderImagePrefetcher.shared
-    @State private var readerLoadTask: Task<Void, Never>? = nil
-    @State private var chapterSequenceTask: Task<Void, Never>? = nil
-    @State private var chapterNavigationTask: Task<Void, Never>? = nil
-    @State private var prefetchGeneration = 0
-    @State private var lastPrefetchedPage = 0
 
     init(
         vm: ReaderViewModel,
@@ -107,12 +99,9 @@ struct ComicReaderView: View {
         self.localChapterDirectory = localChapterDirectory
         self.initialPage = initialPage
         self.chapterSequence = chapterSequence
-        _session = State(initialValue: ReaderSession(
-            item: item,
-            chapterID: chapterID,
-            chapterTitle: chapterTitle,
-            localChapterDirectory: localChapterDirectory,
-            initialPage: initialPage,
+        _controller = State(initialValue: ReaderController(
+            vm: vm, item: item, chapterID: chapterID, chapterTitle: chapterTitle,
+            localChapterDirectory: localChapterDirectory, initialPage: initialPage,
             chapterSequence: chapterSequence
         ))
     }
@@ -175,11 +164,11 @@ struct ComicReaderView: View {
     }
 
     private var displayedPageIndex: Int {
-        session.displayedPageIndex(readerMode: readerMode)
+        controller.session.displayedPageIndex(readerMode: readerMode)
     }
 
     private var isOfflineReading: Bool {
-        session.isOfflineReading
+        controller.session.isOfflineReading
     }
 
     var body: some View {
@@ -194,9 +183,9 @@ struct ComicReaderView: View {
 
     private var baseReaderContent: some View {
         readerBody
-            .navigationBarBackButtonHidden(!session.loading)
+            .navigationBarBackButtonHidden(!controller.session.loading)
             .platformHideTabBar()
-            .platformStatusBarHidden(!session.showControls)
+            .platformStatusBarHidden(!controller.session.showControls)
             .focusable(true)
             .focused($isReaderFocused)
             .sheet(item: $sharedPageExport) { shareFile in
@@ -259,33 +248,43 @@ struct ComicReaderView: View {
                 }
             }
             .onChange(of: readerMode) { oldMode, mode in
-                guard session.totalPages > 0 else { return }
-                let displayed = session.displayedPageIndex(readerMode: oldMode)
-                let oneBased = max(1, min(session.totalPages, displayed))
-                let ltrIndex = min(session.totalPages - 1, oneBased - 1)
-                session.currentPage = mode == .rtl ? max(0, session.totalPages - 1 - ltrIndex) : ltrIndex
+                let _ = controller.handleReaderModeChange(old: oldMode, new: mode)
                 if mode == .vertical {
-                    verticalCoordinator.prepareForContent(currentPage: session.currentPage)
+                    verticalCoordinator.prepareForContent(currentPage: controller.session.currentPage)
                 }
             }
-            .onChange(of: session.currentPage) { _, _ in
-                session.resolvePagesAroundCurrentPage(using: vm, readerMode: readerMode)
-                preloadAroundCurrentPage()
-                scheduleHistorySave()
+            .onChange(of: controller.session.currentPage) { _, _ in
+                controller.handleCurrentPageChange()
+            }
+            .onChange(of: reduceMotion) { _, newValue in
+                controller.reduceMotion = newValue
+            }
+            .onChange(of: animatePageTransitions) { _, newValue in
+                controller.animatePageTransitions = newValue
+            }
+            .onChange(of: preloadDistance) { _, newValue in
+                controller.preloadDistance = newValue
+            }
+            .onChange(of: keepScreenOn) { _, enabled in
+                platformMonitor.setKeepScreenOn(enabled)
             }
             .task {
-                await handleInitialTask()
+                controller.readerMode = readerMode
+                controller.animatePageTransitions = animatePageTransitions
+                controller.reduceMotion = reduceMotion
+                controller.preloadDistance = preloadDistance
+                await controller.start()
+                verticalCoordinator.prepareForContent(currentPage: controller.session.currentPage)
             }
             .onAppear {
-                session.markVisible()
-                applyCurrentTranslationPreferences()
+                controller.updateTranslationPreferences(currentTranslationPreferences)
                 isReaderFocused = true
                 platformMonitor.setKeepScreenOn(keepScreenOn)
                 platformMonitor.install(
-                    onLeft: { previousPage() },
-                    onRight: { nextPage() },
-                    onUp: { openPreviousChapter() },
-                    onDown: { openNextChapter() },
+                    onLeft: { controller.previousPage() },
+                    onRight: { controller.nextPage() },
+                    onUp: { controller.openAdjacentChapter(step: -1) },
+                    onDown: { controller.openAdjacentChapter(step: 1) },
                     onMemoryPressure: {
                         verticalCoordinator.clearTrackedFrames()
                         ReaderDecodedImageStore.shared.trim()
@@ -294,18 +293,28 @@ struct ComicReaderView: View {
                     }
                 )
             }
-            .onChange(of: keepScreenOn) { _, enabled in
-                platformMonitor.setKeepScreenOn(enabled)
-            }
             .onDisappear {
-                handleDisappear()
+                controller.stop()
+                platformMonitor.disableKeepScreenOn()
+                platformMonitor.uninstall()
+                let app = UIApplication.shared
+                var bgTaskID: UIBackgroundTaskIdentifier = .invalid
+                bgTaskID = app.beginBackgroundTask(withName: "ReaderCleanup") {
+                    app.endBackgroundTask(bgTaskID)
+                    bgTaskID = .invalid
+                }
+                Task { @MainActor in
+                    await controller.cleanupAfterStop()
+                    app.endBackgroundTask(bgTaskID)
+                    bgTaskID = .invalid
+                }
             }
     }
 
     private func translationPreferenceObservingView<Content: View>(_ content: Content) -> some View {
         content
-            .onChange(of: currentTranslationPreferences) { _, _ in
-                applyCurrentTranslationPreferences()
+            .onChange(of: currentTranslationPreferences) { _, newValue in
+                controller.updateTranslationPreferences(newValue)
             }
     }
 
@@ -318,11 +327,11 @@ struct ComicReaderView: View {
 
     @ViewBuilder
     private var readerContent: some View {
-        if session.loading && !session.canRenderReader {
+        if controller.session.loading && !controller.session.canRenderReader {
             loadingView
-        } else if !session.errorText.isEmpty {
+        } else if !controller.session.errorText.isEmpty {
             readerErrorView
-        } else if session.totalPages == 0 {
+        } else if controller.session.totalPages == 0 {
             emptyReaderView
         } else {
             activeReaderView
@@ -331,11 +340,11 @@ struct ComicReaderView: View {
 
     private var loadingView: some View {
         VStack(spacing: 10) {
-            ProgressView(value: session.loadingProgress, total: 1)
+            ProgressView(value: controller.session.loadingProgress, total: 1)
                 .progressViewStyle(.linear)
                 .tint(.white)
                 .padding(.horizontal, 28)
-            Text(session.loadingMessage)
+            Text(controller.session.loadingMessage)
                 .font(.footnote)
                 .foregroundStyle(.white.opacity(0.9))
             if RuntimeDebugConsole.isEnabled {
@@ -350,7 +359,7 @@ struct ComicReaderView: View {
             Image(systemName: isOfflineReading ? "externaldrive.badge.exclamationmark" : "wifi.exclamationmark")
                 .font(.system(size: 28))
                 .foregroundStyle(isOfflineReading ? .orange : .red)
-            Text(session.errorText).foregroundStyle(.red)
+            Text(controller.session.errorText).foregroundStyle(.red)
                 .multilineTextAlignment(.center)
             if isOfflineReading {
                 Text(AppLocalization.text("reader.error.offline_mode", "Offline mode only. Network fallback is disabled for downloaded chapters."))
@@ -365,7 +374,7 @@ struct ComicReaderView: View {
                 .buttonStyle(.bordered)
                 .accessibilityHint(AppLocalization.text("common.accessibility.back", "Return to the previous screen"))
 
-                Button(AppLocalization.text("common.retry", "Retry")) { Task { await load() } }
+                Button(AppLocalization.text("common.retry", "Retry")) { controller.retryLoad() }
                     .buttonStyle(.borderedProminent)
             }
         }
@@ -382,11 +391,11 @@ struct ComicReaderView: View {
             ZStack {
                 readerCanvas
 
-                if session.loading && session.canRenderReader {
+                if controller.session.loading && controller.session.canRenderReader {
                     loadingOverlay
                 }
 
-                if session.showControls {
+                if controller.session.showControls {
                     readerOverlay
                 }
             }
@@ -400,38 +409,38 @@ struct ComicReaderView: View {
                     invertTapZones: invertTapZones,
                     isZoomed: isLongPressZoomed,
                     isInteractingWithControls: false,
-                    controlsVisible: session.showControls,
+                    controlsVisible: controller.session.showControls,
                     onSingleTap: { location, size in
                         handleTap(at: location, in: geo.size)
                     }
                 )
             )
-            .animation(reduceMotion ? .none : .easeInOut(duration: 0.18), value: session.showControls)
+            .animation(reduceMotion ? .none : .easeInOut(duration: 0.18), value: controller.session.showControls)
         }
     }
 
     private var readerCanvas: some View {
         ReaderCanvasView(
-            imageRequests: session.imageRequests,
+            imageRequests: controller.session.imageRequests,
             readerMode: readerMode,
-            reloadNonce: session.reloadNonce,
+            reloadNonce: controller.session.reloadNonce,
             animatePageTransitions: animatePageTransitions && !reduceMotion,
             translationEnabled: translationEnabled,
-            translationShowOriginal: session.translationShowOriginal,
-            translationBlocks: session.translationPageBlocks,
-            translationRenderedAssets: session.translationRenderedAssets,
-            resolvedPageCount: session.resolvedPageCount,
-            totalPages: session.totalPages,
-            isLoadingMore: session.isLoadingMore,
+            translationShowOriginal: controller.session.translationShowOriginal,
+            translationBlocks: controller.session.translationPageBlocks,
+            translationRenderedAssets: controller.session.translationRenderedAssets,
+            resolvedPageCount: controller.session.resolvedPageCount,
+            totalPages: controller.session.totalPages,
+            isLoadingMore: controller.session.isLoadingMore,
             reloadPageAction: { index in
-                session.jumpToPage(index, readerMode: readerMode)
-                reloadCurrentPage()
+                controller.session.jumpToPage(index, readerMode: readerMode)
+                controller.reloadCurrentPage()
             },
             translatePageAction: translationEnabled ? { _ in
-                session.translateCurrentPage(using: vm)
+                controller.session.translateCurrentPage(using: vm)
             } : nil,
             toggleTranslationAction: translationEnabled ? {
-                session.toggleTranslationShowOriginal()
+                controller.session.toggleTranslationShowOriginal()
             } : nil,
             onLongPressZoomStart: { _ in
                 isLongPressZoomed = true
@@ -439,7 +448,7 @@ struct ComicReaderView: View {
             onLongPressZoomEnd: {
                 isLongPressZoomed = false
             },
-            currentPage: $session.currentPage,
+            currentPage: $controller.session.currentPage,
             verticalCoordinator: verticalCoordinator
         )
         .ignoresSafeArea()
@@ -447,20 +456,20 @@ struct ComicReaderView: View {
 
     private var loadingOverlay: some View {
         VStack(spacing: 6) {
-            ProgressView(value: session.loadingProgress, total: 1)
+            ProgressView(value: controller.session.loadingProgress, total: 1)
                 .progressViewStyle(.linear)
                 .tint(.white)
                 .padding(.horizontal, 24)
                 .padding(.top, 12)
-            Text(session.loadingMessage)
+            Text(controller.session.loadingMessage)
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.72))
-            if session.totalPages > 0, session.resolvedPageCount < session.totalPages || session.isLoadingMore {
+            if controller.session.totalPages > 0, controller.session.resolvedPageCount < controller.session.totalPages || controller.session.isLoadingMore {
                 Text(AppLocalization.format(
                     "reader.loading.pages_ready",
                     "%lld/%lld pages ready",
-                    Int64(session.resolvedPageCount),
-                    Int64(session.totalPages)
+                    Int64(controller.session.resolvedPageCount),
+                    Int64(controller.session.totalPages)
                 ))
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.52))
@@ -471,38 +480,38 @@ struct ComicReaderView: View {
 
     private var readerOverlay: some View {
         ReaderOverlayView(
-            chapterTitle: session.chapterTitle,
-            chapterID: session.chapterID,
+            chapterTitle: controller.session.chapterTitle,
+            chapterID: controller.session.chapterID,
             comicTitle: item.title,
-            offlineStatusText: session.offlineStatusText,
+            offlineStatusText: controller.session.offlineStatusText,
             displayedPageIndex: displayedPageIndex,
-            totalPages: session.totalPages,
-            resolvedPageCount: session.resolvedPageCount,
-            isLoadingMore: session.isLoadingMore,
+            totalPages: controller.session.totalPages,
+            resolvedPageCount: controller.session.resolvedPageCount,
+            isLoadingMore: controller.session.isLoadingMore,
             translationEnabled: translationEnabled,
-            translationShowOriginal: session.translationShowOriginal,
+            translationShowOriginal: controller.session.translationShowOriginal,
             translationStatusText: translationStatusText,
-            isTranslatingCurrentPage: session.translationStatus(for: session.currentPage) == .processing,
-            onTranslateCurrentPage: translationEnabled ? { session.translateCurrentPage(using: vm) } : nil,
-            onToggleTranslationShowOriginal: translationEnabled ? { session.toggleTranslationShowOriginal() } : nil,
+            isTranslatingCurrentPage: controller.session.translationStatus(for: controller.session.currentPage) == .processing,
+            onTranslateCurrentPage: translationEnabled ? { controller.session.translateCurrentPage(using: vm) } : nil,
+            onToggleTranslationShowOriginal: translationEnabled ? { controller.session.toggleTranslationShowOriginal() } : nil,
             translationBackendKind: translationBackendKind,
             readerMode: readerMode,
             animatePageTransitions: animatePageTransitions && !reduceMotion,
-            currentPage: $session.currentPage,
-            previousChapterTitle: session.previousChapter?.title.isEmpty == false ? session.previousChapter?.title : session.previousChapter?.id,
-            nextChapterTitle: session.nextChapter?.title.isEmpty == false ? session.nextChapter?.title : session.nextChapter?.id,
+            currentPage: $controller.session.currentPage,
+            previousChapterTitle: controller.session.previousChapter?.title.isEmpty == false ? controller.session.previousChapter?.title : controller.session.previousChapter?.id,
+            nextChapterTitle: controller.session.nextChapter?.title.isEmpty == false ? controller.session.nextChapter?.title : controller.session.nextChapter?.id,
             onDismiss: dismiss.callAsFunction,
             onOpenModeMenu: { readerMode = $0 },
             onOpenSettings: { showSettings = true },
-            onReload: reloadCurrentPage,
+            onReload: { controller.reloadCurrentPage() },
             onShareCurrentPage: shareCurrentPage,
             onSaveCurrentPage: saveCurrentPageToPhotos,
             isExportingCurrentPage: pageExportInProgress,
-            onOpenPreviousChapter: openPreviousChapter,
-            onOpenNextChapter: openNextChapter,
+            onOpenPreviousChapter: { controller.openAdjacentChapter(step: -1) },
+            onOpenNextChapter: { controller.openAdjacentChapter(step: 1) },
             onJumpToVerticalPage: { target in
-                session.jumpToPage(target, readerMode: readerMode)
-                _ = verticalCoordinator.scrollToPage(target, totalPages: session.totalPages)
+                controller.session.jumpToPage(target, readerMode: readerMode)
+                _ = verticalCoordinator.scrollToPage(target, totalPages: controller.session.totalPages)
             }
         )
         .transition(.opacity)
@@ -510,12 +519,12 @@ struct ComicReaderView: View {
 
     private var translationStatusText: String? {
         guard translationEnabled else { return nil }
-        if !session.translationUnsupportedReason.isEmpty {
-            return session.translationUnsupportedReason
+        if !controller.session.translationUnsupportedReason.isEmpty {
+            return controller.session.translationUnsupportedReason
         }
-        let currentPage = session.currentPage
-        let status = session.translationStatus(for: currentPage)
-        if status == .ready, session.translationBlocks(for: currentPage).isEmpty {
+        let currentPage = controller.session.currentPage
+        let status = controller.session.translationStatus(for: currentPage)
+        if status == .ready, controller.session.translationBlocks(for: currentPage).isEmpty {
             return AppLocalization.text("reader.translation.status.ready_empty", "Translation ready, but no text regions were found")
         }
         switch status {
@@ -526,40 +535,18 @@ struct ComicReaderView: View {
         case .ready:
             return AppLocalization.text("reader.translation.status.ready", "Translation ready")
         case .failed:
-            return session.translationError(for: session.currentPage) ?? AppLocalization.text("reader.translation.status.failed", "Translation failed")
+            return controller.session.translationError(for: controller.session.currentPage) ?? AppLocalization.text("reader.translation.status.failed", "Translation failed")
         case .unsupported:
-            return session.translationError(for: session.currentPage) ?? AppLocalization.text("reader.translation.status.unsupported", "Translation unavailable")
+            return controller.session.translationError(for: controller.session.currentPage) ?? AppLocalization.text("reader.translation.status.unsupported", "Translation unavailable")
         }
     }
 
     private func onLeftTap() {
-        if invertTapZones { nextPage() } else { previousPage() }
+        if invertTapZones { controller.nextPage() } else { controller.previousPage() }
     }
 
     private func onRightTap() {
-        if invertTapZones { previousPage() } else { nextPage() }
-    }
-
-    private func nextPage() {
-        session.nextPage(
-            readerMode: readerMode,
-            animatePageTransitions: animatePageTransitions,
-            reduceMotion: reduceMotion
-        )
-    }
-
-    private func previousPage() {
-        session.previousPage(
-            readerMode: readerMode,
-            animatePageTransitions: animatePageTransitions,
-            reduceMotion: reduceMotion
-        )
-    }
-
-    private func reloadCurrentPage() {
-        session.reloadCurrentPage()
-        session.resolvePagesAroundCurrentPage(using: vm, readerMode: readerMode)
-        preloadAroundCurrentPage()
+        if invertTapZones { controller.previousPage() } else { controller.nextPage() }
     }
 
     private func shareCurrentPage() {
@@ -594,13 +581,13 @@ struct ComicReaderView: View {
     }
 
     private func makeCurrentPageExportImage() async throws -> PlatformImage {
-        let pageIndex = session.currentPage
-        guard session.imageRequests.indices.contains(pageIndex), let request = session.imageRequests[pageIndex] else {
+        let pageIndex = controller.session.currentPage
+        guard controller.session.imageRequests.indices.contains(pageIndex), let request = controller.session.imageRequests[pageIndex] else {
             throw ReaderPageExportError.currentPageUnavailable
         }
 
-        if translationEnabled, !session.translationShowOriginal,
-           let renderedAsset = session.translationRenderedAssets[pageIndex],
+        if translationEnabled, !controller.session.translationShowOriginal,
+           let renderedAsset = controller.session.translationRenderedAssets[pageIndex],
            !renderedAsset.localFilePath.isEmpty,
            FileManager.default.fileExists(atPath: renderedAsset.localFilePath),
            let image = PlatformImage(contentsOfFile: renderedAsset.localFilePath) {
@@ -623,10 +610,10 @@ struct ComicReaderView: View {
             throw ReaderPageExportError.imageDecodeFailed
         }
 
-        guard translationEnabled, !session.translationShowOriginal else {
+        guard translationEnabled, !controller.session.translationShowOriginal else {
             return baseImage
         }
-        let overlays = session.translationBlocks(for: pageIndex)
+        let overlays = controller.session.translationBlocks(for: pageIndex)
         guard !overlays.isEmpty else { return baseImage }
         return await ReaderTranslatedImageRenderer.renderAsync(baseImage, overlays: overlays)
     }
@@ -663,122 +650,8 @@ struct ComicReaderView: View {
         }
     }
 
-    private func applyCurrentTranslationPreferences() {
-        session.applyTranslationPreferences(currentTranslationPreferences)
-    }
-
-    private func handleInitialTask() async {
-        verticalCoordinator.prepareForContent(currentPage: session.currentPage)
-        await vm.prepareIfNeeded()
-        prefetchGeneration = await ReaderImagePipeline.shared.beginPrefetchSession()
-        lastPrefetchedPage = session.currentPage
-
-        readerLoadTask?.cancel()
-        readerLoadTask = Task {
-            await load()
-        }
-
-        chapterSequenceTask?.cancel()
-        chapterSequenceTask = Task {
-            await session.loadChapterSequenceIfNeeded(using: vm)
-        }
-    }
-
-    private func handleDisappear() {
-        historySaveTask?.cancel()
-        historySaveTask = nil
-        readerLoadTask?.cancel()
-        readerLoadTask = nil
-        chapterSequenceTask?.cancel()
-        chapterSequenceTask = nil
-        chapterNavigationTask?.cancel()
-        chapterNavigationTask = nil
-        prefetcher.cancel()
-        platformMonitor.disableKeepScreenOn()
-        platformMonitor.uninstall()
-
-        let app = UIApplication.shared
-        var bgTaskID: UIBackgroundTaskIdentifier = .invalid
-        bgTaskID = app.beginBackgroundTask(withName: "ReaderCleanup") {
-            app.endBackgroundTask(bgTaskID)
-            bgTaskID = .invalid
-        }
-        Task { @MainActor in
-            await ReaderImagePipeline.shared.cancelPrefetchSession()
-            await session.close(using: vm)
-            await persistHistoryNow()
-            session.finishReadingSession(using: library)
-            app.endBackgroundTask(bgTaskID)
-            bgTaskID = .invalid
-        }
-    }
-
-    private func load() async {
-        await session.load(using: vm, readerMode: readerMode)
-        applyCurrentTranslationPreferences()
-        preloadAroundCurrentPage()
-        await persistHistoryNow()
-    }
-
-    private func openPreviousChapter() {
-        chapterNavigationTask?.cancel()
-        chapterNavigationTask = Task {
-            await session.loadAdjacentChapter(step: -1, using: vm, library: library, readerMode: readerMode)
-            guard !Task.isCancelled else { return }
-            preloadAroundCurrentPage()
-            await persistHistoryNow()
-        }
-    }
-
-    private func openNextChapter() {
-        chapterNavigationTask?.cancel()
-        chapterNavigationTask = Task {
-            await session.loadAdjacentChapter(step: 1, using: vm, library: library, readerMode: readerMode)
-            guard !Task.isCancelled else { return }
-            preloadAroundCurrentPage()
-            await persistHistoryNow()
-        }
-    }
-
-    private func preloadAroundCurrentPage() {
-        guard session.totalPages > 0 else { return }
-        let distance = max(1, min(preloadDistance, 4))
-        let direction = session.currentPage == lastPrefetchedPage ? 0 : (session.currentPage > lastPrefetchedPage ? 1 : -1)
-        lastPrefetchedPage = session.currentPage
-        let requests = ReaderPrefetchPlanner.preferredPrefetchIndexes(
-            current: session.currentPage,
-            total: session.totalPages,
-            distance: distance,
-            direction: direction
-        )
-            .compactMap { idx in session.imageRequests[idx] }
-            .compactMap(buildURLRequest(from:))
-        prefetcher.preload(requests: requests, generation: prefetchGeneration)
-    }
-
-    private func scheduleHistorySave() {
-        historySaveTask?.cancel()
-        historySaveTask = Task {
-            try? await Task.sleep(nanoseconds: 700_000_000)
-            guard !Task.isCancelled else { return }
-            await persistHistoryNow()
-        }
-    }
-
-    private func persistHistoryNow() async {
-        await session.persistHistory(using: library, readerMode: readerMode)
-        if session.completedChapterProgress(readerMode: readerMode) != nil {
-            await vm.tracker.recordChapterCompletion(
-                item: item,
-                chapterSequence: session.chapterSequence,
-                chapterID: session.chapterID
-            )
-        }
-    }
-
     private func handleTap(at location: CGPoint, in size: CGSize) {
-        // When controls are visible, any tap dismisses them first
-        if session.showControls {
+        if controller.session.showControls {
             toggleControls()
             return
         }
@@ -798,9 +671,9 @@ struct ComicReaderView: View {
         if let region = resolved.first(where: { $0.rect.contains(point) }) {
             switch region.action {
             case .previous:
-                if invertTapZones { nextPage() } else { previousPage() }
+                if invertTapZones { controller.nextPage() } else { controller.previousPage() }
             case .next:
-                if invertTapZones { previousPage() } else { nextPage() }
+                if invertTapZones { controller.previousPage() } else { controller.nextPage() }
             case .toggleControls:
                 toggleControls()
             }
@@ -819,10 +692,10 @@ struct ComicReaderView: View {
 
     private func toggleControls() {
         if reduceMotion {
-            session.showControls.toggle()
+            controller.session.showControls.toggle()
         } else {
             withAnimation(.easeInOut(duration: 0.2)) {
-                session.showControls.toggle()
+                controller.session.showControls.toggle()
             }
         }
     }

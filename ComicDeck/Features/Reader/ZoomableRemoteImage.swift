@@ -745,8 +745,8 @@ final class ZoomingImageScrollView: NSScrollView {
         let minScale = fitScale
         let maxScale = max(fitScale * 4, fitScale + 0.01)
 
-        minMagnification = minScale
         maxMagnification = maxScale
+        minMagnification = minScale
         if resetToMin || shouldResetZoomOnNextLayout {
             magnification = minScale
             centerContentInView(atMinScale: minScale)
