@@ -571,6 +571,26 @@ struct ZoomableRemoteImage: NSViewRepresentable {
     }
 }
 
+/// NSClipView that centers the document view when it is smaller than the
+/// visible area, instead of pinning it to the top-left corner.
+final class CenteringClipView: NSClipView {
+    override func constrainBoundsRect(_ proposedBounds: NSRect) -> NSRect {
+        var rect = super.constrainBoundsRect(proposedBounds)
+        guard let documentView else { return rect }
+
+        let docSize = documentView.frame.size
+        let clipSize = rect.size
+
+        if docSize.width < clipSize.width {
+            rect.origin.x = (docSize.width - clipSize.width) / 2
+        }
+        if docSize.height < clipSize.height {
+            rect.origin.y = (docSize.height - clipSize.height) / 2
+        }
+        return rect
+    }
+}
+
 /// macOS counterpart of the iOS `ZoomingImageScrollView` (UIScrollView subclass).
 ///
 /// Uses `NSScrollView.magnification` for zoom, which decouples content layout
@@ -617,6 +637,12 @@ final class ZoomingImageScrollView: NSScrollView {
         imageView.imageAlignment = .alignCenter
         imageView.translatesAutoresizingMaskIntoConstraints = true
         imageView.autoresizingMask = []
+
+        let clipView = CenteringClipView()
+        clipView.drawsBackground = false
+        clipView.translatesAutoresizingMaskIntoConstraints = true
+        clipView.autoresizingMask = [.width, .height]
+        contentView = clipView
         documentView = imageView
 
         // Gestures attach to the clip view so they keep working while zoomed.
@@ -673,8 +699,9 @@ final class ZoomingImageScrollView: NSScrollView {
         super.layout()
         if bounds.size != lastBoundsSize {
             lastBoundsSize = bounds.size
-            recalculateMagnificationScales()
+            recalculateMagnificationScales(resetToMin: shouldResetZoomOnNextLayout)
         }
+        centerImageIfNeeded()
     }
 
     override func viewDidEndLiveResize() {
@@ -698,6 +725,7 @@ final class ZoomingImageScrollView: NSScrollView {
         imageView.image = image
         errorLabel.isHidden = true
         setLoading(false)
+        imageView.frame = NSRect(origin: .zero, size: image.size)
         if resetViewport {
             contentView.setBoundsOrigin(.zero)
             shouldResetZoomOnNextLayout = true
@@ -751,23 +779,40 @@ final class ZoomingImageScrollView: NSScrollView {
         maxMagnification = maxScale
         minMagnification = minScale
         if resetToMin || shouldResetZoomOnNextLayout {
-            setMagnification(minScale, centeredAt: NSPoint(x: image.size.width / 2, y: image.size.height / 2))
+            magnification = minScale
             shouldResetZoomOnNextLayout = false
         } else {
             magnification = min(max(magnification, minScale), maxScale)
         }
+        centerImageIfNeeded()
     }
 
-    private func centerContentInView(atMinScale minScale: CGFloat) {
-        guard let image = imageView.image else { return }
-        let scaledWidth = image.size.width * minScale
-        let scaledHeight = image.size.height * minScale
-        let horizontalInset = max(0, (bounds.width - scaledWidth) / 2)
-        let verticalInset = max(0, (bounds.height - scaledHeight) / 2)
-        contentView.setBoundsOrigin(NSPoint(
-            x: -horizontalInset / minScale,
-            y: -verticalInset / minScale
-        ))
+    private func centerImageIfNeeded() {
+        guard let image = imageView.image, image.size.width > 0, image.size.height > 0 else { return }
+        guard bounds.width > 0, bounds.height > 0 else { return }
+
+        let clipViewSize = contentView.frame.size
+        let docSize = image.size
+
+        let cvBoundsW = clipViewSize.width / magnification
+        let cvBoundsH = clipViewSize.height / magnification
+
+        let dx: CGFloat
+        let dy: CGFloat
+        if cvBoundsW >= docSize.width {
+            dx = (docSize.width - cvBoundsW) / 2
+        } else {
+            dx = contentView.bounds.origin.x
+        }
+        if cvBoundsH >= docSize.height {
+            dy = (docSize.height - cvBoundsH) / 2
+        } else {
+            dy = contentView.bounds.origin.y
+        }
+
+        if abs(contentView.bounds.origin.x - dx) > 0.5 || abs(contentView.bounds.origin.y - dy) > 0.5 {
+            contentView.setBoundsOrigin(NSPoint(x: dx, y: dy))
+        }
     }
 
     func setOverlays(_ overlays: [ReaderTextBlock]) {

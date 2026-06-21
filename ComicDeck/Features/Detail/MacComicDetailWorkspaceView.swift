@@ -47,6 +47,7 @@ struct MacComicDetailWorkspaceView: View {
     @State private var tagRoute: CategoryNavigationTarget?
     @State private var didConsumeInitialReadRoute = false
     @State private var trackerSearchProvider: TrackerProvider?
+    @State private var showCommentsSheet = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.openWindow) private var openWindow
@@ -125,6 +126,21 @@ struct MacComicDetailWorkspaceView: View {
             }
             .environment(vm.tracker)
             .frame(minWidth: 760, minHeight: 560)
+        }
+        .sheet(isPresented: $showCommentsSheet) {
+            if let detail = model.detail {
+                NavigationStack {
+                    CommentsPageView(
+                        vm: vm,
+                        item: item,
+                        detail: detail,
+                        capabilities: model.commentCapabilities,
+                        initialReplyComment: nil,
+                        seededComments: dedupedPreviewComments(detail.comments)
+                    )
+                }
+                .frame(minWidth: 520, minHeight: 400)
+            }
         }
         .confirmationDialog(
             AppLocalization.text("detail.queue_all.title", "Queue download for all chapters?"),
@@ -273,19 +289,22 @@ struct MacComicDetailWorkspaceView: View {
                 metricTile(
                     title: AppLocalization.text("detail.hero.metric.chapters", "Chapters"),
                     value: "\(detail.chapters.count)",
-                    systemImage: "books.vertical"
+                    systemImage: "books.vertical",
+                    action: { selectedTab = .chapters }
                 )
                 metricTile(
                     title: AppLocalization.text("detail.hero.metric.comments", "Comments"),
                     value: "\(detail.commentsCount ?? detail.comments.count)",
-                    systemImage: "text.bubble"
+                    systemImage: "text.bubble",
+                    action: { showCommentsSheet = true }
                 )
             }
             GridRow {
                 metricTile(
                     title: AppLocalization.text("detail.hero.metric.tags", "Tags"),
                     value: "\(detail.tags.reduce(0) { $0 + $1.values.count })",
-                    systemImage: "tag"
+                    systemImage: "tag",
+                    action: { selectedTab = .tags }
                 )
                 metricTile(
                     title: AppLocalization.text("detail.favorite.title", "Source Favorite"),
@@ -296,7 +315,20 @@ struct MacComicDetailWorkspaceView: View {
         }
     }
 
-    private func metricTile(title: String, value: String, systemImage: String) -> some View {
+    private func metricTile(title: String, value: String, systemImage: String, action: (() -> Void)? = nil) -> some View {
+        Group {
+            if let action {
+                Button(action: action) {
+                    metricTileContent(title: title, value: value, systemImage: systemImage)
+                }
+                .buttonStyle(.plain)
+            } else {
+                metricTileContent(title: title, value: value, systemImage: systemImage)
+            }
+        }
+    }
+
+    private func metricTileContent(title: String, value: String, systemImage: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Image(systemName: systemImage)
                 .foregroundStyle(AppTint.accent)
@@ -379,6 +411,10 @@ struct MacComicDetailWorkspaceView: View {
                             CommentPreviewRow(comment: comment)
                             Divider()
                         }
+                        Button(AppLocalization.text("comments.action.view_all", "View All Comments")) {
+                            showCommentsSheet = true
+                        }
+                        .buttonStyle(.borderless)
                     }
                 }
             }

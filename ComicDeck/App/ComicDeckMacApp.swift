@@ -29,6 +29,7 @@ struct ComicDeckMac: App {
                         initialPage: context.initialPage,
                         chapterSequence: context.chapterSequence
                     )
+                    .frame(minWidth: 600, minHeight: 400)
                     .preferredColorScheme(appAppearance.colorScheme)
                 }
             }
@@ -39,6 +40,7 @@ struct ComicDeckMac: App {
             }
         }
         .windowResizability(.contentMinSize)
+        .defaultSize(width: 800, height: 1000)
         .commands {
             GoMenuCommands()
         }
