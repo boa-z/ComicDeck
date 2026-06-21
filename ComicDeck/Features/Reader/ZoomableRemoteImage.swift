@@ -68,7 +68,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
                 do {
                     let data = try await ReaderImagePipeline.shared.loadData(for: request, priority: .visible)
                     try Task.checkCancellation()
-                    let targetSize = await MainActor.run {
+                    let targetSize = await MainActor.run { [weak self] in
                         self?.view?.bounds.size ?? .zero
                     }
                     try Task.checkCancellation()
@@ -81,7 +81,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
                     ) else {
                         throw ReaderImagePipelineError.invalidResponse
                     }
-                    await MainActor.run {
+                    await MainActor.run { [weak self] in
                         self?.view?.setBaseImage(baseImage)
                         self?.updateRenderedImageIfNeeded()
                     }
@@ -89,7 +89,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
                     return
                 } catch {
                     guard !Task.isCancelled else { return }
-                    await MainActor.run {
+                    await MainActor.run { [weak self] in
                         self?.view?.setError(AppLocalization.text("reader.error.image_load_failed", "Failed to load image"))
                     }
                     readerDebugLog(
@@ -449,7 +449,7 @@ struct ZoomableRemoteImage: NSViewRepresentable {
                 do {
                     let data = try await ReaderImagePipeline.shared.loadData(for: request, priority: .visible)
                     try Task.checkCancellation()
-                    let viewportSize = await MainActor.run {
+                    let viewportSize = await MainActor.run { [weak self] in
                         self?.view?.contentView.bounds.size ?? self?.view?.bounds.size ?? .zero
                     }
                     try Task.checkCancellation()
@@ -471,7 +471,7 @@ struct ZoomableRemoteImage: NSViewRepresentable {
                     ) else {
                         throw ReaderImagePipelineError.invalidResponse
                     }
-                    await MainActor.run {
+                    await MainActor.run { [weak self] in
                         self?.view?.setBaseImage(baseImage)
                         self?.updateRenderedImageIfNeeded()
                     }
@@ -479,7 +479,7 @@ struct ZoomableRemoteImage: NSViewRepresentable {
                     return
                 } catch {
                     guard !Task.isCancelled else { return }
-                    await MainActor.run {
+                    await MainActor.run { [weak self] in
                         self?.view?.setError(AppLocalization.text("reader.error.image_load_failed", "Failed to load image"))
                     }
                     readerDebugLog(

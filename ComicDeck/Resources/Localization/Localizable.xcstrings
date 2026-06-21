@@ -63,6 +63,19 @@
         }
       }
     },
+    "%lld comics" : {
+
+    },
+    "%lld comics from %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld comics from %2$@"
+          }
+        }
+      }
+    },
     "%lld selected" : {
 
     },
@@ -4586,6 +4599,9 @@
     "No results" : {
 
     },
+    "No results found" : {
+
+    },
     "No Shelves Available" : {
 
     },
@@ -6456,6 +6472,9 @@
     "Ready to Read" : {
 
     },
+    "Recent" : {
+
+    },
     "Recent Keywords" : {
 
     },
@@ -6634,6 +6653,9 @@
 
     },
     "Search methods: %@" : {
+
+    },
+    "Search settings" : {
 
     },
     "Search Settings" : {
@@ -6847,6 +6869,9 @@
       }
     },
     "Searching..." : {
+
+    },
+    "Searching…" : {
 
     },
     "Select" : {
@@ -10070,6 +10095,9 @@
           }
         }
       }
+    },
+    "Type a keyword and press Return to search" : {
+
     },
     "Unavailable" : {
 
