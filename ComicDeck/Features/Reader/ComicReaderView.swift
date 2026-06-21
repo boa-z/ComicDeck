@@ -448,7 +448,7 @@ struct ComicReaderView: View {
             onLongPressZoomEnd: {
                 isLongPressZoomed = false
             },
-            currentPage: $controller.session.currentPage,
+            currentPage: Bindable(controller.session).currentPage,
             verticalCoordinator: verticalCoordinator
         )
         .ignoresSafeArea()
@@ -497,7 +497,7 @@ struct ComicReaderView: View {
             translationBackendKind: translationBackendKind,
             readerMode: readerMode,
             animatePageTransitions: animatePageTransitions && !reduceMotion,
-            currentPage: $controller.session.currentPage,
+            currentPage: Bindable(controller.session).currentPage,
             previousChapterTitle: controller.session.previousChapter?.title.isEmpty == false ? controller.session.previousChapter?.title : controller.session.previousChapter?.id,
             nextChapterTitle: controller.session.nextChapter?.title.isEmpty == false ? controller.session.nextChapter?.title : controller.session.nextChapter?.id,
             onDismiss: dismiss.callAsFunction,

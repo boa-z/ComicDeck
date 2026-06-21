@@ -108,85 +108,13 @@ struct MacReaderWindowView: View {
     var body: some View {
         ZStack {
             resolvedBackground.ignoresSafeArea()
-            content
+            contentView
         }
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button(AppLocalization.text("common.close", "Close"), systemImage: "xmark") {
-                    dismiss()
-                }
-            }
-            ToolbarItemGroup(placement: .principal) {
-                VStack(spacing: 1) {
-                    Text(controller.session.chapterTitle.isEmpty ? controller.session.chapterID : controller.session.chapterTitle)
-                        .font(.headline)
-                        .lineLimit(1)
-                    Text(item.title)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button(AppLocalization.text("reader.action.previous_page", "Previous page"), systemImage: "chevron.left") {
-                    controller.previousPage()
-                }
-                .disabled(controller.session.currentPage <= 0 || controller.session.totalPages <= 0)
-                .help(AppLocalization.text("reader.action.previous_page", "Previous page"))
-
-                Button(AppLocalization.text("reader.action.next_page", "Next page"), systemImage: "chevron.right") {
-                    controller.nextPage()
-                }
-                .disabled(controller.session.totalPages <= 0 || controller.session.currentPage >= controller.session.totalPages - 1)
-                .help(AppLocalization.text("reader.action.next_page", "Next page"))
-
-                Divider()
-
-                Button(AppLocalization.text("reader.action.previous_chapter", "Previous chapter"), systemImage: "backward.end.fill") {
-                    controller.openAdjacentChapter(step: -1)
-                }
-                .disabled(controller.session.previousChapter == nil)
-                .help(AppLocalization.text("reader.action.previous_chapter", "Previous chapter"))
-
-                Button(AppLocalization.text("reader.action.next_chapter", "Next chapter"), systemImage: "forward.end.fill") {
-                    controller.openAdjacentChapter(step: 1)
-                }
-                .disabled(controller.session.nextChapter == nil)
-                .help(AppLocalization.text("reader.action.next_chapter", "Next chapter"))
-
-                Divider()
-
-                Button(AppLocalization.text("reader.action.reload_page", "Reload current page"), systemImage: "arrow.clockwise") {
-                    controller.reloadCurrentPage()
-                }
-                .help(AppLocalization.text("reader.action.reload_page", "Reload current page"))
-
-                Menu {
-                    Section(AppLocalization.text("reader.chrome.mode", "Mode")) {
-                        ForEach(ReaderMode.allCases) { mode in
-                            Button {
-                                readerMode = mode
-                            } label: {
-                                Label(mode.title, systemImage: mode.icon)
-                            }
-                        }
-                    }
-
-                    Section(AppLocalization.text("reader.background.mode", "Background")) {
-                        ForEach(ReaderBackgroundMode.allCases) { mode in
-                            Button(mode.title) {
-                                readerBackgroundMode = mode
-                            }
-                        }
-                    }
-                } label: {
-                    Label(AppLocalization.text("tracking.sync.more", "More"), systemImage: "ellipsis.circle")
-                }
-            }
-        }
+        .toolbar { toolbarContent }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomBar
         }
+        .focusable()
         .onKeyPress(.leftArrow) { controller.previousPage(); return .handled }
         .onKeyPress(.rightArrow) { controller.nextPage(); return .handled }
         .onKeyPress(.upArrow) { controller.openAdjacentChapter(step: -1); return .handled }
@@ -215,8 +143,84 @@ struct MacReaderWindowView: View {
         .focusedSceneValue(\.readerController, controller)
     }
 
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            Button(AppLocalization.text("common.close", "Close"), systemImage: "xmark") {
+                dismiss()
+            }
+        }
+        ToolbarItemGroup(placement: .principal) {
+            VStack(spacing: 1) {
+                Text(controller.session.chapterTitle.isEmpty ? controller.session.chapterID : controller.session.chapterTitle)
+                    .font(.headline)
+                    .lineLimit(1)
+                Text(item.title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button(AppLocalization.text("reader.action.previous_page", "Previous page"), systemImage: "chevron.left") {
+                controller.previousPage()
+            }
+            .disabled(controller.session.currentPage <= 0 || controller.session.totalPages <= 0)
+            .help(AppLocalization.text("reader.action.previous_page", "Previous page"))
+
+            Button(AppLocalization.text("reader.action.next_page", "Next page"), systemImage: "chevron.right") {
+                controller.nextPage()
+            }
+            .disabled(controller.session.totalPages <= 0 || controller.session.currentPage >= controller.session.totalPages - 1)
+            .help(AppLocalization.text("reader.action.next_page", "Next page"))
+
+            Divider()
+
+            Button(AppLocalization.text("reader.action.previous_chapter", "Previous chapter"), systemImage: "backward.end.fill") {
+                controller.openAdjacentChapter(step: -1)
+            }
+            .disabled(controller.session.previousChapter == nil)
+            .help(AppLocalization.text("reader.action.previous_chapter", "Previous chapter"))
+
+            Button(AppLocalization.text("reader.action.next_chapter", "Next chapter"), systemImage: "forward.end.fill") {
+                controller.openAdjacentChapter(step: 1)
+            }
+            .disabled(controller.session.nextChapter == nil)
+            .help(AppLocalization.text("reader.action.next_chapter", "Next chapter"))
+
+            Divider()
+
+            Button(AppLocalization.text("reader.action.reload_page", "Reload current page"), systemImage: "arrow.clockwise") {
+                controller.reloadCurrentPage()
+            }
+            .help(AppLocalization.text("reader.action.reload_page", "Reload current page"))
+
+            Menu {
+                Section(AppLocalization.text("reader.chrome.mode", "Mode")) {
+                    ForEach(ReaderMode.allCases) { mode in
+                        Button {
+                            readerMode = mode
+                        } label: {
+                            Label(mode.title, systemImage: mode.icon)
+                        }
+                    }
+                }
+
+                Section(AppLocalization.text("reader.background.mode", "Background")) {
+                    ForEach(ReaderBackgroundMode.allCases) { mode in
+                        Button(mode.title) {
+                            readerBackgroundMode = mode
+                        }
+                    }
+                }
+            } label: {
+                Label(AppLocalization.text("tracking.sync.more", "More"), systemImage: "ellipsis.circle")
+            }
+        }
+    }
+
     @ViewBuilder
-    private var content: some View {
+    private var contentView: some View {
         if controller.session.loading && !controller.session.canRenderReader {
             VStack(spacing: 12) {
                 ProgressView(value: controller.session.loadingProgress, total: 1)
@@ -257,7 +261,7 @@ struct MacReaderWindowView: View {
                 toggleTranslationAction: nil,
                 onLongPressZoomStart: nil,
                 onLongPressZoomEnd: nil,
-                currentPage: $controller.session.currentPage,
+                currentPage: Bindable(controller.session).currentPage,
                 verticalCoordinator: verticalCoordinator
             )
             .background(Color.black)

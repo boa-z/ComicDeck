@@ -680,6 +680,7 @@ final class ZoomingImageScrollView: NSScrollView {
     override func viewDidEndLiveResize() {
         super.viewDidEndLiveResize()
         recalculateMagnificationScales()
+        layoutSubtreeIfNeeded()
     }
 
     func setLoading(_ loading: Bool) {
@@ -702,6 +703,7 @@ final class ZoomingImageScrollView: NSScrollView {
             shouldResetZoomOnNextLayout = true
         }
         recalculateMagnificationScales(resetToMin: resetViewport)
+        layoutSubtreeIfNeeded()
     }
 
     func setBaseImage(_ image: PlatformImage) {
@@ -749,8 +751,7 @@ final class ZoomingImageScrollView: NSScrollView {
         maxMagnification = maxScale
         minMagnification = minScale
         if resetToMin || shouldResetZoomOnNextLayout {
-            magnification = minScale
-            centerContentInView(atMinScale: minScale)
+            setMagnification(minScale, centeredAt: NSPoint(x: image.size.width / 2, y: image.size.height / 2))
             shouldResetZoomOnNextLayout = false
         } else {
             magnification = min(max(magnification, minScale), maxScale)

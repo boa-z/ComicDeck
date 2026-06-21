@@ -72,24 +72,20 @@ private struct GoMenuCommands: Commands {
             Button(AppLocalization.text("reader.action.next_page", "Next Page")) {
                 controller?.nextPage()
             }
-            .keyboardShortcut(.rightArrow)
 
             Button(AppLocalization.text("reader.action.previous_page", "Previous Page")) {
                 controller?.previousPage()
             }
-            .keyboardShortcut(.leftArrow)
 
             Divider()
 
             Button(AppLocalization.text("reader.action.next_chapter", "Next Chapter")) {
                 controller?.openAdjacentChapter(step: 1)
             }
-            .keyboardShortcut(.downArrow)
 
             Button(AppLocalization.text("reader.action.previous_chapter", "Previous Chapter")) {
                 controller?.openAdjacentChapter(step: -1)
             }
-            .keyboardShortcut(.upArrow)
         }
     }
 }
