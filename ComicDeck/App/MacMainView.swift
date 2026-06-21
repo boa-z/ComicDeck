@@ -80,22 +80,18 @@ struct MacMainView: View {
             Task { await vm.tracker.flushPendingSync() }
         }
         .sheet(item: $sourceSearchRoute) { route in
-            NavigationStack {
-                SourceScopedSearchView(
-                    vm: vm,
-                    sourceKey: route.sourceKey,
-                    initialKeyword: route.keyword
-                )
-                .environment(vm.library)
-                .environment(vm.tracker)
-            }
-            .frame(minWidth: 820, minHeight: 620)
+            MacSourceScopedSearchView(
+                vm: vm,
+                sourceKey: route.sourceKey,
+                initialKeyword: route.keyword
+            )
+            .environment(vm.library)
+            .environment(vm.tracker)
         }
         .sheet(isPresented: $showGlobalSearch) {
-            SearchView(vm: vm)
+            MacSearchWorkspaceView(vm: vm)
                 .environment(vm.library)
                 .environment(vm.tracker)
-                .frame(minWidth: 820, minHeight: 620)
         }
         .overlay {
             LoginSheetPresenter(login: vm.login, appDebugLog: appDebugLog)

@@ -5,6 +5,7 @@ import SwiftUI
 struct SearchView: View {
     @Bindable var vm: ReaderViewModel
     @Environment(LibraryViewModel.self) private var library
+    @Environment(\.dismiss) private var dismiss
     @State private var model = SearchScreenModel()
     @State private var showSearchSettings = false
     @AppStorage("ui.comicBrowseMode") private var browseModeRaw = ComicBrowseDisplayMode.list.rawValue
@@ -48,6 +49,8 @@ struct SearchView: View {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
                     .accessibilityLabel(AppLocalization.text("search.action.open_filters", "Open search filters"))
+
+                    Button("Done") { dismiss() }
                 }
             }
             .sheet(isPresented: $showSearchSettings) {

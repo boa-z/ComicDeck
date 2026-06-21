@@ -50,6 +50,12 @@ struct SourceScopedSearchView: View {
                         ProgressView().controlSize(.small)
                     }
                 }
+                #if os(macOS)
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                        .keyboardShortcut(.cancelAction)
+                }
+                #endif
                 ToolbarItemGroup(placement: .platformTopBarTrailing) {
                     ComicBrowseModePicker(mode: Binding(
                         get: { browseMode },
@@ -60,7 +66,9 @@ struct SourceScopedSearchView: View {
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
+                    #if os(iOS)
                     Button("Done") { dismiss() }
+                    #endif
                 }
             }
             .sheet(isPresented: $showSearchSettings) {
