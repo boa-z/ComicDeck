@@ -132,11 +132,34 @@ struct MacReaderWindowView: View {
                     controller.previousPage()
                 }
                 .disabled(controller.session.currentPage <= 0 || controller.session.totalPages <= 0)
+                .help(AppLocalization.text("reader.action.previous_page", "Previous page"))
 
                 Button(AppLocalization.text("reader.action.next_page", "Next page"), systemImage: "chevron.right") {
                     controller.nextPage()
                 }
                 .disabled(controller.session.totalPages <= 0 || controller.session.currentPage >= controller.session.totalPages - 1)
+                .help(AppLocalization.text("reader.action.next_page", "Next page"))
+
+                Divider()
+
+                Button(AppLocalization.text("reader.action.previous_chapter", "Previous chapter"), systemImage: "backward.end.fill") {
+                    controller.openAdjacentChapter(step: -1)
+                }
+                .disabled(controller.session.previousChapter == nil)
+                .help(AppLocalization.text("reader.action.previous_chapter", "Previous chapter"))
+
+                Button(AppLocalization.text("reader.action.next_chapter", "Next chapter"), systemImage: "forward.end.fill") {
+                    controller.openAdjacentChapter(step: 1)
+                }
+                .disabled(controller.session.nextChapter == nil)
+                .help(AppLocalization.text("reader.action.next_chapter", "Next chapter"))
+
+                Divider()
+
+                Button(AppLocalization.text("reader.action.reload_page", "Reload current page"), systemImage: "arrow.clockwise") {
+                    controller.reloadCurrentPage()
+                }
+                .help(AppLocalization.text("reader.action.reload_page", "Reload current page"))
 
                 Menu {
                     Section(AppLocalization.text("reader.chrome.mode", "Mode")) {
@@ -155,20 +178,6 @@ struct MacReaderWindowView: View {
                                 readerBackgroundMode = mode
                             }
                         }
-                    }
-
-                    Button(AppLocalization.text("reader.action.previous_chapter", "Previous chapter"), systemImage: "backward.end.fill") {
-                        controller.openAdjacentChapter(step: -1)
-                    }
-                    .disabled(controller.session.previousChapter == nil)
-
-                    Button(AppLocalization.text("reader.action.next_chapter", "Next chapter"), systemImage: "forward.end.fill") {
-                        controller.openAdjacentChapter(step: 1)
-                    }
-                    .disabled(controller.session.nextChapter == nil)
-
-                    Button(AppLocalization.text("reader.action.reload_page", "Reload current page"), systemImage: "arrow.clockwise") {
-                        controller.reloadCurrentPage()
                     }
                 } label: {
                     Label(AppLocalization.text("tracking.sync.more", "More"), systemImage: "ellipsis.circle")
@@ -203,6 +212,7 @@ struct MacReaderWindowView: View {
             controller.stop()
             Task { await controller.cleanupAfterStop() }
         }
+        .focusedSceneValue(\.readerController, controller)
     }
 
     @ViewBuilder

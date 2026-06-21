@@ -3,6 +3,7 @@ import SwiftUI
 #if os(macOS)
 @main
 struct ComicDeckMac: App {
+    @State private var readerVM = ReaderViewModel()
     @AppStorage("ui.appAppearance") private var appAppearanceRaw = AppAppearance.system.rawValue
 
     private var appAppearance: AppAppearance {
@@ -15,6 +16,32 @@ struct ComicDeckMac: App {
                 .preferredColorScheme(appAppearance.colorScheme)
         }
         .windowStyle(.titleBar)
+
+        WindowGroup(id: "reader", for: ReaderLaunchContext.self) { $context in
+            Group {
+                if let context {
+                    MacReaderWindowView(
+                        vm: readerVM,
+                        item: context.item,
+                        chapterID: context.chapterID,
+                        chapterTitle: context.chapterTitle,
+                        localChapterDirectory: context.localDirectory,
+                        initialPage: context.initialPage,
+                        chapterSequence: context.chapterSequence
+                    )
+                    .preferredColorScheme(appAppearance.colorScheme)
+                }
+            }
+            .environment(readerVM.library)
+            .environment(readerVM.tracker)
+            .task {
+                await readerVM.prepareIfNeeded()
+            }
+        }
+        .windowResizability(.contentMinSize)
+        .commands {
+            GoMenuCommands()
+        }
 
         Settings {
             MacSettingsHostView()
@@ -34,6 +61,36 @@ private struct MacSettingsHostView: View {
             .task {
                 await vm.prepareIfNeeded()
             }
+    }
+}
+
+private struct GoMenuCommands: Commands {
+    @FocusedValue(\.readerController) var controller: ReaderController?
+
+    var body: some Commands {
+        CommandMenu(AppLocalization.text("reader.menu.go", "Go")) {
+            Button(AppLocalization.text("reader.action.next_page", "Next Page")) {
+                controller?.nextPage()
+            }
+            .keyboardShortcut(.rightArrow)
+
+            Button(AppLocalization.text("reader.action.previous_page", "Previous Page")) {
+                controller?.previousPage()
+            }
+            .keyboardShortcut(.leftArrow)
+
+            Divider()
+
+            Button(AppLocalization.text("reader.action.next_chapter", "Next Chapter")) {
+                controller?.openAdjacentChapter(step: 1)
+            }
+            .keyboardShortcut(.downArrow)
+
+            Button(AppLocalization.text("reader.action.previous_chapter", "Previous Chapter")) {
+                controller?.openAdjacentChapter(step: -1)
+            }
+            .keyboardShortcut(.upArrow)
+        }
     }
 }
 #endif

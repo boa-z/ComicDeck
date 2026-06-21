@@ -298,7 +298,7 @@ struct LoginProfile: Hashable {
 
 // MARK: - Comic Content
 
-struct ComicChapter: Identifiable, Hashable {
+struct ComicChapter: Identifiable, Hashable, Codable {
     let id: String
     let title: String
 }

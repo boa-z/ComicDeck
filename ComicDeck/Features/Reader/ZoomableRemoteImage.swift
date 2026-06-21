@@ -361,6 +361,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
 #elseif os(macOS)
 import AppKit
 import ImageIO
+import UniformTypeIdentifiers
 
 /// macOS zoomable image wrapper.
 ///
@@ -813,6 +814,97 @@ final class ZoomingImageScrollView: NSScrollView {
     /// the contentView coordinate space expected by `setMagnification(_:centeredAt:)`.
     private func contentViewAnchor(forDocumentPoint point: CGPoint) -> CGPoint {
         contentView.convert(point, from: imageView)
+    }
+
+    // MARK: Context menu
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        guard imageView.image != nil else { return nil }
+        let menu = NSMenu()
+
+        let saveItem = NSMenuItem(
+            title: AppLocalization.text("reader.context.save_image_as", "Save Image As…"),
+            action: #selector(saveImageAs(_:)),
+            keyEquivalent: "s"
+        )
+        saveItem.target = self
+        menu.addItem(saveItem)
+
+        let copyItem = NSMenuItem(
+            title: AppLocalization.text("reader.context.copy_image", "Copy Image"),
+            action: #selector(copyImage(_:)),
+            keyEquivalent: "c"
+        )
+        copyItem.target = self
+        menu.addItem(copyItem)
+
+        menu.addItem(.separator())
+
+        let actualSizeItem = NSMenuItem(
+            title: AppLocalization.text("reader.context.actual_size", "Actual Size"),
+            action: #selector(actualSize(_:)),
+            keyEquivalent: "0"
+        )
+        actualSizeItem.target = self
+        menu.addItem(actualSizeItem)
+
+        let zoomInItem = NSMenuItem(
+            title: AppLocalization.text("reader.context.zoom_in", "Zoom In"),
+            action: #selector(zoomIn(_:)),
+            keyEquivalent: "+"
+        )
+        zoomInItem.target = self
+        menu.addItem(zoomInItem)
+
+        let zoomOutItem = NSMenuItem(
+            title: AppLocalization.text("reader.context.zoom_out", "Zoom Out"),
+            action: #selector(zoomOut(_:)),
+            keyEquivalent: "-"
+        )
+        zoomOutItem.target = self
+        menu.addItem(zoomOutItem)
+
+        return menu
+    }
+
+    @objc private func saveImageAs(_ sender: Any?) {
+        guard let image = imageView.image else { return }
+        let panel = NSSavePanel()
+        panel.title = AppLocalization.text("reader.context.save_image_as", "Save Image As…")
+        panel.allowedContentTypes = [.png, .jpeg]
+        panel.nameFieldStringValue = "page.png"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let data = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: data) else { return }
+        let ext = url.pathExtension.lowercased()
+        let imageData: Data?
+        switch ext {
+        case "jpg", "jpeg":
+            imageData = bitmap.representation(using: .jpeg, properties: [:])
+        default:
+            imageData = bitmap.representation(using: .png, properties: [:])
+        }
+        try? imageData?.write(to: url)
+    }
+
+    @objc private func copyImage(_ sender: Any?) {
+        guard let image = imageView.image else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([image])
+    }
+
+    @objc private func actualSize(_ sender: Any?) {
+        magnification = 1.0
+    }
+
+    @objc private func zoomIn(_ sender: Any?) {
+        let target = min(maxMagnification, magnification * 1.25)
+        setMagnification(target, centeredAt: NSPoint(x: contentView.bounds.midX, y: contentView.bounds.midY))
+    }
+
+    @objc private func zoomOut(_ sender: Any?) {
+        let target = max(minMagnification, magnification / 1.25)
+        setMagnification(target, centeredAt: NSPoint(x: contentView.bounds.midX, y: contentView.bounds.midY))
     }
 }
 #endif

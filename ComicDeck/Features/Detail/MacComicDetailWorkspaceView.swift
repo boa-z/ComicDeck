@@ -44,12 +44,12 @@ struct MacComicDetailWorkspaceView: View {
 
     @State private var model: ComicDetailScreenModel
     @State private var selectedTab: WorkspaceTab = .chapters
-    @State private var readRoute: ReaderLaunchContext?
     @State private var tagRoute: CategoryNavigationTarget?
     @State private var didConsumeInitialReadRoute = false
     @State private var trackerSearchProvider: TrackerProvider?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.openWindow) private var openWindow
 
     init(
         vm: ReaderViewModel,
@@ -114,19 +114,6 @@ struct MacComicDetailWorkspaceView: View {
         .onChange(of: model.detail != nil) { _, isReady in
             guard isReady else { return }
             maybeOpenInitialReadRoute()
-        }
-        .sheet(item: $readRoute) { route in
-            MacReaderWindowView(
-                vm: vm,
-                item: route.item,
-                chapterID: route.chapterID,
-                chapterTitle: route.chapterTitle,
-                localChapterDirectory: route.localDirectory,
-                initialPage: route.initialPage,
-                chapterSequence: route.chapterSequence
-            )
-            .environment(library)
-            .frame(minWidth: 980, minHeight: 680)
         }
         .sheet(item: $trackerSearchProvider) { provider in
             TrackerSearchSheet(
@@ -430,13 +417,13 @@ struct MacComicDetailWorkspaceView: View {
                     status: downloadStateByChapterID(for: detail)[chapter.id],
                     isContinueTarget: continueTarget(from: detail)?.chapterID == chapter.id,
                     onRead: {
-                        readRoute = ReaderLaunchContext.fromChapter(
+                        openWindow(id: "reader", value: ReaderLaunchContext.fromChapter(
                             item: item,
                             chapterID: chapter.id,
                             chapterTitle: chapter.title,
                             chapterSequence: detail.chapters,
                             using: library
-                        )
+                        ))
                     },
                     onDownload: {
                         Task {
@@ -605,7 +592,7 @@ struct MacComicDetailWorkspaceView: View {
               let initialReadRoute else { return }
         didConsumeInitialReadRoute = true
         onConsumeInitialReadRoute?()
-        readRoute = initialReadRoute
+        openWindow(id: "reader", value: initialReadRoute)
     }
 
     private func navigateBack() {
@@ -618,25 +605,25 @@ struct MacComicDetailWorkspaceView: View {
 
     private func openContinue(detail: ComicDetail) {
         guard let target = continueTarget(from: detail) else { return }
-        readRoute = ReaderLaunchContext(
+        openWindow(id: "reader", value: ReaderLaunchContext(
             item: item,
             chapterID: target.chapterID,
             chapterTitle: target.chapterTitle,
             localDirectory: target.localDirectory,
             initialPage: max(1, target.page),
             chapterSequence: detail.chapters
-        )
+        ))
     }
 
     private func openFirstChapter(detail: ComicDetail) {
         let first = firstChapter(from: detail)
-        readRoute = ReaderLaunchContext.fromChapter(
+        openWindow(id: "reader", value: ReaderLaunchContext.fromChapter(
             item: item,
             chapterID: first.id,
             chapterTitle: first.title,
             chapterSequence: detail.chapters,
             using: library
-        )
+        ))
     }
 
     private func firstChapter(from detail: ComicDetail) -> (id: String, title: String) {

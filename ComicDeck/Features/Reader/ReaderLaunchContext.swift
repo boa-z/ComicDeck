@@ -1,6 +1,6 @@
 import Foundation
 
-struct ReaderLaunchContext: Identifiable, Hashable {
+struct ReaderLaunchContext: Identifiable, Hashable, Codable {
     let id = UUID()
     let item: ComicSummary
     let chapterID: String

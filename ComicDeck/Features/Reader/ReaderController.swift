@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 /// Shared reader UI controller for both iOS (`ComicReaderView`) and macOS
 /// (`MacReaderWindowView`).
@@ -282,3 +283,18 @@ final class ReaderController {
         }
     }
 }
+
+// MARK: - Focused value for macOS menu bar commands
+
+#if os(macOS)
+struct ReaderControllerFocusedValueKey: FocusedValueKey {
+    typealias Value = ReaderController
+}
+
+extension FocusedValues {
+    var readerController: ReaderController? {
+        get { self[ReaderControllerFocusedValueKey.self] }
+        set { self[ReaderControllerFocusedValueKey.self] = newValue }
+    }
+}
+#endif
