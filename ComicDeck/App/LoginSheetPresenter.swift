@@ -15,6 +15,14 @@ struct LoginSheetPresenter: View {
                         login.onWebLoginPageChanged(url: url, title: title)
                     }
                 )
+#if os(macOS)
+                .frame(
+                    minWidth: 900,
+                    idealWidth: 980,
+                    minHeight: 640,
+                    idealHeight: 760
+                )
+#endif
                 .onAppear {
                     appDebugLog("LoginWebView sheet onAppear, url=\(login.validatedLoginURL().absoluteString)")
                 }
