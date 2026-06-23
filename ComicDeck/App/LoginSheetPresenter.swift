@@ -8,21 +8,26 @@ struct LoginSheetPresenter: View {
     var body: some View {
         Color.clear
             .sheet(isPresented: $login.showLogin) {
-                LoginWebView(
-                    url: login.validatedLoginURL(),
-                    onCookieCaptured: { login.onLoginCookieCaptured() },
-                    onPageChanged: { url, title in
-                        login.onWebLoginPageChanged(url: url, title: title)
-                    }
-                )
+                Group {
 #if os(macOS)
-                .frame(
-                    minWidth: 900,
-                    idealWidth: 980,
-                    minHeight: 640,
-                    idealHeight: 760
-                )
+                    MacLoginWebViewContainer(
+                        url: login.validatedLoginURL(),
+                        onClose: { login.showLogin = false },
+                        onCookieCaptured: { login.onLoginCookieCaptured() },
+                        onPageChanged: { url, title in
+                            login.onWebLoginPageChanged(url: url, title: title)
+                        }
+                    )
+#else
+                    LoginWebView(
+                        url: login.validatedLoginURL(),
+                        onCookieCaptured: { login.onLoginCookieCaptured() },
+                        onPageChanged: { url, title in
+                            login.onWebLoginPageChanged(url: url, title: title)
+                        }
+                    )
 #endif
+                }
                 .onAppear {
                     appDebugLog("LoginWebView sheet onAppear, url=\(login.validatedLoginURL().absoluteString)")
                 }
