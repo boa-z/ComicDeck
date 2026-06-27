@@ -116,8 +116,9 @@ The repository includes automated workflows in `.github/workflows/`.
 Native macOS release notes:
 - The macOS artifact is a `.dmg` containing `ComicDeck.app` and an `Applications` shortcut.
 - A versioned `.app.zip` artifact is also uploaded for direct inspection and manual packaging.
-- The app is unsigned and not notarized.
-- macOS users may need to right-click and choose `Open` on first launch.
+- By default, local/nightly artifacts are unsigned when Developer ID secrets are not configured.
+- When macOS Developer ID and notary secrets are configured in GitHub Actions, CI signs the app, verifies required sandbox/network-client/user-selected-file entitlements, signs and notarizes the `.dmg`, staples the ticket, and runs Gatekeeper assessment.
+- Unsigned artifacts may require users to right-click and choose `Open` on first launch.
 
 #### AltStore Installation
 You can add ComicDeck to AltStore using the following source URL:

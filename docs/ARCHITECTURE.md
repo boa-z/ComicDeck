@@ -464,6 +464,8 @@ The project shares a single source tree between iOS and macOS targets, using com
 - `PlatformImage.swift`: typealiases (`PlatformImage`, `PlatformFont`, `PlatformColor`) and extensions bridging `UIImage`/`NSImage`, `UIFont`/`NSFont`, `UIColor`/`NSColor`.
 - `LoginSheetPresenter.swift`: shared login sheet overlay used by both `MainView` (iOS) and `MacMainView` (macOS).
 - `ReaderPlatformMonitor.swift`: encapsulates platform-specific lifecycle monitoring (keyboard, memory pressure, idle timer) for the reader, with iOS using `GCKeyboard`/`NotificationCenter` and macOS using `DispatchSource.makeMemoryPressureSource`/SwiftUI `.onKeyPress`.
+- `Config/ComicDeckMac-Info.plist`: native macOS bundle metadata, including the `comicdeck://` OAuth callback scheme used by tracker authentication and the macOS-only app icon name.
+- `Config/ComicDeckMac.entitlements`: explicit native macOS sandbox, network-client, and user-selected-file permissions used by the `ComicDeckMac` target for signed builds.
 
 ### Conventions
 
@@ -497,8 +499,6 @@ The next architecture-level improvements that would matter most are:
 
 1. a lightweight global app router for detail / reader / search / settings
 2. batch add-to-category from local favorites surfaces
-3. category sorting / manual reorder
-4. richer download policies and retry flows
-5. backup merge/version handling beyond full restore
-6. macOS menu bar commands for key reader and library actions
-7. macOS drag-and-drop for shelf reordering and image export
+3. richer download policies and retry flows
+4. backup merge/version handling beyond full restore
+5. automated Developer ID signing, notarization, and stapling for macOS release artifacts beyond unsigned nightly builds

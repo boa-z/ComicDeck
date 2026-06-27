@@ -30,6 +30,7 @@ final class SettingsScreenModel {
     var debugShareError: String?
     var backupError: String?
     var backupSuccessMessage: String?
+    var backupExportSuccessMessage: String?
     var webDAVDirectoryURL = ""
     var webDAVUsername = ""
     var webDAVPassword = ""
@@ -58,8 +59,12 @@ final class SettingsScreenModel {
         let metrics = await library.readerCacheMetrics()
         readerCacheMemory = ByteCountFormatter.string(fromByteCount: metrics.memoryBytes, countStyle: .memory)
         readerCacheHitRate = metrics.totalRequests == 0
-            ? "No reads yet"
-            : "\(Int((metrics.hitRate * 100).rounded()))% hit rate"
+            ? AppLocalization.text("settings.reader.cache_no_reads", "No reads yet")
+            : AppLocalization.format(
+                "settings.reader.cache_hit_rate_format",
+                "%d%% hit rate",
+                Int((metrics.hitRate * 100).rounded())
+            )
     }
 
     func clearReaderCache(using library: LibraryViewModel) async {
@@ -73,23 +78,31 @@ final class SettingsScreenModel {
         sharingLog = true
         debugShareError = nil
         do {
-            sharedLogURL = try console.exportLogSnapshot()
+            sharedLogURL = try makeDebugLogExport(using: console)
         } catch {
             debugShareError = error.localizedDescription
         }
         sharingLog = false
     }
 
+    func makeDebugLogExport(using console: RuntimeDebugConsole) throws -> URL {
+        try console.exportLogSnapshot()
+    }
+
     func prepareBackupShare(using library: LibraryViewModel, tracker: TrackerViewModel) {
         sharingBackup = true
         backupError = nil
         do {
-            let payload = library.createBackupPayload(tracker: tracker)
-            sharedBackupURL = try AppBackupService.writePayload(payload)
+            sharedBackupURL = try makeBackupExport(using: library, tracker: tracker)
         } catch {
             backupError = error.localizedDescription
         }
         sharingBackup = false
+    }
+
+    func makeBackupExport(using library: LibraryViewModel, tracker: TrackerViewModel) throws -> URL {
+        let payload = library.createBackupPayload(tracker: tracker)
+        return try AppBackupService.writePayload(payload)
     }
 
     func restoreBackup(
@@ -131,7 +144,7 @@ final class SettingsScreenModel {
         if webDAVDirectoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             webDAVEntries = []
             webDAVLastSyncAt = nil
-            webDAVLastSyncSummary = "Not configured"
+            webDAVLastSyncSummary = AppLocalization.text("webdav.status.not_configured", "Not configured")
         }
     }
 
@@ -143,13 +156,13 @@ final class SettingsScreenModel {
         do {
             saveWebDAVConfiguration()
             try await webDAVService.testConnection(currentWebDAVConfiguration())
-            webDAVStatus = "Connection verified"
-            updateWebDAVSyncMetadata(summary: "Connection verified")
-            webDAVSuccessMessage = "WebDAV connection verified."
+            webDAVStatus = AppLocalization.text("webdav.status.connection_verified", "Connection verified")
+            updateWebDAVSyncMetadata(summary: AppLocalization.text("webdav.status.connection_verified", "Connection verified"))
+            webDAVSuccessMessage = AppLocalization.text("webdav.success.connection_verified", "WebDAV connection verified.")
         } catch {
-            webDAVStatus = "Connection failed"
+            webDAVStatus = AppLocalization.text("webdav.status.connection_failed", "Connection failed")
             webDAVError = error.localizedDescription
-            updateWebDAVSyncMetadata(summary: "Connection failed")
+            updateWebDAVSyncMetadata(summary: AppLocalization.text("webdav.status.connection_failed", "Connection failed"))
         }
     }
 
@@ -166,16 +179,16 @@ final class SettingsScreenModel {
             if webDAVUploadSnapshots {
                 _ = try await webDAVService.uploadSnapshotBackup(payload, configuration: currentWebDAVConfiguration())
             }
-            webDAVStatus = "Uploaded backup to WebDAV"
+            webDAVStatus = AppLocalization.text("webdav.status.uploaded", "Uploaded backup to WebDAV")
             webDAVSuccessMessage = webDAVUploadSnapshots
-                ? "Latest backup and timestamped snapshot uploaded to WebDAV."
-                : "Backup uploaded to WebDAV."
-            updateWebDAVSyncMetadata(summary: "Uploaded backup")
+                ? AppLocalization.text("webdav.success.uploaded_with_snapshot", "Latest backup and timestamped snapshot uploaded to WebDAV.")
+                : AppLocalization.text("webdav.success.uploaded", "Backup uploaded to WebDAV.")
+            updateWebDAVSyncMetadata(summary: AppLocalization.text("webdav.status.uploaded_summary", "Uploaded backup"))
             await refreshWebDAVEntries()
         } catch {
-            webDAVStatus = "Upload failed"
+            webDAVStatus = AppLocalization.text("webdav.status.upload_failed", "Upload failed")
             webDAVError = error.localizedDescription
-            updateWebDAVSyncMetadata(summary: "Upload failed")
+            updateWebDAVSyncMetadata(summary: AppLocalization.text("webdav.status.upload_failed", "Upload failed"))
         }
     }
 
@@ -193,13 +206,13 @@ final class SettingsScreenModel {
             saveWebDAVConfiguration()
             let payload = try await webDAVService.downloadBackup(configuration: currentWebDAVConfiguration())
             try await library.restore(from: payload, sourceManager: sourceManager, tracker: tracker)
-            webDAVStatus = "Downloaded and restored backup"
-            webDAVSuccessMessage = "Backup downloaded from WebDAV and restored."
-            updateWebDAVSyncMetadata(summary: "Restored from WebDAV")
+            webDAVStatus = AppLocalization.text("webdav.status.downloaded_restored", "Downloaded and restored backup")
+            webDAVSuccessMessage = AppLocalization.text("webdav.success.restored_configured", "Backup downloaded from WebDAV and restored.")
+            updateWebDAVSyncMetadata(summary: AppLocalization.text("webdav.status.restored_from_webdav", "Restored from WebDAV"))
         } catch {
-            webDAVStatus = "Download failed"
+            webDAVStatus = AppLocalization.text("webdav.status.download_failed", "Download failed")
             webDAVError = error.localizedDescription
-            updateWebDAVSyncMetadata(summary: "Restore failed")
+            updateWebDAVSyncMetadata(summary: AppLocalization.text("webdav.status.restore_failed", "Restore failed"))
         }
     }
 
@@ -217,13 +230,13 @@ final class SettingsScreenModel {
             saveWebDAVConfiguration()
             let payload = try await webDAVService.downloadLatestBackup(configuration: currentWebDAVConfiguration())
             try await library.restore(from: payload, sourceManager: sourceManager, tracker: tracker)
-            webDAVStatus = "Restored latest remote backup"
-            webDAVSuccessMessage = "Latest WebDAV backup restored."
-            updateWebDAVSyncMetadata(summary: "Restored latest backup")
+            webDAVStatus = AppLocalization.text("webdav.status.restored_latest", "Restored latest remote backup")
+            webDAVSuccessMessage = AppLocalization.text("webdav.success.restored_latest", "Latest WebDAV backup restored.")
+            updateWebDAVSyncMetadata(summary: AppLocalization.text("webdav.status.restored_latest_summary", "Restored latest backup"))
         } catch {
-            webDAVStatus = "Restore failed"
+            webDAVStatus = AppLocalization.text("webdav.status.restore_failed", "Restore failed")
             webDAVError = error.localizedDescription
-            updateWebDAVSyncMetadata(summary: "Restore failed")
+            updateWebDAVSyncMetadata(summary: AppLocalization.text("webdav.status.restore_failed", "Restore failed"))
         }
     }
 
@@ -235,12 +248,14 @@ final class SettingsScreenModel {
         do {
             saveWebDAVConfiguration()
             webDAVEntries = try await webDAVService.listBackups(configuration: currentWebDAVConfiguration())
-            webDAVStatus = webDAVEntries.isEmpty ? "No remote backups found" : "Loaded \(webDAVEntries.count) remote backups"
+            webDAVStatus = webDAVEntries.isEmpty
+                ? AppLocalization.text("webdav.status.no_remote_backups", "No remote backups found")
+                : AppLocalization.format("webdav.status.loaded_remote_backups_format", "Loaded %d remote backups", webDAVEntries.count)
             updateWebDAVSyncMetadata(summary: webDAVStatus)
         } catch {
-            webDAVStatus = "Remote listing failed"
+            webDAVStatus = AppLocalization.text("webdav.status.remote_listing_failed", "Remote listing failed")
             webDAVError = error.localizedDescription
-            updateWebDAVSyncMetadata(summary: "Remote listing failed")
+            updateWebDAVSyncMetadata(summary: AppLocalization.text("webdav.status.remote_listing_failed", "Remote listing failed"))
         }
     }
 
@@ -259,13 +274,13 @@ final class SettingsScreenModel {
             saveWebDAVConfiguration()
             let payload = try await webDAVService.downloadBackup(from: entry.url, configuration: currentWebDAVConfiguration())
             try await library.restore(from: payload, sourceManager: sourceManager, tracker: tracker)
-            webDAVStatus = "Restored \(entry.name)"
-            webDAVSuccessMessage = "Backup restored from \(entry.name)."
-            updateWebDAVSyncMetadata(summary: "Restored \(entry.name)")
+            webDAVStatus = AppLocalization.format("webdav.status.restored_entry_format", "Restored %@", entry.name)
+            webDAVSuccessMessage = AppLocalization.format("webdav.success.restored_entry_format", "Backup restored from %@.", entry.name)
+            updateWebDAVSyncMetadata(summary: webDAVStatus)
         } catch {
-            webDAVStatus = "Restore failed"
+            webDAVStatus = AppLocalization.text("webdav.status.restore_failed", "Restore failed")
             webDAVError = error.localizedDescription
-            updateWebDAVSyncMetadata(summary: "Restore failed")
+            updateWebDAVSyncMetadata(summary: AppLocalization.text("webdav.status.restore_failed", "Restore failed"))
         }
     }
 
@@ -279,13 +294,13 @@ final class SettingsScreenModel {
             saveWebDAVConfiguration()
             try await webDAVService.deleteBackup(entry, configuration: currentWebDAVConfiguration())
             webDAVEntries.removeAll { $0.id == entry.id }
-            webDAVStatus = "Deleted \(entry.name)"
-            updateWebDAVSyncMetadata(summary: "Deleted \(entry.name)")
-            webDAVSuccessMessage = "Deleted \(entry.name)."
+            webDAVStatus = AppLocalization.format("webdav.status.deleted_entry_format", "Deleted %@", entry.name)
+            updateWebDAVSyncMetadata(summary: webDAVStatus)
+            webDAVSuccessMessage = AppLocalization.format("webdav.success.deleted_entry_format", "Deleted %@.", entry.name)
         } catch {
-            webDAVStatus = "Delete failed"
+            webDAVStatus = AppLocalization.text("webdav.status.delete_failed", "Delete failed")
             webDAVError = error.localizedDescription
-            updateWebDAVSyncMetadata(summary: "Delete failed")
+            updateWebDAVSyncMetadata(summary: AppLocalization.text("webdav.status.delete_failed", "Delete failed"))
         }
     }
 
@@ -301,8 +316,11 @@ final class SettingsScreenModel {
             ?? ""
         )
         webDAVLastSyncAt = defaults.object(forKey: WebDAVPersistKey.lastSyncAt) as? Date
-        webDAVLastSyncSummary = defaults.string(forKey: WebDAVPersistKey.lastSyncSummary) ?? "Never synced"
-        webDAVStatus = webDAVDirectoryURL.isEmpty ? "Not configured" : "Ready"
+        webDAVLastSyncSummary = defaults.string(forKey: WebDAVPersistKey.lastSyncSummary)
+            ?? AppLocalization.text("webdav.status.never_synced", "Never synced")
+        webDAVStatus = webDAVDirectoryURL.isEmpty
+            ? AppLocalization.text("webdav.status.not_configured", "Not configured")
+            : AppLocalization.text("webdav.status.ready", "Ready")
     }
 
     private func currentWebDAVConfiguration() -> WebDAVSyncConfiguration {

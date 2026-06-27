@@ -10,6 +10,10 @@ struct MacSearchWorkspaceView: View {
     @State private var model = SearchScreenModel()
     @State private var showSearchSettings = false
     @State private var detailItem: ComicSummary?
+    @State private var selectedResultID: ComicSummary.ID?
+    @State private var selectionCommandController = MacSelectionCommandController()
+    @State private var searchCommandController = MacSearchCommandController()
+    @State private var isSearchPresented = true
     @AppStorage("ui.comicBrowseMode") private var browseModeRaw = ComicBrowseDisplayMode.list.rawValue
 
     private var browseMode: ComicBrowseDisplayMode {
@@ -23,7 +27,16 @@ struct MacSearchWorkspaceView: View {
 
     private var activeSourceTitle: String {
         installedSources.first { $0.key == vm.sourceManager.selectedSourceKey }?.name
-            ?? "No Source"
+            ?? AppLocalization.text("search.no_source_installed", "No source installed")
+    }
+
+    private var selectedResult: ComicSummary? {
+        guard let selectedResultID else { return nil }
+        return model.results.first { $0.id == selectedResultID }
+    }
+
+    private var resultIDs: [ComicSummary.ID] {
+        model.results.map(\.id)
     }
 
     var body: some View {
@@ -39,16 +52,30 @@ struct MacSearchWorkspaceView: View {
                 get: { model.keyword },
                 set: { model.keyword = $0 }
             ),
+            isPresented: $isSearchPresented,
             placement: .toolbar,
             prompt: AppLocalization.text("search.placeholder", "Search keyword")
         )
         .onSubmit(of: .search) {
             Task { await performSearch() }
         }
+        .onAppear {
+            configureSelectionCommands()
+            configureSearchCommands()
+        }
+        .onChange(of: selectedResultID) { _, _ in
+            configureSelectionCommands()
+        }
+        .onChange(of: resultIDs) { _, _ in
+            reconcileResultSelection()
+            configureSelectionCommands()
+        }
+        .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
+        .focusedSceneValue(\.macSearchCommandController, searchCommandController)
         .frame(minWidth: 880, minHeight: 600)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Done") { dismiss() }
+                Button(AppLocalization.text("common.done", "Done")) { dismiss() }
                     .keyboardShortcut(.cancelAction)
             }
             ToolbarItemGroup(placement: .primaryAction) {
@@ -70,6 +97,7 @@ struct MacSearchWorkspaceView: View {
                     Task { await performSearch() }
                 }
             )
+            .platformPresentationDetentsMediumLarge()
         }
         .sheet(item: $detailItem) { item in
             NavigationStack {
@@ -90,6 +118,11 @@ struct MacSearchWorkspaceView: View {
         }
     }
 
+    private func configureSearchCommands() {
+        searchCommandController.focusSearch = { isSearchPresented = true }
+        searchCommandController.canFocusSearch = true
+    }
+
     // MARK: - Sidebar
 
     private var filterSidebar: some View {
@@ -103,13 +136,13 @@ struct MacSearchWorkspaceView: View {
     }
 
     private var sourcePickerSection: some View {
-        Section("Source") {
+        Section(AppLocalization.text("search.section.source", "Source")) {
             if installedSources.isEmpty {
-                Text("No source installed")
+                Text(AppLocalization.text("search.no_source_installed", "No source installed"))
                     .foregroundStyle(.secondary)
                     .font(.subheadline)
             } else {
-                Picker("Active Source", selection: $vm.sourceManager.selectedSourceKey) {
+                Picker(AppLocalization.text("search.active_source", "Active Source"), selection: $vm.sourceManager.selectedSourceKey) {
                     ForEach(installedSources) { source in
                         Text(source.name).tag(source.key)
                     }
@@ -123,7 +156,7 @@ struct MacSearchWorkspaceView: View {
     private var filterGroupsSection: some View {
         let groups = vm.login.searchOptionGroups
         if !groups.isEmpty {
-            Section("Filters") {
+            Section(AppLocalization.text("search.filters", "Filters")) {
                 ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                     if group.type == "multi-select" {
                         MacMultiSelectFilterRow(
@@ -160,7 +193,7 @@ struct MacSearchWorkspaceView: View {
     @ViewBuilder
     private var recentKeywordsSidebarSection: some View {
         if !model.recentKeywords.isEmpty {
-            Section("Recent") {
+            Section(AppLocalization.text("search.recent", "Recent")) {
                 ForEach(model.recentKeywords.prefix(8), id: \.self) { keyword in
                     Button {
                         model.keyword = keyword
@@ -172,7 +205,7 @@ struct MacSearchWorkspaceView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Button("Clear History", role: .destructive) {
+                Button(AppLocalization.text("search.clear_history", "Clear History"), role: .destructive) {
                     model.clearRecentKeywords()
                 }
                 .font(.caption)
@@ -181,7 +214,7 @@ struct MacSearchWorkspaceView: View {
     }
 
     private var searchInfoSection: some View {
-        Section("Status") {
+        Section(AppLocalization.text("common.status", "Status")) {
             Text(model.status)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -226,9 +259,9 @@ struct MacSearchWorkspaceView: View {
     private var resultsHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Results")
+                Text(AppLocalization.text("search.results", "Results"))
                     .font(.title3.weight(.semibold))
-                Text("\(model.results.count) comics from \(activeSourceTitle)")
+                Text(AppLocalization.format("search.results_from_source", "%lld comics from %@", Int64(model.results.count), activeSourceTitle))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -239,7 +272,7 @@ struct MacSearchWorkspaceView: View {
                 Image(systemName: "line.3.horizontal.decrease.circle")
             }
             .accessibilityLabel(AppLocalization.text("search.action.open_filters", "Open search filters"))
-            .help("Search settings")
+            .help(AppLocalization.text("search.settings.navigation", "Search Settings"))
         }
         .padding(.horizontal, AppSpacing.lg)
     }
@@ -252,6 +285,7 @@ struct MacSearchWorkspaceView: View {
                     resultNavigationLink(for: item) {
                         SearchResultCard(item: item)
                     }
+                    .background(resultSelectionBackground(for: item))
                 }
             }
         } else {
@@ -265,6 +299,7 @@ struct MacSearchWorkspaceView: View {
                     resultNavigationLink(for: item) {
                         SearchResultGridCard(item: item)
                     }
+                    .background(resultSelectionBackground(for: item))
                 }
             }
         }
@@ -279,7 +314,7 @@ struct MacSearchWorkspaceView: View {
                 if model.isSearching {
                     ProgressView().controlSize(.small)
                 } else {
-                    Label("Load More", systemImage: "arrow.down.circle")
+                    Label(AppLocalization.text("common.load_more", "Load More"), systemImage: "arrow.down.circle")
                 }
                 Spacer()
             }
@@ -294,15 +329,15 @@ struct MacSearchWorkspaceView: View {
                 .font(.system(size: 36))
                 .foregroundStyle(.secondary)
             if model.isSearching {
-                Text("Searching…")
+                Text(AppLocalization.text("search.searching", "Searching..."))
                     .font(.headline)
                     .foregroundStyle(.secondary)
             } else if model.keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Type a keyword and press Return to search")
+                Text(AppLocalization.text("search.empty_hint", "Type a keyword and press Return to search"))
                     .font(.headline)
                     .foregroundStyle(.secondary)
             } else {
-                Text("No results found")
+                Text(AppLocalization.text("search.no_results_found", "No results found"))
                     .font(.headline)
                     .foregroundStyle(.secondary)
             }
@@ -409,11 +444,37 @@ struct MacSearchWorkspaceView: View {
         @ViewBuilder label: () -> Label
     ) -> some View {
         Button {
-            detailItem = item
+            openResult(item)
         } label: {
             label()
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button(AppLocalization.text("common.open", "Open"), systemImage: "arrow.up.right.square") {
+                openResult(item)
+            }
+            Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
+                copyResultTitle(item)
+            }
+            Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
+                copyResultID(item)
+            }
+            Button(AppLocalization.text("search.action.copy_source", "Copy Source"), systemImage: "shippingbox") {
+                copyResultSource(item)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func resultSelectionBackground(for item: ComicSummary) -> some View {
+        if selectedResultID == item.id {
+            RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous)
+                .fill(AppTint.accent.opacity(0.14))
+                .overlay {
+                    RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous)
+                        .stroke(AppTint.accent.opacity(0.45), lineWidth: 1)
+                }
+        }
     }
 
     // MARK: - Actions
@@ -426,6 +487,8 @@ struct MacSearchWorkspaceView: View {
             profile: vm.login.searchFeatureProfile,
             append: false
         )
+        reconcileResultSelection()
+        configureSelectionCommands()
     }
 
     private func loadMore() async {
@@ -436,6 +499,8 @@ struct MacSearchWorkspaceView: View {
             profile: vm.login.searchFeatureProfile,
             append: true
         )
+        reconcileResultSelection()
+        configureSelectionCommands()
     }
 
     private func applyQuickOption(index: Int, value: String) async {
@@ -445,6 +510,49 @@ struct MacSearchWorkspaceView: View {
 
     private func isOptionSelected(index: Int, value: String) -> Bool {
         vm.login.searchOptionValues.indices.contains(index) && vm.login.searchOptionValues[index] == value
+    }
+
+    private func openResult(_ item: ComicSummary) {
+        selectedResultID = item.id
+        detailItem = item
+    }
+
+    private func copyResultTitle(_ item: ComicSummary) {
+        selectedResultID = item.id
+        PlatformPasteboard.copy(item.title)
+    }
+
+    private func copyResultID(_ item: ComicSummary) {
+        selectedResultID = item.id
+        PlatformPasteboard.copy(item.id)
+    }
+
+    private func copyResultSource(_ item: ComicSummary) {
+        selectedResultID = item.id
+        PlatformPasteboard.copy(item.sourceKey)
+    }
+
+    private func reconcileResultSelection() {
+        if selectedResultID == nil {
+            selectedResultID = model.results.first?.id
+        } else if selectedResult == nil {
+            selectedResultID = model.results.first?.id
+        }
+    }
+
+    private func configureSelectionCommands() {
+        selectionCommandController.reset()
+        guard let item = selectedResult else { return }
+
+        selectionCommandController.open = { openResult(item) }
+        selectionCommandController.copyTitle = { copyResultTitle(item) }
+        selectionCommandController.copyID = { copyResultID(item) }
+        selectionCommandController.export = { copyResultSource(item) }
+        selectionCommandController.exportTitle = AppLocalization.text("search.action.copy_source", "Copy Source")
+        selectionCommandController.canOpen = true
+        selectionCommandController.canCopyTitle = true
+        selectionCommandController.canCopyID = true
+        selectionCommandController.canExport = true
     }
 }
 

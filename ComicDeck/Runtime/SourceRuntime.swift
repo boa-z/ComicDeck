@@ -590,14 +590,17 @@ final class SourceRuntime {
     }
 }
 
-private final class SourceRuntimeEngineWorkBox<T>: @unchecked Sendable {
-    nonisolated(unsafe) private let work: () throws -> T
+private final class SourceRuntimeEngineWorkBox: @unchecked Sendable {
+    nonisolated(unsafe) private let work: () throws -> Any
 
-    nonisolated init(_ work: @escaping () throws -> T) {
-        self.work = work
+    nonisolated init<T>(_ work: @escaping () throws -> T) {
+        self.work = { try work() }
     }
 
-    nonisolated func run() throws -> T {
-        try work()
+    nonisolated func run<T>() throws -> T {
+        guard let result = try work() as? T else {
+            throw ScriptEngineError.invalidResult("engine result type mismatch")
+        }
+        return result
     }
 }

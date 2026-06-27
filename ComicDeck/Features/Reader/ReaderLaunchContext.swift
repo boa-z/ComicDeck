@@ -1,13 +1,31 @@
 import Foundation
 
 struct ReaderLaunchContext: Identifiable, Hashable, Codable {
-    let id = UUID()
+    let id: UUID
     let item: ComicSummary
     let chapterID: String
     let chapterTitle: String
     let localDirectory: String?
     let initialPage: Int
     let chapterSequence: [ComicChapter]?
+
+    init(
+        id: UUID = UUID(),
+        item: ComicSummary,
+        chapterID: String,
+        chapterTitle: String,
+        localDirectory: String?,
+        initialPage: Int,
+        chapterSequence: [ComicChapter]?
+    ) {
+        self.id = id
+        self.item = item
+        self.chapterID = chapterID
+        self.chapterTitle = chapterTitle
+        self.localDirectory = localDirectory
+        self.initialPage = initialPage
+        self.chapterSequence = chapterSequence
+    }
 
     static func fromHistory(_ history: ReadingHistoryItem, using library: LibraryViewModel) -> ReaderLaunchContext? {
         guard let chapterID = history.chapterID?.trimmingCharacters(in: .whitespacesAndNewlines), !chapterID.isEmpty else {

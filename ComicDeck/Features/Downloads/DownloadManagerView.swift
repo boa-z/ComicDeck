@@ -158,29 +158,29 @@ struct DownloadManagerView: View {
                         if model.isRefreshing {
                             ProgressView().controlSize(.small)
                         } else {
-                            Label("Refresh", systemImage: "arrow.clockwise")
+                            Label(AppLocalization.text("downloads.action.refresh", "Refresh"), systemImage: "arrow.clockwise")
                         }
                     }
                     .disabled(model.isRefreshing)
 
                     if model.workspace == .offline {
-                        Button("Import", systemImage: "square.and.arrow.down") {
+                        Button(AppLocalization.text("downloads.action.import", "Import"), systemImage: "square.and.arrow.down") {
                             showingImportPicker = true
                         }
                         .disabled(model.isRefreshing || model.isSelecting)
 
-                        Button("Reindex", systemImage: "externaldrive.badge.checkmark") {
+                        Button(AppLocalization.text("downloads.action.reindex", "Reindex"), systemImage: "externaldrive.badge.checkmark") {
                             Task { await model.reindex(using: library) }
                         }
                         .disabled(model.isRefreshing)
                     }
 
                     if model.currentGroupsCount > 0 {
-                        Button(model.isSelecting ? "Done" : "Select") {
+                        Button(model.isSelecting ? AppLocalization.text("common.done", "Done") : AppLocalization.text("downloads.action.select", "Select")) {
                             model.toggleSelectionMode()
                         }
 
-                        Button(model.workspace == .queue ? "Clear Queue" : "Clear Offline", role: .destructive) {
+                        Button(model.workspace == .queue ? AppLocalization.text("downloads.action.clear_queue", "Clear Queue") : AppLocalization.text("downloads.action.clear_offline", "Clear Offline"), role: .destructive) {
                             model.showClearConfirm = true
                         }
                         .disabled(model.isSelecting)
@@ -189,9 +189,9 @@ struct DownloadManagerView: View {
             }
 
             if model.workspace == .queue {
-                statusPill(title: "Live", value: "\(model.queueDownloadingCount + model.queuePendingCount)")
+                statusPill(title: AppLocalization.text("downloads.status.live", "Live"), value: "\(model.queueDownloadingCount + model.queuePendingCount)")
             } else if model.offlineIncompleteCount > 0 {
-                statusPill(title: "Needs Review", value: "\(model.offlineIncompleteCount)")
+                statusPill(title: AppLocalization.text("downloads.needs_review", "Needs Review"), value: "\(model.offlineIncompleteCount)")
             }
         }
         .buttonStyle(.bordered)
@@ -202,13 +202,13 @@ struct DownloadManagerView: View {
         HStack(spacing: AppSpacing.md) {
             switch model.workspace {
             case .queue:
-                metric(title: "Queued", value: "\(model.queuePendingCount)", tint: AppTint.warning)
-                metric(title: "Downloading", value: "\(model.queueDownloadingCount)", tint: AppTint.accent)
-                metric(title: "Failed", value: "\(model.queueFailedCount)", tint: .red)
+                metric(title: AppLocalization.text("downloads.metric.queued", "Queued"), value: "\(model.queuePendingCount)", tint: AppTint.warning)
+                metric(title: AppLocalization.text("downloads.metric.downloading", "Downloading"), value: "\(model.queueDownloadingCount)", tint: AppTint.accent)
+                metric(title: AppLocalization.text("downloads.metric.failed", "Failed"), value: "\(model.queueFailedCount)", tint: .red)
             case .offline:
-                metric(title: "Comics", value: "\(model.offlineGroups.count)", tint: AppTint.accent)
-                metric(title: "Complete", value: "\(model.offlineCompleteCount)", tint: AppTint.success)
-                metric(title: "Incomplete", value: "\(model.offlineIncompleteCount)", tint: model.offlineIncompleteCount == 0 ? .secondary : AppTint.warning)
+                metric(title: AppLocalization.text("downloads.metric.comics", "Comics"), value: "\(model.offlineGroups.count)", tint: AppTint.accent)
+                metric(title: AppLocalization.text("downloads.metric.complete", "Complete"), value: "\(model.offlineCompleteCount)", tint: AppTint.success)
+                metric(title: AppLocalization.text("downloads.metric.incomplete", "Incomplete"), value: "\(model.offlineIncompleteCount)", tint: model.offlineIncompleteCount == 0 ? .secondary : AppTint.warning)
             }
         }
     }
@@ -231,9 +231,9 @@ struct DownloadManagerView: View {
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            Text(model.workspace == .queue ? "No queued downloads" : "No offline chapters")
+            Text(model.workspace == .queue ? AppLocalization.text("downloads.empty.no_queue", "No queued downloads") : AppLocalization.text("downloads.empty.no_offline", "No offline chapters"))
                 .font(.headline)
-            Text(model.workspace == .queue ? "Queued, downloading, and failed tasks appear here until they are completed or removed." : "Completed local chapters are indexed here for offline reading and management.")
+            Text(model.workspace == .queue ? AppLocalization.text("downloads.empty.no_queue_hint", "Queued, downloading, and failed tasks appear here until they are completed or removed.") : AppLocalization.text("downloads.empty.no_offline_hint", "Completed local chapters are indexed here for offline reading and management."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -243,20 +243,20 @@ struct DownloadManagerView: View {
 
     private var selectionBar: some View {
         HStack(spacing: AppSpacing.md) {
-            Text("\(model.selectedCount) selected")
+            Text(AppLocalization.format("common.selected_count", "%lld selected", Int64(model.selectedCount)))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
 
             Spacer(minLength: 0)
 
             if model.workspace == .offline {
-                Button("Export ZIP") {
+                Button(AppLocalization.text("downloads.action.export_zip", "Export ZIP")) {
                     exportSelectedOfflineZIP()
                 }
                 .disabled(model.selectedCount == 0 || model.isExportingSelection)
             }
 
-            Button(model.selectedCount == model.currentItemCount ? "Clear" : "Select All") {
+            Button(model.selectedCount == model.currentItemCount ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("common.select_all", "Select All")) {
                 if model.selectedCount == model.currentItemCount {
                     model.clearSelection()
                 } else {
@@ -264,7 +264,7 @@ struct DownloadManagerView: View {
                 }
             }
 
-            Button("Delete", role: .destructive) {
+            Button(AppLocalization.text("downloads.action.delete", "Delete"), role: .destructive) {
                 model.showDeleteSelectionConfirm = true
             }
             .disabled(model.selectedCount == 0 || model.isDeletingSelection || model.isExportingSelection)
@@ -341,15 +341,15 @@ struct DownloadManagerView: View {
 
             if summary.importedCount > 0 {
                 if summary.failures.isEmpty {
-                    importMessage = "Imported \(summary.importedCount) archive\(summary.importedCount == 1 ? "" : "s")."
+                    importMessage = AppLocalization.format("downloads.import.complete_count", "Imported %lld archives.", Int64(summary.importedCount))
                 } else {
                     let details = summary.failures.prefix(3).joined(separator: "\n")
-                    importMessage = "Imported \(summary.importedCount) archive\(summary.importedCount == 1 ? "" : "s"), but some files were skipped.\n\(details)"
+                    importMessage = AppLocalization.format("downloads.import.partial_count", "Imported %lld archives, but some files were skipped.\n%@", Int64(summary.importedCount), details)
                 }
             } else if let firstFailure = summary.failures.first {
                 importError = firstFailure
             } else {
-                importError = "No archives were imported."
+                importError = AppLocalization.text("downloads.import.none", "No archives were imported.")
             }
         }
     }
@@ -572,15 +572,6 @@ private struct GroupHeader: View {
     }
 }
 
-private func offlineComicCoverURL(from chapters: [OfflineChapterAsset]) -> URL? {
-    guard let anyChapter = chapters.first else { return nil }
-    let comicDirectory = URL(fileURLWithPath: anyChapter.directoryPath).deletingLastPathComponent()
-    let supported = ["jpg", "jpeg", "png", "webp", "gif", "heic", "heif", "avif"]
-    return supported
-        .map { comicDirectory.appendingPathComponent("cover.\($0)") }
-        .first { FileManager.default.fileExists(atPath: $0.path) }
-}
-
 @MainActor
 private struct QueueChapterRow: View {
     @Bindable var vm: ReaderViewModel
@@ -605,7 +596,7 @@ private struct QueueChapterRow: View {
                 }
                 .buttonStyle(.plain)
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button("Delete", role: .destructive) {
+                    Button(AppLocalization.text("downloads.action.delete", "Delete"), role: .destructive) {
                         Task { await model.delete(item, using: library) }
                     }
                 }
@@ -780,9 +771,9 @@ struct DownloadedChapterFilesView: View {
 
     var body: some View {
         List {
-            Section("Comic") {
-                LabeledContent("Comic", value: item.comicTitle)
-                LabeledContent("Chapter", value: item.chapterTitle)
+            Section(AppLocalization.text("downloads.files.comic_section", "Comic")) {
+                LabeledContent(AppLocalization.text("downloads.files.comic_section", "Comic"), value: item.comicTitle)
+                LabeledContent(AppLocalization.text("downloads.files.chapter_label", "Chapter"), value: item.chapterTitle)
                 if let description = item.comicDescription, !description.isEmpty {
                     Text(description)
                         .font(.subheadline)
@@ -791,9 +782,12 @@ struct DownloadedChapterFilesView: View {
                 }
                 LabeledContent("Status", value: item.statusLabel)
                 LabeledContent("Pages", value: item.progressText)
+                Button(AppLocalization.text("downloads.action.reveal_in_finder", "Reveal in Finder"), systemImage: "folder") {
+                    PlatformFileActions.revealDirectory(path: item.directoryPath)
+                }
 
                 if item.canReadOffline {
-                    NavigationLink("Read Offline") {
+                    NavigationLink(AppLocalization.text("downloads.action.read_offline", "Read Offline")) {
                         ReaderRoutingView(
                             vm: vm,
                             item: ComicSummary(
@@ -811,18 +805,18 @@ struct DownloadedChapterFilesView: View {
                     }
                 }
 
-                Menu("Export") {
-                    Button("Export ZIP", systemImage: "doc.zipper") {
+                Menu(AppLocalization.text("downloads.action.export", "Export")) {
+                    Button(AppLocalization.text("downloads.action.export_zip", "Export ZIP"), systemImage: "doc.zipper") {
                         exportCurrentChapter(.zip)
                     }
                     if item.canReadOffline {
-                        Button("Export CBZ", systemImage: "book.closed") {
+                        Button(AppLocalization.text("downloads.action.export_cbz", "Export CBZ"), systemImage: "book.closed") {
                             exportCurrentChapter(.cbz)
                         }
-                        Button("Export PDF", systemImage: "doc.richtext") {
+                        Button(AppLocalization.text("downloads.action.export_pdf", "Export PDF"), systemImage: "doc.richtext") {
                             exportCurrentChapter(.pdf)
                         }
-                        Button("Export EPUB", systemImage: "books.vertical") {
+                        Button(AppLocalization.text("downloads.action.export_epub", "Export EPUB"), systemImage: "books.vertical") {
                             exportCurrentChapter(.epub)
                         }
                     }
@@ -830,15 +824,15 @@ struct DownloadedChapterFilesView: View {
                 .disabled(isExporting)
             }
 
-            Section("Files") {
+            Section(AppLocalization.text("downloads.files.title", "Files")) {
                 if model.isLoading && model.files.isEmpty {
                     HStack {
                         ProgressView()
-                        Text("Loading files…")
+                        Text(AppLocalization.text("downloads.files.loading", "Loading files..."))
                             .foregroundStyle(.secondary)
                     }
                 } else if model.files.isEmpty {
-                    Text("No files in this chapter")
+                    Text(AppLocalization.text("downloads.files.empty", "No files in this chapter"))
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(model.files) { file in
@@ -849,21 +843,32 @@ struct DownloadedChapterFilesView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        .contextMenu {
+                            Button(AppLocalization.text("downloads.action.reveal_in_finder", "Reveal in Finder"), systemImage: "folder") {
+                                PlatformFileActions.reveal(path: file.path)
+                            }
+                            Button(AppLocalization.text("common.copy", "Copy"), systemImage: "doc.on.doc") {
+                                PlatformPasteboard.copy(file.name)
+                            }
+                            Button(AppLocalization.text("downloads.action.copy_path", "Copy Path"), systemImage: "point.topleft.down.curvedto.point.bottomright.up") {
+                                PlatformPasteboard.copy(file.path)
+                            }
+                        }
                     }
                 }
             }
         }
-        .navigationTitle("Chapter Files")
+        .navigationTitle(AppLocalization.text("downloads.files.chapter_title", "Chapter Files"))
         .sheet(item: $sharedExportURL) { shareFile in
             ActivityShareSheet(items: [shareFile.url])
         }
-        .alert("Export Failed", isPresented: Binding(
+        .alert(AppLocalization.text("downloads.alert.export_failed", "Export Failed"), isPresented: Binding(
             get: { exportError != nil },
             set: { if !$0 { exportError = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(AppLocalization.text("common.ok", "OK"), role: .cancel) {}
         } message: {
-            Text(exportError ?? "Unable to export this chapter.")
+            Text(exportError ?? AppLocalization.text("downloads.alert.export_chapter_failed", "Unable to export this chapter."))
         }
         .task(id: item.id) {
             await model.load(directoryPath: item.directoryPath)
@@ -900,38 +905,5 @@ struct DownloadedChapterFilesView: View {
                 exportError = error.localizedDescription
             }
         }
-    }
-}
-
-private extension DownloadChapterItem {
-    var statusTint: Color {
-        switch status {
-        case .completed: return .green
-        case .downloading: return .blue
-        case .failed: return .red
-        case .pending: return .secondary
-        }
-    }
-
-    var statusIcon: String {
-        switch status {
-        case .completed: return "checkmark.circle.fill"
-        case .downloading: return "arrow.down.circle.fill"
-        case .failed: return "exclamationmark.triangle.fill"
-        case .pending: return "clock.fill"
-        }
-    }
-
-    var statusLabel: String {
-        status.rawValue.capitalized
-    }
-
-    var progressFraction: Double {
-        guard totalPages > 0 else { return 0 }
-        return min(max(Double(downloadedPages) / Double(totalPages), 0), 1)
-    }
-
-    var progressPercentageText: String {
-        "\(Int((progressFraction * 100).rounded()))%"
     }
 }

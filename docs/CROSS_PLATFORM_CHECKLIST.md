@@ -63,3 +63,19 @@ Use this checklist when adding or modifying features that affect both iOS and ma
 - [ ] Update `docs/ARCHITECTURE.md` if layer boundaries change
 - [ ] Update `docs/USER_GUIDE.md` if user-facing behavior changes
 - [ ] Update feature parity matrix in `docs/ARCHITECTURE.md` if feature availability changes
+
+## Current macOS Adaptation Notes
+
+- [x] Main macOS windows define content minimum sizes and desktop-oriented default sizes.
+- [x] Global Search, Sources, Tracking, and Downloads have macOS-specific workspace shells.
+- [x] Web login uses a macOS container with an explicit minimum size and WebView lifecycle teardown.
+- [x] Settings backup/debug export uses a macOS save panel and reveals exported files in Finder.
+- [x] WebDAV settings use grouped forms, localized labels, context menus, and destructive confirmation for remote backups.
+- [x] Library has a dedicated macOS split-view workspace instead of the shared card/scroll-heavy iOS shell.
+- [x] Feature-level keyboard commands cover selected rows for open, delete, copy title/ID, and copy source/reveal/export where applicable. Downloads selected groups/chapters, Search results, Sources rows, Tracking subscription rows, and Library bookmarks/favorites/history rows now share the focused Selection command channel.
+- [x] Per-workspace `Cmd+F` focuses local search where the current macOS surface has a searchable list (Search, source-scoped search, Sources, Tracking libraries, and Library bookmarks); otherwise it falls back to opening the global Search window.
+- [x] Secondary Library surfaces participate in Selection commands where useful: Shelves rows support open/delete/copy/add-bookmarks, shelf detail bookmarks support open/remove/copy, and Library Overview recent/offline items support resume/copy/reveal actions.
+- [x] Reader menu commands cover reload, reading mode, background mode, jump/page actions, and close-window shortcuts.
+- [x] macOS drag-and-drop polish covers shelf reordering, Finder drag-out for offline groups/chapters, Library Overview offline tiles, and reader page images.
+- [x] Native macOS builds use `Config/ComicDeckMac-Info.plist` for release metadata, the `comicdeck://` OAuth callback scheme, and a macOS-only `AppIconMac` asset set so macOS asset compilation does not inherit iOS/watchOS icon entries.
+- [x] The macOS `Cmd+,` settings command opens the native Settings scene consistently from the main, search, and other command-enabled windows; the sidebar Settings destination remains available for in-window browsing.

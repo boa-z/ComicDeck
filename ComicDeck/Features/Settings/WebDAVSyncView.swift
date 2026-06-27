@@ -14,6 +14,7 @@ struct WebDAVSyncView: View {
     private let sourceManager: SourceManagerViewModel
     private let tracker: TrackerViewModel
     @Bindable var model: SettingsScreenModel
+    @State private var pendingDeleteEntry: WebDAVRemoteBackup?
 
     init(
         model: SettingsScreenModel,
@@ -30,41 +31,41 @@ struct WebDAVSyncView: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent("Last Sync", value: lastSyncValue)
-                LabeledContent("Last Result", value: model.webDAVLastSyncSummary)
+                LabeledContent(AppLocalization.text("webdav.last_sync", "Last Sync"), value: lastSyncValue)
+                LabeledContent(AppLocalization.text("webdav.last_result", "Last Result"), value: model.webDAVLastSyncSummary)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Server") {
-                TextField("Directory URL", text: $model.webDAVDirectoryURL)
+            Section(AppLocalization.text("webdav.section.server", "Server")) {
+                TextField(AppLocalization.text("webdav.directory_url", "Directory URL"), text: $model.webDAVDirectoryURL)
                     .platformTextInputAutocapitalizationNever()
                     .autocorrectionDisabled()
                     .platformKeyboardURL()
 
-                TextField("Username", text: $model.webDAVUsername)
+                TextField(AppLocalization.text("webdav.username", "Username"), text: $model.webDAVUsername)
                     .platformTextInputAutocapitalizationNever()
                     .autocorrectionDisabled()
 
-                SecureField("Password", text: $model.webDAVPassword)
+                SecureField(AppLocalization.text("webdav.password", "Password"), text: $model.webDAVPassword)
 
-                TextField("Remote File Name", text: $model.webDAVRemoteFileName)
+                TextField(AppLocalization.text("webdav.remote_file_name", "Remote File Name"), text: $model.webDAVRemoteFileName)
                     .platformTextInputAutocapitalizationNever()
                     .autocorrectionDisabled()
 
-                Toggle("Upload timestamped snapshots", isOn: $model.webDAVUploadSnapshots)
+                Toggle(AppLocalization.text("webdav.upload_snapshots", "Upload timestamped snapshots"), isOn: $model.webDAVUploadSnapshots)
             }
 
-            Section("Actions") {
+            Section(AppLocalization.text("webdav.section.actions", "Actions")) {
                 Button {
                     model.saveWebDAVConfiguration()
                 } label: {
-                    Label("Save Configuration", systemImage: "square.and.arrow.down")
+                    Label(AppLocalization.text("webdav.action.save_configuration", "Save Configuration"), systemImage: "square.and.arrow.down")
                 }
 
                 Button {
                     Task { await model.testWebDAVConnection() }
                 } label: {
-                    Label("Test Connection", systemImage: "network")
+                    Label(AppLocalization.text("webdav.action.test_connection", "Test Connection"), systemImage: "network")
                 }
                 .disabled(model.webDAVActionsDisabled)
 
@@ -72,7 +73,7 @@ struct WebDAVSyncView: View {
                     Task { await model.uploadBackupToWebDAV(using: library, tracker: tracker) }
                 } label: {
                     HStack {
-                        Label("Upload Backup", systemImage: "arrow.up.doc")
+                        Label(AppLocalization.text("webdav.action.upload_backup", "Upload Backup"), systemImage: "arrow.up.doc")
                         Spacer()
                         if model.uploadingWebDAV {
                             ProgressView().controlSize(.small)
@@ -85,7 +86,7 @@ struct WebDAVSyncView: View {
                     Task { await model.restoreBackupFromWebDAV(using: library, sourceManager: sourceManager, tracker: tracker) }
                 } label: {
                     HStack {
-                        Label("Restore Configured Backup", systemImage: "arrow.down.doc")
+                        Label(AppLocalization.text("webdav.action.restore_configured", "Restore Configured Backup"), systemImage: "arrow.down.doc")
                         Spacer()
                         if model.downloadingWebDAV {
                             ProgressView().controlSize(.small)
@@ -97,17 +98,17 @@ struct WebDAVSyncView: View {
                 Button {
                     Task { await model.restoreLatestBackupFromWebDAV(using: library, sourceManager: sourceManager, tracker: tracker) }
                 } label: {
-                    Label("Restore Latest Remote Backup", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                    Label(AppLocalization.text("webdav.action.restore_latest", "Restore Latest Remote Backup"), systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
                 }
                 .disabled(model.webDAVActionsDisabled)
             }
 
-            Section("Remote Backups") {
+            Section(AppLocalization.text("webdav.section.remote_backups", "Remote Backups")) {
                 Button {
                     Task { await model.refreshWebDAVEntries() }
                 } label: {
                     HStack {
-                        Label("Refresh Remote Backups", systemImage: "arrow.clockwise")
+                        Label(AppLocalization.text("webdav.action.refresh_remote", "Refresh Remote Backups"), systemImage: "arrow.clockwise")
                         Spacer()
                         if model.loadingWebDAVEntries {
                             ProgressView().controlSize(.small)
@@ -117,7 +118,7 @@ struct WebDAVSyncView: View {
                 .disabled(model.webDAVActionsDisabled)
 
                 if model.webDAVEntries.isEmpty {
-                    Text("No remote backups loaded")
+                    Text(AppLocalization.text("webdav.remote.empty", "No remote backups loaded"))
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(model.webDAVEntries) { entry in
@@ -147,11 +148,33 @@ struct WebDAVSyncView: View {
                             .contentShape(Rectangle())
                         }
                         .disabled(model.webDAVActionsDisabled)
+                        .contextMenu {
+                            Button(AppLocalization.text("webdav.action.restore_entry", "Restore Backup"), systemImage: "arrow.down.doc") {
+                                Task {
+                                    await model.restoreBackupFromWebDAVEntry(
+                                        entry,
+                                        using: library,
+                                        sourceManager: sourceManager,
+                                        tracker: tracker
+                                    )
+                                }
+                            }
+                            .disabled(model.webDAVActionsDisabled)
+
+                            Button(AppLocalization.text("webdav.action.copy_url", "Copy URL"), systemImage: "link") {
+                                PlatformPasteboard.copy(entry.url.absoluteString)
+                            }
+
+                            Button(AppLocalization.text("common.delete", "Delete"), systemImage: "trash", role: .destructive) {
+                                pendingDeleteEntry = entry
+                            }
+                            .disabled(model.webDAVActionsDisabled)
+                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
-                                Task { await model.deleteWebDAVEntry(entry) }
+                                pendingDeleteEntry = entry
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label(AppLocalization.text("common.delete", "Delete"), systemImage: "trash")
                             }
                         }
                     }
@@ -159,29 +182,54 @@ struct WebDAVSyncView: View {
             }
 
             Section {
-                LabeledContent("Status", value: model.webDAVStatus)
+                LabeledContent(AppLocalization.text("common.status", "Status"), value: model.webDAVStatus)
                     .foregroundStyle(.secondary)
             } footer: {
                 Text(AppLocalization.text("webdav.hint", "Use an existing WebDAV directory. Backups include tracker bindings and plaintext tracker access tokens. Offline files, active download queue, and pending tracker sync events are not uploaded."))
             }
         }
-        .navigationTitle("WebDAV Sync")
+        .formStyle(.grouped)
+        .navigationTitle(AppLocalization.text("webdav.navigation", "WebDAV Sync"))
         .platformNavigationBarTitleDisplayModeInline()
-        .alert("WebDAV Error", isPresented: Binding(
+        .alert(AppLocalization.text("webdav.error_title", "WebDAV Error"), isPresented: Binding(
             get: { model.webDAVError != nil },
             set: { if !$0 { model.webDAVError = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(AppLocalization.text("common.ok", "OK"), role: .cancel) {}
         } message: {
-            Text(model.webDAVError ?? "Unknown WebDAV error")
+            Text(model.webDAVError ?? AppLocalization.text("webdav.unknown_error", "Unknown WebDAV error"))
         }
-        .alert("WebDAV Complete", isPresented: Binding(
+        .alert(AppLocalization.text("webdav.complete_title", "WebDAV Complete"), isPresented: Binding(
             get: { model.webDAVSuccessMessage != nil },
             set: { if !$0 { model.webDAVSuccessMessage = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(AppLocalization.text("common.ok", "OK"), role: .cancel) {}
         } message: {
             Text(model.webDAVSuccessMessage ?? "")
+        }
+        .alert(
+            AppLocalization.text("webdav.delete.title", "Delete remote backup?"),
+            isPresented: Binding(
+                get: { pendingDeleteEntry != nil },
+                set: { if !$0 { pendingDeleteEntry = nil } }
+            )
+        ) {
+            Button(AppLocalization.text("common.delete", "Delete"), role: .destructive) {
+                guard let entry = pendingDeleteEntry else { return }
+                pendingDeleteEntry = nil
+                Task { await model.deleteWebDAVEntry(entry) }
+            }
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) {
+                pendingDeleteEntry = nil
+            }
+        } message: {
+            Text(
+                AppLocalization.format(
+                    "webdav.delete.message",
+                    "Delete %@ from the remote WebDAV directory? This action cannot be undone.",
+                    pendingDeleteEntry?.name ?? ""
+                )
+            )
         }
         .task {
             if model.webDAVEntries.isEmpty, !model.webDAVDirectoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -191,7 +239,9 @@ struct WebDAVSyncView: View {
     }
 
     private var lastSyncValue: String {
-        guard let date = model.webDAVLastSyncAt else { return "Never" }
+        guard let date = model.webDAVLastSyncAt else {
+            return AppLocalization.text("common.never", "Never")
+        }
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 }

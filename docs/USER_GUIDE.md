@@ -213,6 +213,7 @@ Use Offline to:
 - reindex the offline library
 - delete downloaded chapters
 - export multi-selected chapters as `ZIP`
+- on macOS, drag offline comics or chapters from Downloads and Library Overview to Finder
 
 Archive import rules:
 
@@ -222,6 +223,8 @@ Archive import rules:
 - each imported archive becomes one offline comic entry
 - imported offline comics are marked as `Imported`
 - imported offline comics can be renamed from the offline comic page
+
+On macOS, reader pages can also be dragged from the reader window to Finder as image files.
 
 ### Reindex
 

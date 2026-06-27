@@ -82,9 +82,9 @@ struct OfflineComicView: View {
         .sheet(item: $sharedExportURL) { shareFile in
             ActivityShareSheet(items: [shareFile.url])
         }
-        .alert("Rename Imported Comic", isPresented: $showingRenamePrompt) {
-            TextField("Comic Title", text: $renameTitle)
-            Button("Save") {
+        .alert(AppLocalization.text("rename.imported.comic", "Rename Imported Comic"), isPresented: $showingRenamePrompt) {
+            TextField(AppLocalization.text("detail.title.label", "Comic Title"), text: $renameTitle)
+            Button(AppLocalization.text("common.save", "Save")) {
                 Task {
                     await library.renameImportedOfflineComic(
                         sourceKey: OfflineImportService.importedSourceKey,
@@ -93,17 +93,17 @@ struct OfflineComicView: View {
                     )
                 }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) {}
         } message: {
-            Text("This only renames the imported offline entry in ComicDeck.")
+            Text(AppLocalization.text("downloads.rename.imported.message", "This only renames the imported offline entry in ComicDeck."))
         }
-        .alert("Export Failed", isPresented: Binding(
+        .alert(AppLocalization.text("downloads.alert.export_failed", "Export Failed"), isPresented: Binding(
             get: { exportError != nil },
             set: { if !$0 { exportError = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(AppLocalization.text("common.ok", "OK"), role: .cancel) {}
         } message: {
-            Text(exportError ?? "Unable to export offline files.")
+            Text(exportError ?? AppLocalization.text("downloads.alert.export_offline_failed", "Unable to export offline files."))
         }
         .navigationDestination(item: $selectedFilesItem) { item in
             DownloadedChapterFilesView(vm: vm, offlineItem: item, chapterSequence: chapterSequence)
@@ -150,37 +150,37 @@ struct OfflineComicView: View {
                         )
                         .environment(library)
                     } label: {
-                        Label("Resume Offline", systemImage: "play.fill")
+                        Label(AppLocalization.text("downloads.action.resume_offline", "Resume Offline"), systemImage: "play.fill")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
 
                     Menu {
                         if isImportedGroup {
-                            Button("Rename Imported Comic", systemImage: "pencil") {
+                            Button(AppLocalization.text("rename.imported.comic", "Rename Imported Comic"), systemImage: "pencil") {
                                 renameTitle = group.comicTitle
                                 showingRenamePrompt = true
                             }
                         }
-                        Button("Export Comic ZIP", systemImage: "archivebox") {
+                        Button(AppLocalization.text("downloads.action.export_comic_zip", "Export Comic ZIP"), systemImage: "archivebox") {
                             exportComic(.zip)
                         }
-                        Button("Export Comic PDF", systemImage: "doc.richtext") {
+                        Button(AppLocalization.text("downloads.action.export_comic_pdf", "Export Comic PDF"), systemImage: "doc.richtext") {
                             exportComic(.pdf)
                         }
-                        Button("Export Comic EPUB", systemImage: "books.vertical") {
+                        Button(AppLocalization.text("downloads.action.export_comic_epub", "Export Comic EPUB"), systemImage: "books.vertical") {
                             exportComic(.epub)
                         }
-                        Button("Export Latest Chapter CBZ", systemImage: "book.closed") {
+                        Button(AppLocalization.text("downloads.action.export_latest_chapter_cbz", "Export Latest Chapter CBZ"), systemImage: "book.closed") {
                             exportChapter(latestReadableChapter, format: .cbz)
                         }
-                        Button("Export Latest Chapter ZIP", systemImage: "doc.zipper") {
+                        Button(AppLocalization.text("downloads.action.export_latest_chapter_zip", "Export Latest Chapter ZIP"), systemImage: "doc.zipper") {
                             exportChapter(latestReadableChapter, format: .zip)
                         }
-                        Button("Export Latest Chapter PDF", systemImage: "doc.richtext") {
+                        Button(AppLocalization.text("downloads.action.export_latest_chapter_pdf", "Export Latest Chapter PDF"), systemImage: "doc.richtext") {
                             exportChapter(latestReadableChapter, format: .pdf)
                         }
-                        Button("Export Latest Chapter EPUB", systemImage: "books.vertical") {
+                        Button(AppLocalization.text("downloads.action.export_latest_chapter_epub", "Export Latest Chapter EPUB"), systemImage: "books.vertical") {
                             exportChapter(latestReadableChapter, format: .epub)
                         }
                     } label: {
@@ -189,7 +189,7 @@ struct OfflineComicView: View {
                                 .controlSize(.small)
                                 .frame(width: 44, height: 44)
                         } else {
-                            Label("Export", systemImage: "square.and.arrow.up")
+                            Label(AppLocalization.text("downloads.action.export", "Export"), systemImage: "square.and.arrow.up")
                                 .labelStyle(.iconOnly)
                                 .frame(width: 44, height: 44)
                         }
@@ -204,12 +204,12 @@ struct OfflineComicView: View {
 
     private var readingSummaryCard: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            Text("Offline Reading")
+            Text(AppLocalization.text("downloads.offline.reading.title", "Offline Reading"))
                 .font(.headline)
             Text(
                 incompleteCount == 0
-                ? "All downloaded chapters are ready for offline reading."
-                : "Incomplete chapters are separated below so readable chapters stay easy to access."
+                ? AppLocalization.text("downloads.offline.reading.ready_message", "All downloaded chapters are ready for offline reading.")
+                : AppLocalization.text("downloads.offline.reading.incomplete_message", "Incomplete chapters are separated below so readable chapters stay easy to access.")
             )
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -219,7 +219,7 @@ struct OfflineComicView: View {
 
     private var completeChaptersSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            Text("Ready to Read")
+            Text(AppLocalization.text("downloads.offline.ready_to_read", "Ready to Read"))
                 .font(.headline)
 
             VStack(spacing: AppSpacing.sm) {
@@ -259,7 +259,7 @@ struct OfflineComicView: View {
 
     private var incompleteChaptersSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            Text("Needs Attention")
+            Text(AppLocalization.text("downloads.needs_review", "Needs Review"))
                 .font(.headline)
 
             VStack(spacing: AppSpacing.sm) {
@@ -274,17 +274,25 @@ struct OfflineComicView: View {
 
     private var flexibleBadges: some View {
         HStack(spacing: 8) {
-            badge(text: "\(group.chapters.count) chapters", tint: AppTint.accent)
-            badge(text: "\(completeCount) ready", tint: AppTint.success)
+            badge(text: AppLocalization.format("downloads.metric.chapters_count", "%lld chapters", Int64(group.chapters.count)), tint: AppTint.accent)
+            badge(text: AppLocalization.format("downloads.metric.ready_count", "%lld ready", Int64(completeCount)), tint: AppTint.success)
             if isImportedGroup {
-                badge(text: "Imported", tint: AppTint.warning)
+                badge(text: AppLocalization.text("downloads.badge.imported", "imported"), tint: AppTint.warning)
             }
             if incompleteCount > 0 {
-                badge(text: "\(incompleteCount) incomplete", tint: AppTint.warning)
+                badge(text: AppLocalization.format("downloads.metric.incomplete_count", "%lld incomplete", Int64(incompleteCount)), tint: AppTint.warning)
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(group.chapters.count) chapters, \(completeCount) ready offline, \(incompleteCount) incomplete")
+        .accessibilityLabel(
+            AppLocalization.format(
+                "downloads.offline.summary_accessibility",
+                "%lld chapters, %lld ready offline, %lld incomplete",
+                Int64(group.chapters.count),
+                Int64(completeCount),
+                Int64(incompleteCount)
+            )
+        )
     }
 
     private func badge(text: String, tint: Color) -> some View {
@@ -325,15 +333,6 @@ struct OfflineComicView: View {
     }
 }
 
-private func offlineComicCoverURL(from chapters: [OfflineChapterAsset]) -> URL? {
-    guard let anyChapter = chapters.first else { return nil }
-    let comicDirectory = URL(fileURLWithPath: anyChapter.directoryPath).deletingLastPathComponent()
-    let supported = ["jpg", "jpeg", "png", "webp", "gif", "heic", "heif", "avif"]
-    return supported
-        .map { comicDirectory.appendingPathComponent("cover.\($0)") }
-        .first { FileManager.default.fileExists(atPath: $0.path) }
-}
-
 @MainActor
 private struct OfflineReadableChapterRow: View {
     let item: OfflineChapterAsset
@@ -355,7 +354,7 @@ private struct OfflineReadableChapterRow: View {
                         .lineLimit(1)
 
                     if isLatest {
-                        Text("Latest")
+                        Text(AppLocalization.text("downloads.badge.latest", "Latest"))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(AppTint.accent)
                             .padding(.horizontal, 6)
@@ -365,11 +364,11 @@ private struct OfflineReadableChapterRow: View {
                 }
 
                 HStack(spacing: 8) {
-                    Label("Offline Ready", systemImage: "checkmark.circle.fill")
+                    Label(AppLocalization.text("downloads.badge.offline_ready", "Offline Ready"), systemImage: "checkmark.circle.fill")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTint.success)
 
-                    Text("\(item.verifiedPageCount)/\(item.pageCount) pages")
+                    Text(AppLocalization.format("downloads.files.page_count", "%lld/%lld pages", Int64(item.verifiedPageCount), Int64(item.pageCount)))
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -378,19 +377,19 @@ private struct OfflineReadableChapterRow: View {
             Spacer(minLength: 0)
 
             Menu {
-                Button("View Files", systemImage: "folder") {
+                Button(AppLocalization.text("downloads.action.view_files", "View Files"), systemImage: "folder") {
                     onOpenFiles()
                 }
-                Button("Export CBZ", systemImage: "book.closed") {
+                Button(AppLocalization.text("downloads.action.export_cbz", "Export CBZ"), systemImage: "book.closed") {
                     onExportCBZ()
                 }
-                Button("Export ZIP", systemImage: "doc.zipper") {
+                Button(AppLocalization.text("downloads.action.export_zip", "Export ZIP"), systemImage: "doc.zipper") {
                     onExportZIP()
                 }
-                Button("Export PDF", systemImage: "doc.richtext") {
+                Button(AppLocalization.text("downloads.action.export_pdf", "Export PDF"), systemImage: "doc.richtext") {
                     onExportPDF()
                 }
-                Button("Export EPUB", systemImage: "books.vertical") {
+                Button(AppLocalization.text("downloads.action.export_epub", "Export EPUB"), systemImage: "books.vertical") {
                     onExportEPUB()
                 }
             } label: {
@@ -399,7 +398,7 @@ private struct OfflineReadableChapterRow: View {
                         .controlSize(.small)
                         .frame(width: 28, height: 28)
                 } else {
-                    Label("Options", systemImage: "ellipsis.circle")
+                    Label(AppLocalization.text("common.options", "Options"), systemImage: "ellipsis.circle")
                         .labelStyle(.iconOnly)
                         .font(.title3)
                         .foregroundStyle(.secondary)
@@ -438,7 +437,7 @@ private struct OfflineRepairChapterRow: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(AppTint.warning)
 
-                    Text("\(item.verifiedPageCount)/\(item.pageCount) pages")
+                    Text(AppLocalization.format("downloads.files.page_count", "%lld/%lld pages", Int64(item.verifiedPageCount), Int64(item.pageCount)))
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -446,7 +445,7 @@ private struct OfflineRepairChapterRow: View {
 
             Spacer(minLength: 0)
 
-            Button("View Files") {
+            Button(AppLocalization.text("downloads.action.view_files", "View Files")) {
                 onOpenFiles()
             }
             .buttonStyle(.bordered)

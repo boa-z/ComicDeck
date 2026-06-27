@@ -122,7 +122,11 @@ struct SettingsView: View {
                     }
 
                     Button {
+                        #if os(macOS)
+                        exportBackupToFile()
+                        #else
                         model.prepareBackupShare(using: library, tracker: tracker)
+                        #endif
                     } label: {
                         Label(AppLocalization.text("settings.data.export_backup", "Export Backup"), systemImage: "square.and.arrow.up")
                     }
@@ -140,11 +144,11 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Tracking") {
+                Section(AppLocalization.text("tracking.navigation.title", "Tracking")) {
                     NavigationLink {
                         TrackingSettingsView()
                     } label: {
-                        Label("Tracking", systemImage: "arrow.triangle.2.circlepath")
+                        Label(AppLocalization.text("tracking.navigation.title", "Tracking"), systemImage: "arrow.triangle.2.circlepath")
                     }
                     ForEach(TrackerProvider.allCases) { provider in
                         if let account = tracker.account(for: provider) {
@@ -246,11 +250,46 @@ struct SettingsView: View {
             } message: {
                 Text(model.backupSuccessMessage ?? "")
             }
+            .alert(AppLocalization.text("settings.backup.exported_title", "Backup Exported"), isPresented: Binding(
+                get: { model.backupExportSuccessMessage != nil },
+                set: { if !$0 { model.backupExportSuccessMessage = nil } }
+            )) {
+                Button(AppLocalization.text("common.ok", "OK"), role: .cancel) {}
+            } message: {
+                Text(model.backupExportSuccessMessage ?? "")
+            }
             .task {
                 await model.loadReaderCacheSize(using: library)
             }
         }
     }
+
+    #if os(macOS)
+    private func exportBackupToFile() {
+        model.sharingBackup = true
+        model.backupError = nil
+        model.backupExportSuccessMessage = nil
+        defer { model.sharingBackup = false }
+
+        do {
+            let temporaryURL = try model.makeBackupExport(using: library, tracker: tracker)
+            guard let destinationURL = try PlatformFileActions.copyFileToUserSelectedDestination(
+                sourceURL: temporaryURL,
+                suggestedFileName: temporaryURL.lastPathComponent
+            ) else {
+                return
+            }
+            PlatformFileActions.reveal(url: destinationURL)
+            model.backupExportSuccessMessage = AppLocalization.format(
+                "settings.backup.exported_message",
+                "Backup exported to %@.",
+                destinationURL.lastPathComponent
+            )
+        } catch {
+            model.backupError = error.localizedDescription
+        }
+    }
+    #endif
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
@@ -304,6 +343,7 @@ private struct DebugLogsView: View {
     @Bindable var model: SettingsScreenModel
     @Binding var debugEnabled: Bool
     @State private var copiedAlertVisible = false
+    @State private var exportedLogMessage: String?
     @State private var filter: DebugLogFilter = .all
 
     private var filteredLines: [String] {
@@ -333,14 +373,14 @@ private struct DebugLogsView: View {
 
             if console.lines.isEmpty {
                 ContentUnavailableView(
-                    "No Debug Logs",
+                    AppLocalization.text("settings.debug.empty.title", "No Debug Logs"),
                     systemImage: "doc.text",
-                    description: Text("Enable debug logging and reproduce the issue to collect logs.")
+                    description: Text(AppLocalization.text("settings.debug.empty.subtitle", "Enable debug logging and reproduce the issue to collect logs."))
                 )
                 .padding(.horizontal, AppSpacing.lg)
             } else {
                 VStack(spacing: AppSpacing.sm) {
-                    Picker("Log Filter", selection: $filter) {
+                    Picker(AppLocalization.text("settings.debug.filter", "Log Filter"), selection: $filter) {
                         ForEach(DebugLogFilter.allCases) { item in
                             Text(item.rawValue).tag(item)
                         }
@@ -378,11 +418,23 @@ private struct DebugLogsView: View {
         } message: {
             Text(AppLocalization.text("settings.debug.copied_message", "The visible debug logs have been copied."))
         }
+        .alert(AppLocalization.text("settings.debug.exported_title", "Log Exported"), isPresented: Binding(
+            get: { exportedLogMessage != nil },
+            set: { if !$0 { exportedLogMessage = nil } }
+        )) {
+            Button(AppLocalization.text("common.ok", "OK"), role: .cancel) {}
+        } message: {
+            Text(exportedLogMessage ?? "")
+        }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: AppSpacing.xs) {
                 HStack(spacing: AppSpacing.sm) {
                     Button {
+                        #if os(macOS)
+                        exportLogToFile()
+                        #else
                         model.prepareDebugLogShare(using: console)
+                        #endif
                     } label: {
                         HStack(spacing: AppSpacing.xs) {
                             if model.sharingLog {
@@ -391,7 +443,7 @@ private struct DebugLogsView: View {
                             } else {
                                 Image(systemName: "square.and.arrow.up")
                             }
-                            Text(AppLocalization.text("common.share", "Share"))
+                            Text(AppLocalization.text("settings.debug.export", "Export"))
                         }
                         .frame(maxWidth: .infinity)
                     }
@@ -431,6 +483,32 @@ private struct DebugLogsView: View {
         }
     }
 
+    #if os(macOS)
+    private func exportLogToFile() {
+        model.sharingLog = true
+        model.debugShareError = nil
+        defer { model.sharingLog = false }
+
+        do {
+            let temporaryURL = try model.makeDebugLogExport(using: console)
+            guard let destinationURL = try PlatformFileActions.copyFileToUserSelectedDestination(
+                sourceURL: temporaryURL,
+                suggestedFileName: temporaryURL.lastPathComponent
+            ) else {
+                return
+            }
+            PlatformFileActions.reveal(url: destinationURL)
+            exportedLogMessage = AppLocalization.format(
+                "settings.debug.exported_message",
+                "Debug log exported to %@.",
+                destinationURL.lastPathComponent
+            )
+        } catch {
+            model.debugShareError = error.localizedDescription
+        }
+    }
+    #endif
+
 }
 
 private struct AboutView: View {
@@ -454,16 +532,22 @@ private struct AboutView: View {
                 .padding(.vertical, AppSpacing.xs)
             }
 
-            Section("App") {
-                aboutRow(title: "Version", value: "\(appVersion) (\(buildVersion))")
-                aboutRow(title: "Revision", value: "\(gitBranch)/\(gitCommit)")
+            Section(AppLocalization.text("settings.about.section.app", "App")) {
+                aboutRow(
+                    title: AppLocalization.text("settings.about.version_label", "Version"),
+                    value: "\(appVersion) (\(buildVersion))"
+                )
+                aboutRow(
+                    title: AppLocalization.text("settings.about.revision_label", "Revision"),
+                    value: "\(gitBranch)/\(gitCommit)"
+                )
             }
 
-            Section("Project") {
+            Section(AppLocalization.text("settings.about.section.project", "Project")) {
                 Link(destination: repoURL) {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Repository")
+                            Text(AppLocalization.text("settings.about.repository", "Repository"))
                             Text(repoURL.absoluteString)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -476,7 +560,7 @@ private struct AboutView: View {
                 }
             }
         }
-        .navigationTitle("About")
+        .navigationTitle(AppLocalization.text("settings.about.title", "About"))
         .platformNavigationBarTitleDisplayModeInline()
     }
 

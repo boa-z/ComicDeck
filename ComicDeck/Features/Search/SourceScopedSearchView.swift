@@ -52,7 +52,7 @@ struct SourceScopedSearchView: View {
                 }
                 #if os(macOS)
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                    Button(AppLocalization.text("common.done", "Done")) { dismiss() }
                         .keyboardShortcut(.cancelAction)
                 }
                 #endif
@@ -67,7 +67,7 @@ struct SourceScopedSearchView: View {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
                     #if os(iOS)
-                    Button("Done") { dismiss() }
+                    Button(AppLocalization.text("common.done", "Done")) { dismiss() }
                     #endif
                 }
             }
@@ -126,7 +126,10 @@ struct SourceScopedSearchView: View {
 
     private var listResults: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            sectionHeader(title: "Results", subtitle: "\(model.results.count) comics")
+            sectionHeader(
+                title: AppLocalization.text("search.results", "Results"),
+                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(model.results.count))
+            )
                 .padding(.horizontal, AppSpacing.md)
 
             LazyVStack(spacing: AppSpacing.md) {
@@ -142,7 +145,10 @@ struct SourceScopedSearchView: View {
 
     private var gridResults: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            sectionHeader(title: "Results", subtitle: "\(model.results.count) comics")
+            sectionHeader(
+                title: AppLocalization.text("search.results", "Results"),
+                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(model.results.count))
+            )
                 .padding(.horizontal, AppSpacing.md)
 
             LazyVGrid(columns: [
@@ -168,7 +174,7 @@ struct SourceScopedSearchView: View {
                 if model.isSearching {
                     ProgressView().controlSize(.small)
                 } else {
-                    Label("Load More", systemImage: "arrow.down.circle")
+                    Label(AppLocalization.text("common.load_more", "Load More"), systemImage: "arrow.down.circle")
                 }
                 Spacer()
             }
@@ -235,13 +241,13 @@ struct SourceScopedSearchView: View {
             }
 
             HStack(spacing: AppSpacing.sm) {
-                statusPill(title: "Mode", value: browseMode.title)
-                statusPill(title: "Results", value: "\(model.results.count)")
+                statusPill(title: AppLocalization.text("search.layout", "Layout"), value: browseMode.title)
+                statusPill(title: AppLocalization.text("search.results", "Results"), value: "\(model.results.count)")
                 switch model.lastSearchTrigger {
                 case .keyword:
-                    statusPill(title: "Context", value: "Keyword")
+                    statusPill(title: AppLocalization.text("search.context", "Context"), value: AppLocalization.text("search.context.keyword_short", "Keyword"))
                 case .tag:
-                    statusPill(title: "Context", value: "Tag")
+                    statusPill(title: AppLocalization.text("search.context", "Context"), value: AppLocalization.text("search.context.tag_short", "Tag"))
                 }
             }
 
@@ -258,11 +264,11 @@ struct SourceScopedSearchView: View {
         case .keyword:
             let keyword = model.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
             if keyword.isEmpty {
-                return "Search this source directly."
+                return AppLocalization.text("search.source_direct_hint", "Search this source directly.")
             }
-            return "Searching for “\(keyword)”"
+            return AppLocalization.format("search.searching_for", "Searching for \"%@\"", keyword)
         case .tag(let tag):
-            return "Results started from the tag “\(tag)”."
+            return AppLocalization.format("search.results_started_from_tag", "Results started from the tag \"%@\".", tag)
         }
     }
 
@@ -271,7 +277,7 @@ struct SourceScopedSearchView: View {
             Image(systemName: model.isSearching ? "hourglass" : "text.magnifyingglass")
                 .font(.system(size: 26))
                 .foregroundStyle(.secondary)
-            Text(model.isSearching ? "Searching..." : "No results")
+            Text(model.isSearching ? AppLocalization.text("search.searching", "Searching...") : AppLocalization.text("search.no_results", "No results"))
                 .foregroundStyle(.secondary)
             Text(model.status)
                 .font(.caption)
@@ -318,7 +324,10 @@ struct SourceScopedSearchView: View {
     private var searchQuickCardsSection: some View {
         if !quickCardGroups.isEmpty {
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                sectionHeader(title: "Quick Filters", subtitle: "Source-defined shortcuts")
+                sectionHeader(
+                    title: AppLocalization.text("search.quick_filters", "Quick Filters"),
+                    subtitle: AppLocalization.text("search.quick_filters.subtitle", "Source-defined shortcuts")
+                )
                     .padding(.horizontal, AppSpacing.md)
 
                 ForEach(quickCardGroups, id: \.group.id) { pair in
@@ -370,7 +379,10 @@ struct SourceScopedSearchView: View {
 
     private var recentKeywordsSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            sectionHeader(title: "Recent Keywords", subtitle: "Tap to search again")
+            sectionHeader(
+                title: AppLocalization.text("search.recent_keywords", "Recent Keywords"),
+                subtitle: AppLocalization.text("search.recent_keywords.subtitle", "Tap to search again")
+            )
                 .padding(.horizontal, AppSpacing.md)
 
             ScrollView(.horizontal, showsIndicators: false) {

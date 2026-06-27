@@ -1,6 +1,8 @@
 import SwiftUI
 
 #if os(macOS)
+import AppKit
+
 @MainActor
 struct MacLoginWebViewContainer: View {
     let url: URL
@@ -91,6 +93,20 @@ private struct MacLoginWebToolbar: View {
                     .frame(width: 18, height: 18)
             }
 
+            Button(AppLocalization.text("detail.action.copy_url", "Copy URL"), systemImage: "doc.on.doc") {
+                PlatformPasteboard.copy(addressText)
+            }
+            .disabled(!hasCurrentURL)
+            .labelStyle(.iconOnly)
+            .help(AppLocalization.text("detail.action.copy_url", "Copy URL"))
+
+            Button(AppLocalization.text("detail.action.open_browser", "Open In Browser"), systemImage: "safari") {
+                openCurrentURLInBrowser()
+            }
+            .disabled(!hasCurrentURL)
+            .labelStyle(.iconOnly)
+            .help(AppLocalization.text("detail.action.open_browser", "Open In Browser"))
+
             Button(AppLocalization.text("common.close", "Close"), systemImage: "xmark") {
                 navigationState.stopLoading()
                 onClose()
@@ -111,6 +127,15 @@ private struct MacLoginWebToolbar: View {
         return AppLocalization.text("login.web.loading_address", "Loading page...")
     }
 
+    private var currentURL: URL? {
+        guard !navigationState.currentURL.isEmpty else { return nil }
+        return URL(string: navigationState.currentURL)
+    }
+
+    private var hasCurrentURL: Bool {
+        currentURL != nil
+    }
+
     private var refreshTitle: String {
         if navigationState.isLoading {
             return AppLocalization.text("login.web.stop_loading", "Stop loading")
@@ -120,6 +145,11 @@ private struct MacLoginWebToolbar: View {
 
     private var refreshSystemImage: String {
         navigationState.isLoading ? "xmark" : "arrow.clockwise"
+    }
+
+    private func openCurrentURLInBrowser() {
+        guard let currentURL else { return }
+        NSWorkspace.shared.open(currentURL)
     }
 }
 

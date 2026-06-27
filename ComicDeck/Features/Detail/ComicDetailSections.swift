@@ -436,10 +436,17 @@ struct ComicDetailFavoriteSection: View {
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 HStack {
-                    Label("Status", systemImage: effectiveIsFavorited ? "heart.fill" : "heart")
+                    Label(
+                        AppLocalization.text("detail.favorite.status", "Status"),
+                        systemImage: effectiveIsFavorited ? "heart.fill" : "heart"
+                    )
                         .foregroundStyle(effectiveIsFavorited ? AppTint.success : .secondary)
                     Spacer()
-                    Text(effectiveIsFavorited ? "Favorited" : "Not Favorited")
+                    Text(
+                        effectiveIsFavorited
+                            ? AppLocalization.text("detail.favorite.favorited", "Favorited")
+                            : AppLocalization.text("detail.favorite.not_favorited", "Not Favorited")
+                    )
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(effectiveIsFavorited ? AppTint.success : .secondary)
                 }
@@ -451,12 +458,20 @@ struct ComicDetailFavoriteSection: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(folder.title)
                                         .font(.subheadline.weight(.medium))
-                                    Text(folder.isFavorited ? "Already in folder" : "Not in folder")
+                                    Text(
+                                        folder.isFavorited
+                                            ? AppLocalization.text("detail.favorite.already_in_folder", "Already in folder")
+                                            : AppLocalization.text("detail.favorite.not_in_folder", "Not in folder")
+                                    )
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                Button(folder.isFavorited ? "Remove" : "Add") {
+                                Button(
+                                    folder.isFavorited
+                                        ? AppLocalization.text("common.remove", "Remove")
+                                        : AppLocalization.text("common.add", "Add")
+                                ) {
                                     onToggleFolderFavorite(folder)
                                 }
                                 .disabled(isFolderFavoriteWorking(folder.id))
@@ -473,7 +488,11 @@ struct ComicDetailFavoriteSection: View {
                                 ProgressView()
                                     .controlSize(.small)
                             }
-                            Text(effectiveIsFavorited ? "Remove Favorite" : "Add Favorite")
+                            Text(
+                                effectiveIsFavorited
+                                    ? AppLocalization.text("detail.favorite.remove_favorite", "Remove Favorite")
+                                    : AppLocalization.text("detail.favorite.add_favorite", "Add Favorite")
+                            )
                                 .fontWeight(.semibold)
                             Spacer()
                             Image(systemName: effectiveIsFavorited ? "heart.slash" : "heart")
@@ -487,7 +506,7 @@ struct ComicDetailFavoriteSection: View {
                     Text(favoriteStatus)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .accessibilityLabel("Favorite status")
+                        .accessibilityLabel(AppLocalization.text("detail.favorite.status_accessibility", "Favorite status"))
                         .accessibilityValue(favoriteStatus)
                 }
             }
@@ -512,18 +531,25 @@ struct ComicDetailCommentsSection: View {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 if canLoad {
                     Button(action: onOpenComments) {
-                        Label("View All Comments", systemImage: "text.bubble")
+                        Label(
+                            AppLocalization.text("detail.comments.view_all", "View All Comments"),
+                            systemImage: "text.bubble"
+                        )
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
                 }
 
                 if previewComments.isEmpty {
-                    Text("No preview comments in detail payload.")
+                    Text(AppLocalization.text("detail.comments.preview_empty", "No preview comments in detail payload."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } else {
-                    Button(isPreviewExpanded ? "Hide Preview" : "Show Preview") {
+                    Button(
+                        isPreviewExpanded
+                            ? AppLocalization.text("detail.comments.preview_hide", "Hide Preview")
+                            : AppLocalization.text("detail.comments.preview_show", "Show Preview")
+                    ) {
                         onTogglePreview()
                     }
                     .buttonStyle(.borderless)
@@ -538,7 +564,7 @@ struct ComicDetailCommentsSection: View {
                             }
                         }
                     } else {
-                        Text("Preview hidden. Tap “Show Preview” to inspect inline comments.")
+                        Text(AppLocalization.text("detail.comments.preview_hidden_hint", "Preview hidden. Tap Show Preview to inspect inline comments."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -700,7 +726,7 @@ struct ComicDetailChaptersSection: View {
 
                     HStack(spacing: 8) {
                         if continueChapterID == chapter.id {
-                            badge("Continue", tint: .blue)
+                            badge(AppLocalization.text("detail.chapters.continue_badge", "Continue"), tint: .blue)
                         }
                         if let downloadStatus {
                             badge(downloadBadgeText(for: downloadStatus), tint: downloadBadgeTint(for: downloadStatus))
@@ -709,8 +735,10 @@ struct ComicDetailChaptersSection: View {
                 }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Read \(title)")
-            .accessibilityHint("Open this chapter in the reader")
+            .accessibilityLabel(
+                AppLocalization.format("detail.chapters.read_accessibility_format", "Read %@", title)
+            )
+            .accessibilityHint(AppLocalization.text("detail.chapters.open_reader_hint", "Open this chapter in the reader"))
 
             Button {
                 if downloadStatus != .completed && downloadStatus != .downloading && downloadStatus != .pending {
@@ -722,7 +750,9 @@ struct ComicDetailChaptersSection: View {
             }
             .buttonStyle(.borderless)
             .disabled(downloadStatus == .completed || downloadStatus == .downloading || downloadStatus == .pending)
-            .accessibilityLabel("Download \(title)")
+            .accessibilityLabel(
+                AppLocalization.format("detail.chapters.download_accessibility_format", "Download %@", title)
+            )
         }
         .padding(AppSpacing.md)
         .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
@@ -739,10 +769,10 @@ struct ComicDetailChaptersSection: View {
 
     private func downloadBadgeText(for status: DownloadStatus) -> String {
         switch status {
-        case .completed: return "Offline"
-        case .downloading: return "Downloading"
-        case .pending: return "Queued"
-        case .failed: return "Failed"
+        case .completed: return AppLocalization.text("detail.chapters.badge.offline", "Offline")
+        case .downloading: return AppLocalization.text("detail.chapters.badge.downloading", "Downloading")
+        case .pending: return AppLocalization.text("detail.chapters.badge.queued", "Queued")
+        case .failed: return AppLocalization.text("detail.chapters.badge.failed", "Failed")
         }
     }
 

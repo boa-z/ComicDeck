@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI
 
 enum DownloadWorkspace: String, CaseIterable, Identifiable {
     case queue
@@ -480,5 +481,47 @@ final class DownloadManagerScreenModel {
 private extension DownloadChapterItem {
     var queueIdentity: String {
         "\(sourceKey)::\(comicID)::\(chapterID)"
+    }
+}
+
+func offlineComicCoverURL(from chapters: [OfflineChapterAsset]) -> URL? {
+    guard let anyChapter = chapters.first else { return nil }
+    let comicDirectory = URL(fileURLWithPath: anyChapter.directoryPath).deletingLastPathComponent()
+    let supported = ["jpg", "jpeg", "png", "webp", "gif", "heic", "heif", "avif"]
+    return supported
+        .map { comicDirectory.appendingPathComponent("cover.\($0)") }
+        .first { FileManager.default.fileExists(atPath: $0.path) }
+}
+
+extension DownloadChapterItem {
+    var statusTint: Color {
+        switch status {
+        case .completed: return .green
+        case .downloading: return .blue
+        case .failed: return .red
+        case .pending: return .secondary
+        }
+    }
+
+    var statusIcon: String {
+        switch status {
+        case .completed: return "checkmark.circle.fill"
+        case .downloading: return "arrow.down.circle.fill"
+        case .failed: return "exclamationmark.triangle.fill"
+        case .pending: return "clock.fill"
+        }
+    }
+
+    var statusLabel: String {
+        status.rawValue.capitalized
+    }
+
+    var progressFraction: Double {
+        guard totalPages > 0 else { return 0 }
+        return min(max(Double(downloadedPages) / Double(totalPages), 0), 1)
+    }
+
+    var progressPercentageText: String {
+        "\(Int((progressFraction * 100).rounded()))%"
     }
 }

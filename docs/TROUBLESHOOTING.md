@@ -51,6 +51,34 @@ If it still fails, capture:
 - source key
 - failing endpoint if visible
 
+### macOS Web Login Prints WebContent Sandbox Messages
+
+During web login on macOS, system logs may include WebKit helper-process messages such as:
+
+- `WebContent[...] Conn 0x0 is not a valid connection ID`
+- `Couldn't connect to launchservicesd`
+- `Sandbox is preventing this process from reading networkd settings`
+- `The sandbox in this process does not allow access to RunningBoard`
+- `GetSafeBrowsingEnabledState ... Connection invalid`
+
+These are usually WebKit or macOS service sandbox diagnostics from the isolated `WebContent` process, not ComicDeck source-runtime errors. They can appear when a login sheet opens, navigates, or closes, especially after the WebView is torn down.
+
+Treat them as benign when:
+
+1. the login page loads
+2. cookies are captured
+3. the login state refreshes after closing the sheet
+4. there is no matching `SourceRuntime`, `LoginWebView`, or network error in `Settings -> Debug Logs`
+
+Investigate further when:
+
+1. the login page is blank or cannot navigate
+2. the source remains logged out after completing the web flow
+3. there are repeated app-level `LoginWebView` or `SourceRuntime` errors near the same timestamp
+4. a signed macOS build fails only after enabling sandbox or release signing
+
+For signed macOS builds, confirm `Config/ComicDeckMac.entitlements` is applied and includes sandbox, network-client, and user-selected-file permissions.
+
 ## Reader Issues
 
 ### Resume Opens the Wrong Place

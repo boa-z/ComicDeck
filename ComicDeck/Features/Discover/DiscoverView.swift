@@ -219,9 +219,9 @@ struct ExploreView: View {
                                 .listRowInsets(EdgeInsets(top: 8, leading: AppSpacing.md, bottom: 8, trailing: AppSpacing.md))
                                 .listRowBackground(Color.clear)
                             }
-                            if let target = part.viewMore {
-                                Button("View More") { openJumpTarget(target: target, fallbackLabel: part.title) }
-                            }
+                        }
+                        if let target = part.viewMore {
+                            Button(AppLocalization.text("discover.view_more", "View More")) { openJumpTarget(target: target, fallbackLabel: part.title) }
                         }
                     }
                 }
@@ -233,7 +233,7 @@ struct ExploreView: View {
             }
         } else {
             Section {
-                Text("No explore page")
+                Text(AppLocalization.text("discover.no_explore_page", "No explore page"))
                     .foregroundStyle(.secondary)
             }
         }
@@ -248,7 +248,7 @@ struct ExploreView: View {
                 if model.isLoading {
                     ProgressView().controlSize(.small)
                 } else {
-                    Label("Load More", systemImage: "arrow.down.circle")
+                    Label(AppLocalization.text("common.load_more", "Load More"), systemImage: "arrow.down.circle")
                 }
                 Spacer()
             }
@@ -273,7 +273,7 @@ struct ExploreView: View {
         case "ranking":
             route = .ranking(sourceKey: source.key)
         default:
-            model.status = "Unsupported target: \(target.page)"
+            model.status = AppLocalization.format("discover.unsupported_target", "Unsupported target: %@", target.page)
         }
     }
 }
@@ -287,12 +287,12 @@ struct CategoryView: View {
 
     var body: some View {
         List {
-            Section("Source") {
+            Section(AppLocalization.text("discover.section.source", "Source")) {
                 if vm.sourceManager.installedSources.isEmpty {
-                    Text("No source installed")
+                    Text(AppLocalization.text("discover.no_source_installed", "No source installed"))
                         .foregroundStyle(.secondary)
                 } else {
-                    Picker("Active Source", selection: $vm.sourceManager.selectedSourceKey) {
+                    Picker(AppLocalization.text("discover.picker.active_source", "Active Source"), selection: $vm.sourceManager.selectedSourceKey) {
                         ForEach(vm.sourceManager.installedSources) { source in
                             Text(source.name).tag(source.key)
                         }
@@ -301,7 +301,7 @@ struct CategoryView: View {
             }
 
             if !model.profile.parts.isEmpty {
-                Section("Categories") {
+                Section(AppLocalization.text("discover.category.categories", "Categories")) {
                     ForEach(model.profile.parts) { part in
                         VStack(alignment: .leading, spacing: AppSpacing.sm) {
                             Text(part.title)
@@ -324,13 +324,13 @@ struct CategoryView: View {
             }
 
             if model.canShowRankingEntry, let source = vm.sourceManager.selectedSource {
-                Section("Ranking") {
+                Section(AppLocalization.text("ranking.navigation", "Ranking")) {
                     Button {
                         navTarget = .ranking(sourceKey: source.key)
                     } label: {
                         HStack {
                             Image(systemName: "chart.bar.fill")
-                            Text("Open Ranking")
+                            Text(AppLocalization.text("ranking.open", "Open Ranking"))
                             Spacer()
                             Image(systemName: "chevron.right")
                                 .font(.caption.weight(.semibold))
@@ -381,7 +381,7 @@ struct CategoryView: View {
         if target.page == "search" {
             let keyword = target.keyword?.trimmingCharacters(in: .whitespacesAndNewlines) ?? item.label
             guard !keyword.isEmpty else {
-                model.status = "Search keyword is empty"
+                model.status = AppLocalization.text("discover.search_keyword_empty", "Search keyword is empty")
                 return
             }
             navTarget = .search(sourceKey: source.key, keyword: keyword)
@@ -390,7 +390,7 @@ struct CategoryView: View {
         if target.page == "category" {
             navTarget = .category(sourceKey: source.key, item: item)
         } else {
-            model.status = "Unsupported category target: \(target.page)"
+            model.status = AppLocalization.format("discover.unsupported_category_target", "Unsupported category target: %@", target.page)
         }
     }
 }
@@ -486,7 +486,7 @@ struct CategoryComicsPageView: View {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 if !model.optionGroups.isEmpty {
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                        Text("Category Filters")
+                        Text(AppLocalization.text("discover.category.filters", "Category Filters"))
                             .font(.headline)
                             .padding(.horizontal, AppSpacing.md)
                         categoryFiltersCard
@@ -523,7 +523,7 @@ struct CategoryComicsPageView: View {
     @ViewBuilder
     private var categoryFiltersSection: some View {
         if !model.optionGroups.isEmpty {
-            Section("Category Filters") {
+            Section(AppLocalization.text("discover.category.filters", "Category Filters")) {
                 categoryFiltersCard
             }
         }
@@ -556,7 +556,7 @@ struct CategoryComicsPageView: View {
             } label: {
                 HStack {
                     Spacer()
-                    SwiftUI.Label("Apply Filters", systemImage: "line.3.horizontal.decrease.circle")
+                    SwiftUI.Label(AppLocalization.text("search.action.apply_filters", "Apply Filters"), systemImage: "line.3.horizontal.decrease.circle")
                     Spacer()
                 }
             }
@@ -573,7 +573,7 @@ struct CategoryComicsPageView: View {
                 emptyCategoryState
             }
         } else {
-            Section("Comics") {
+            Section(AppLocalization.text("discover.category.comics", "Comics")) {
                 ForEach(model.results) { comic in
                     comicNavigationLink(for: comic) {
                         SearchResultCard(item: comic)
@@ -593,11 +593,11 @@ struct CategoryComicsPageView: View {
             if model.isLoading {
                 HStack {
                     Spacer()
-                    ProgressView("Loading category...")
+                    ProgressView(AppLocalization.text("discover.category.loading", "Loading category..."))
                     Spacer()
                 }
             } else {
-                Text("No results")
+                Text(AppLocalization.text("search.no_results", "No results"))
                     .foregroundStyle(.secondary)
             }
             Text(model.status)
@@ -615,7 +615,7 @@ struct CategoryComicsPageView: View {
                 if model.isLoading {
                     ProgressView().controlSize(.small)
                 } else {
-                    SwiftUI.Label("Load More", systemImage: "arrow.down.circle")
+                    SwiftUI.Label(AppLocalization.text("common.load_more", "Load More"), systemImage: "arrow.down.circle")
                 }
                 Spacer()
             }
@@ -673,7 +673,7 @@ struct CategoryRankingPageView: View {
             }
         }
         .background(AppSurface.grouped)
-        .navigationTitle("Ranking")
+        .navigationTitle(AppLocalization.text("ranking.navigation", "Ranking"))
         .toolbar {
             ToolbarItem(placement: .platformTopBarTrailing) {
                 ComicBrowseModePicker(mode: Binding(
@@ -715,7 +715,7 @@ struct CategoryRankingPageView: View {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 if !model.profile.options.isEmpty {
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                        Text("Ranking Filters")
+                        Text(AppLocalization.text("ranking.filters", "Ranking Filters"))
                             .font(.headline)
                             .padding(.horizontal, AppSpacing.md)
                         rankingFiltersCard
@@ -752,7 +752,7 @@ struct CategoryRankingPageView: View {
     @ViewBuilder
     private var rankingFiltersSection: some View {
         if !model.profile.options.isEmpty {
-            Section("Ranking Filters") {
+            Section(AppLocalization.text("ranking.filters", "Ranking Filters")) {
                 rankingFiltersCard
             }
         }
@@ -761,11 +761,11 @@ struct CategoryRankingPageView: View {
     private var rankingFiltersCard: some View {
         VStack(spacing: AppSpacing.sm) {
             HStack {
-                Text("榜单")
+                Text(AppLocalization.text("ranking.option", "Ranking"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Picker("榜单", selection: Binding(
+                Picker(AppLocalization.text("ranking.option", "Ranking"), selection: Binding(
                     get: { model.selectedOption },
                     set: { model.selectedOption = $0 }
                 )) {
@@ -780,7 +780,7 @@ struct CategoryRankingPageView: View {
             } label: {
                 HStack {
                     Spacer()
-                    SwiftUI.Label("Apply Ranking", systemImage: "chart.line.uptrend.xyaxis")
+                    SwiftUI.Label(AppLocalization.text("ranking.apply", "Apply Ranking"), systemImage: "chart.line.uptrend.xyaxis")
                     Spacer()
                 }
             }
@@ -797,7 +797,7 @@ struct CategoryRankingPageView: View {
                 emptyRankingState
             }
         } else {
-            Section("Comics") {
+            Section(AppLocalization.text("discover.category.comics", "Comics")) {
                 ForEach(model.results) { comic in
                     rankingNavigationLink(for: comic) {
                         SearchResultCard(item: comic)
@@ -817,11 +817,11 @@ struct CategoryRankingPageView: View {
             if model.isLoading {
                 HStack {
                     Spacer()
-                    ProgressView("Loading ranking...")
+                    ProgressView(AppLocalization.text("ranking.loading", "Loading ranking..."))
                     Spacer()
                 }
             } else {
-                Text("No ranking data")
+                Text(AppLocalization.text("ranking.empty", "No ranking data"))
                     .foregroundStyle(.secondary)
             }
             Text(model.status)
@@ -839,7 +839,7 @@ struct CategoryRankingPageView: View {
                 if model.isLoading {
                     ProgressView().controlSize(.small)
                 } else {
-                    SwiftUI.Label("Load More", systemImage: "arrow.down.circle")
+                    SwiftUI.Label(AppLocalization.text("common.load_more", "Load More"), systemImage: "arrow.down.circle")
                 }
                 Spacer()
             }

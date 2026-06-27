@@ -1,5 +1,8 @@
 import AuthenticationServices
 import Foundation
+#if os(macOS)
+import AppKit
+#endif
 
 @MainActor
 final class AniListOAuthSession: NSObject {
@@ -83,12 +86,18 @@ extension AniListOAuthSession: ASWebAuthenticationPresentationContextProviding {
            let keyWindow = windowScene.windows.first(where: \.isKeyWindow) {
             return keyWindow
         }
-        if let windowScene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
-            return ASPresentationAnchor(windowScene: windowScene)
+        guard let fallbackScene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else {
+            preconditionFailure("AniList OAuth requires an active window scene.")
         }
-        return UIWindow()
-        #else
-        return ASPresentationAnchor()
+        return ASPresentationAnchor(windowScene: fallbackScene)
+        #elseif os(macOS)
+        if let keyWindow = NSApplication.shared.keyWindow {
+            return keyWindow
+        }
+        if let mainWindow = NSApplication.shared.mainWindow {
+            return mainWindow
+        }
+        return NSApplication.shared.windows.first ?? ASPresentationAnchor()
         #endif
     }
 }

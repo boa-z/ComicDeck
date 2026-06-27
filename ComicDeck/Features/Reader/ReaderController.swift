@@ -185,6 +185,34 @@ final class ReaderController {
         preloadAroundCurrentPage()
     }
 
+    var canGoToPreviousPage: Bool {
+        session.totalPages > 0 && session.currentPage > 0
+    }
+
+    var canGoToNextPage: Bool {
+        session.totalPages > 0 && session.currentPage < session.totalPages - 1
+    }
+
+    var canGoToFirstPage: Bool {
+        session.totalPages > 0 && session.currentPage > 0
+    }
+
+    var canGoToLastPage: Bool {
+        session.totalPages > 0 && session.currentPage < session.totalPages - 1
+    }
+
+    var canGoToPreviousChapter: Bool {
+        session.previousChapter != nil
+    }
+
+    var canGoToNextChapter: Bool {
+        session.nextChapter != nil
+    }
+
+    var canReloadCurrentPage: Bool {
+        session.totalPages > 0
+    }
+
     // MARK: Navigation
 
     func nextPage() {
@@ -201,6 +229,16 @@ final class ReaderController {
             animatePageTransitions: animatePageTransitions,
             reduceMotion: reduceMotion
         )
+    }
+
+    func firstPage() {
+        guard session.totalPages > 0 else { return }
+        session.jumpToPage(0, readerMode: readerMode)
+    }
+
+    func lastPage() {
+        guard session.totalPages > 0 else { return }
+        session.jumpToPage(session.totalPages - 1, readerMode: readerMode)
     }
 
     func openAdjacentChapter(step: Int) {
@@ -291,10 +329,27 @@ struct ReaderControllerFocusedValueKey: FocusedValueKey {
     typealias Value = ReaderController
 }
 
+struct MacReaderCommandState {
+    var readerMode: ReaderMode
+    var backgroundMode: ReaderBackgroundMode
+    var setReaderMode: (ReaderMode) -> Void
+    var setBackgroundMode: (ReaderBackgroundMode) -> Void
+    var closeWindow: () -> Void
+}
+
+struct MacReaderCommandStateFocusedValueKey: FocusedValueKey {
+    typealias Value = MacReaderCommandState
+}
+
 extension FocusedValues {
     var readerController: ReaderController? {
         get { self[ReaderControllerFocusedValueKey.self] }
         set { self[ReaderControllerFocusedValueKey.self] = newValue }
+    }
+
+    var macReaderCommandState: MacReaderCommandState? {
+        get { self[MacReaderCommandStateFocusedValueKey.self] }
+        set { self[MacReaderCommandStateFocusedValueKey.self] = newValue }
     }
 }
 #endif

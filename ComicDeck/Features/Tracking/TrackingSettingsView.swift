@@ -26,23 +26,23 @@ struct TrackingSettingsView: View {
 
             syncBehaviorSection
 
-            Section("Status") {
+            Section(AppLocalization.text("tracking.settings.status.title", "Status")) {
                 Text(tracker.status)
                     .foregroundStyle(.secondary)
                 HStack {
-                    Text("Queued Sync Events")
+                    Text(AppLocalization.text("tracking.settings.status.queued_events", "Queued Sync Events"))
                     Spacer()
                     Text("\(tracker.pendingEvents.count)")
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .navigationTitle("Tracking")
-        .alert("Tracking", isPresented: Binding(
+        .navigationTitle(AppLocalization.text("tracking.section.title", "Tracking"))
+        .alert(AppLocalization.text("tracking.section.title", "Tracking"), isPresented: Binding(
             get: { alertMessage != nil },
             set: { if !$0 { alertMessage = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(AppLocalization.text("common.ok", "OK"), role: .cancel) {}
         } message: {
             Text(alertMessage ?? "")
         }
@@ -119,23 +119,34 @@ struct TrackingSettingsView: View {
                 Label(account.displayName, systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.headline)
-                Text("Connected as \(provider.title) user \(account.remoteUserID)")
+                Text(AppLocalization.format(
+                    "tracking.settings.connected_provider_user",
+                    "Connected as %@ user %@",
+                    provider.title,
+                    account.remoteUserID
+                ))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Button(testingProvider == provider ? "Validating..." : "Validate Connection") {
+            Button(testingProvider == provider
+                   ? AppLocalization.text("tracking.settings.validating", "Validating...")
+                   : AppLocalization.text("tracking.settings.validate_connection", "Validate Connection")) {
                 Task { await validateCurrentToken(provider) }
             }
             .disabled(testingProvider != nil || connectingProvider != nil)
 
-            Button("Disconnect", role: .destructive) {
+            Button(AppLocalization.text("tracking.disconnect", "Disconnect"), role: .destructive) {
                 Task { await disconnect(provider) }
             }
             .disabled(testingProvider != nil || connectingProvider != nil)
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                TextField("\(provider.title) access token", text: Binding(
+                TextField(AppLocalization.format(
+                    "tracking.settings.access_token_placeholder",
+                    "%@ access token",
+                    provider.title
+                ), text: Binding(
                     get: { tokens[provider] ?? "" },
                     set: { tokens[provider] = $0 }
                 ))
@@ -148,7 +159,9 @@ struct TrackingSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Button(connectingProvider == provider ? "Connecting..." : "Connect \(provider.title)") {
+            Button(connectingProvider == provider
+                   ? AppLocalization.text("tracking.settings.connecting", "Connecting...")
+                   : AppLocalization.format("tracking.settings.connect_provider", "Connect %@", provider.title)) {
                 Task { await connect(provider) }
             }
             .disabled(
@@ -161,17 +174,21 @@ struct TrackingSettingsView: View {
 
     private var aniListSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            TextField("AniList OAuth client ID", text: $aniListClientID)
+            TextField(AppLocalization.text("tracking.settings.anilist.client_id", "AniList OAuth client ID"), text: $aniListClientID)
                 .platformTextInputAutocapitalizationNever()
                 .autocorrectionDisabled()
                 .font(.callout.monospaced())
 
-            SecureField("AniList OAuth client secret", text: $aniListClientSecret)
+            SecureField(AppLocalization.text("tracking.settings.anilist.client_secret", "AniList OAuth client secret"), text: $aniListClientSecret)
                 .platformTextInputAutocapitalizationNever()
                 .autocorrectionDisabled()
                 .font(.callout.monospaced())
 
-            Text("Register \(AniListOAuthSession.redirectURI) as the redirect URI in your AniList app, then authorize here. ComicDeck exchanges the returned authorization code locally and keeps the access token plus client secret in Keychain.")
+            Text(AppLocalization.format(
+                "tracking.settings.anilist.oauth_help",
+                "Register %@ as the redirect URI in your AniList app, then authorize here. ComicDeck exchanges the returned authorization code locally and keeps the access token plus client secret in Keychain.",
+                AniListOAuthSession.redirectURI
+            ))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -180,18 +197,26 @@ struct TrackingSettingsView: View {
                     Label(account.displayName, systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                         .font(.headline)
-                    Text("Connected as AniList user \(account.remoteUserID)")
+                    Text(AppLocalization.format(
+                        "tracking.settings.connected_anilist_user",
+                        "Connected as AniList user %@",
+                        account.remoteUserID
+                    ))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 HStack {
-                    Button(testingProvider == .aniList ? "Validating..." : "Validate Connection") {
+                    Button(testingProvider == .aniList
+                           ? AppLocalization.text("tracking.settings.validating", "Validating...")
+                           : AppLocalization.text("tracking.settings.validate_connection", "Validate Connection")) {
                         Task { await validateCurrentToken(.aniList) }
                     }
                     .disabled(testingProvider != nil || connectingProvider != nil)
 
-                    Button(connectingProvider == .aniList ? "Authorizing..." : "Reconnect OAuth") {
+                    Button(connectingProvider == .aniList
+                           ? AppLocalization.text("tracking.settings.authorizing", "Authorizing...")
+                           : AppLocalization.text("tracking.settings.reconnect_oauth", "Reconnect OAuth")) {
                         Task { await connectAniListOAuth() }
                     }
                     .disabled(
@@ -202,12 +227,14 @@ struct TrackingSettingsView: View {
                     )
                 }
 
-                Button("Disconnect", role: .destructive) {
+                Button(AppLocalization.text("tracking.disconnect", "Disconnect"), role: .destructive) {
                     Task { await disconnect(.aniList) }
                 }
                 .disabled(testingProvider != nil || connectingProvider != nil)
             } else {
-                Button(connectingProvider == .aniList ? "Authorizing..." : "Authorize AniList") {
+                Button(connectingProvider == .aniList
+                       ? AppLocalization.text("tracking.settings.authorizing", "Authorizing...")
+                       : AppLocalization.text("tracking.settings.authorize_anilist", "Authorize AniList")) {
                     Task { await connectAniListOAuth() }
                 }
                 .disabled(
@@ -234,9 +261,15 @@ struct TrackingSettingsView: View {
     private func providerHelpText(_ provider: TrackerProvider) -> String {
         switch provider {
         case .aniList:
-            return "AniList now uses authorization code OAuth. Enter both the client ID and client secret from your AniList app, and register the ComicDeck callback URL in the AniList developer console."
+            return AppLocalization.text(
+                "tracking.settings.anilist.help",
+                "AniList now uses authorization code OAuth. Enter both the client ID and client secret from your AniList app, and register the ComicDeck callback URL in the AniList developer console."
+            )
         case .bangumi:
-            return "Use a Bangumi personal access token. ComicDeck currently syncs reading progress one-way from the app to Bangumi."
+            return AppLocalization.text(
+                "tracking.settings.bangumi.help",
+                "Use a Bangumi personal access token. ComicDeck currently syncs reading progress one-way from the app to Bangumi."
+            )
         }
     }
 

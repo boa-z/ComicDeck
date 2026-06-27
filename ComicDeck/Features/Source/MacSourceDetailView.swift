@@ -31,15 +31,15 @@ struct MacSourceDetailView: View {
 
     private var supportItems: [(title: String, systemImage: String, enabled: Bool)] {
         [
-            ("Explore", "sparkles.rectangle.stack", model.capabilityProfile.hasExplore),
-            ("Category", "square.grid.3x3.topleft.filled", model.capabilityProfile.hasCategory),
-            ("Search", "magnifyingglass", model.capabilityProfile.hasSearch),
-            ("Favorites", "heart", model.capabilityProfile.hasFavorites),
-            ("Comments", "bubble.left.and.bubble.right", model.capabilityProfile.hasComments),
-            ("Account", "person.text.rectangle", model.capabilityProfile.hasAccountLogin),
-            ("Web", "globe", model.capabilityProfile.hasWebLogin),
-            ("Cookies", "key.horizontal", model.capabilityProfile.hasCookieLogin),
-            ("Settings", "slider.horizontal.3", model.capabilityProfile.hasSettings)
+            (AppLocalization.text("source.capability.explore", "Explore"), "sparkles.rectangle.stack", model.capabilityProfile.hasExplore),
+            (AppLocalization.text("source.capability.category", "Category"), "square.grid.3x3.topleft.filled", model.capabilityProfile.hasCategory),
+            (AppLocalization.text("source.capability.search", "Search"), "magnifyingglass", model.capabilityProfile.hasSearch),
+            (AppLocalization.text("source.capability.favorites", "Favorites"), "heart", model.capabilityProfile.hasFavorites),
+            (AppLocalization.text("source.capability.comments", "Comments"), "bubble.left.and.bubble.right", model.capabilityProfile.hasComments),
+            (AppLocalization.text("source.capability.account", "Account"), "person.text.rectangle", model.capabilityProfile.hasAccountLogin),
+            (AppLocalization.text("source.capability.web", "Web"), "globe", model.capabilityProfile.hasWebLogin),
+            (AppLocalization.text("source.capability.cookies", "Cookies"), "key.horizontal", model.capabilityProfile.hasCookieLogin),
+            (AppLocalization.text("source.capability.settings", "Settings"), "slider.horizontal.3", model.capabilityProfile.hasSettings)
         ]
     }
 

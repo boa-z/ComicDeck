@@ -4,13 +4,10 @@ import Observation
 
 /// macOS Sources workspace.
 ///
-/// Rendered as a **2-pane** `NavigationSplitView` (list + detail). Previously this
-/// was a 3-pane split nested inside `MacMainView`'s own split view, which summed
-/// to ~1200px of minimum width against a 980px window and caused column
-/// squashing/layout corruption (显示错乱). Installed and indexed sources are now
-/// folded into a single unified list; the detail pane is always a native
-/// `Form/.grouped` view (installed → `MacSourceDetailView`, remote/index →
-/// existing detail views).
+/// Rendered as a stable two-pane HStack inside `MacMainView`'s split view.
+/// Installed and indexed sources are folded into a single unified list; the
+/// detail pane is always a native `Form/.grouped` view (installed to
+/// `MacSourceDetailView`, remote/index to existing detail views).
 @MainActor
 struct MacSourceWorkspaceView: View {
     private enum DetailSelection: Hashable {
@@ -27,6 +24,9 @@ struct MacSourceWorkspaceView: View {
     @State private var batchSelection: Set<String> = []
     @State private var showBatchDeleteConfirm = false
     @State private var batchWorking = false
+    @State private var selectionCommandController = MacSelectionCommandController()
+    @State private var searchCommandController = MacSearchCommandController()
+    @State private var isSearchPresented = false
 
     private var filteredInstalledSources: [InstalledSource] {
         sourceManager.installedSources.filter { source in
@@ -42,70 +42,78 @@ struct MacSourceWorkspaceView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        HStack(spacing: 0) {
             unifiedList
-                .navigationTitle(AppLocalization.text("source.management.title", "Sources"))
-                .searchable(text: $query, prompt: AppLocalization.text("source.management.search_placeholder", "Search sources"))
-                .toolbar {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button {
-                            Task { await sourceManager.refreshRemoteSources(forceRefresh: true) }
-                        } label: {
-                            if sourceManager.refreshingIndex {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Label(AppLocalization.text("source.action.refresh", "Refresh"), systemImage: "arrow.clockwise")
-                            }
-                        }
-                        .disabled(sourceManager.refreshingIndex)
-                    }
+                .frame(width: 300)
 
-                    ToolbarItem(placement: .primaryAction) {
-                        Menu {
-                            if !batchSelection.isEmpty {
-                                if !selectedUpdatableSources.isEmpty {
-                                    Button {
-                                        Task { await updateSelectedSources() }
-                                    } label: {
-                                        Label(AppLocalization.text("source.action.update_selected", "Update Selected"), systemImage: "square.and.arrow.down")
-                                    }
-                                    .disabled(batchWorking)
-                                }
+            Divider()
 
-                                Button(role: .destructive) {
-                                    showBatchDeleteConfirm = true
-                                } label: {
-                                    Label(AppLocalization.text("source.action.delete_selected", "Delete Selected"), systemImage: "trash")
-                                }
-                                .disabled(batchWorking)
-
-                                Divider()
-                            }
-
-                            Button {
-                                Task { await updateAllInstalledSources() }
-                            } label: {
-                                Label(AppLocalization.text("source.action.update_all", "Update All"), systemImage: "arrow.down.circle")
-                            }
-                            .disabled(!hasAvailableUpdates || batchWorking)
-
-                            Button(AppLocalization.text("source.action.check_updates", "Check Updates")) {
-                                sourceManager.checkSourceUpdates()
-                            }
-                        } label: {
-                            if batchWorking {
-                                ProgressView().controlSize(.small)
-                            } else {
-                                Label(AppLocalization.text("tracking.sync.more", "More"), systemImage: "ellipsis.circle")
-                            }
-                        }
-                        .menuStyle(.button)
+            detailView
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .navigationTitle(AppLocalization.text("source.management.title", "Sources"))
+        .searchable(
+            text: $query,
+            isPresented: $isSearchPresented,
+            prompt: AppLocalization.text("source.management.search_placeholder", "Search sources")
+        )
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task { await sourceManager.refreshRemoteSources(forceRefresh: true) }
+                } label: {
+                    if sourceManager.refreshingIndex {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label(AppLocalization.text("source.action.refresh", "Refresh"), systemImage: "arrow.clockwise")
                     }
                 }
-                .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 360)
-        } detail: {
-            detailView
+                .disabled(sourceManager.refreshingIndex)
+            }
+
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    if !batchSelection.isEmpty {
+                        if !selectedUpdatableSources.isEmpty {
+                            Button {
+                                Task { await updateSelectedSources() }
+                            } label: {
+                                Label(AppLocalization.text("source.action.update_selected", "Update Selected"), systemImage: "square.and.arrow.down")
+                            }
+                            .disabled(batchWorking)
+                        }
+
+                        Button(role: .destructive) {
+                            showBatchDeleteConfirm = true
+                        } label: {
+                            Label(AppLocalization.text("source.action.delete_selected", "Delete Selected"), systemImage: "trash")
+                        }
+                        .disabled(batchWorking)
+
+                        Divider()
+                    }
+
+                    Button {
+                        Task { await updateAllInstalledSources() }
+                    } label: {
+                        Label(AppLocalization.text("source.action.update_all", "Update All"), systemImage: "arrow.down.circle")
+                    }
+                    .disabled(!hasAvailableUpdates || batchWorking)
+
+                    Button(AppLocalization.text("source.action.check_updates", "Check Updates")) {
+                        sourceManager.checkSourceUpdates()
+                    }
+                } label: {
+                    if batchWorking {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Label(AppLocalization.text("tracking.sync.more", "More"), systemImage: "ellipsis.circle")
+                    }
+                }
+                .menuStyle(.button)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .alert(
             AppLocalization.text("source.alert.batch_delete.title", "Delete selected sources?"),
             isPresented: $showBatchDeleteConfirm
@@ -115,20 +123,40 @@ struct MacSourceWorkspaceView: View {
             }
             Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) { }
         } message: {
-            Text(AppLocalization.text("source.alert.batch_delete.message", "Delete \(batchSelection.count) selected installed source\(batchSelection.count == 1 ? "" : "s")? This action cannot be undone."))
+            Text(AppLocalization.format("source.alert.batch_delete.message", "Delete %lld selected installed sources? This action cannot be undone.", Int64(batchSelection.count)))
         }
         .onAppear { ensureSelection() }
-        .onChange(of: query) { _, _ in ensureSelection() }
-        .onChange(of: showInstalledOnly) { _, _ in ensureSelection() }
+        .onAppear {
+            configureSelectionCommands()
+            configureSearchCommands()
+        }
+        .onChange(of: selection) { _, _ in configureSelectionCommands() }
+        .onChange(of: query) { _, _ in
+            ensureSelection()
+            configureSelectionCommands()
+        }
+        .onChange(of: showInstalledOnly) { _, _ in
+            ensureSelection()
+            configureSelectionCommands()
+        }
         .onChange(of: sourceManager.installedSources) { _, sources in
             guard case let .installed(key) = selection else { return }
             if !sources.contains(where: { $0.key == key }) {
                 selection = sources.first.map { .installed($0.key) } ?? .index
             }
+            configureSelectionCommands()
         }
         .onChange(of: sourceManager.remoteSources) { _, _ in
             ensureSelection()
+            configureSelectionCommands()
         }
+        .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
+        .focusedSceneValue(\.macSearchCommandController, searchCommandController)
+    }
+
+    private func configureSearchCommands() {
+        searchCommandController.focusSearch = { isSearchPresented = true }
+        searchCommandController.canFocusSearch = true
     }
 
     // MARK: - Unified list
@@ -171,7 +199,7 @@ struct MacSourceWorkspaceView: View {
                     Text(AppLocalization.text("source.management.installed", "Installed Sources"))
                     Spacer()
                     if !batchSelection.isEmpty {
-                        Text(AppLocalization.format("source.management.batch_count_format", "%d selected", batchSelection.count))
+                        Text(AppLocalization.format("source.management.batch_count_format", "%lld selected", Int64(batchSelection.count)))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -196,6 +224,9 @@ struct MacSourceWorkspaceView: View {
                             updateVersion: sourceManager.availableSourceUpdates[sourceManager.resolvedKey(for: item)]
                         )
                         .tag(DetailSelection.remote(sourceManager.resolvedKey(for: item)))
+                        .contextMenu {
+                            remoteRowContextMenu(for: item)
+                        }
                     }
                 }
             } header: {
@@ -208,18 +239,28 @@ struct MacSourceWorkspaceView: View {
     @ViewBuilder
     private func installedRowContextMenu(for source: InstalledSource) -> some View {
         Button(AppLocalization.text("source.action.use", "Use Source")) {
-            sourceManager.selectSource(source)
+            useInstalledSource(source)
         }
         .disabled(source.key == sourceManager.selectedSourceKey)
 
         if sourceManager.availableSourceUpdates[source.key] != nil {
             Button(AppLocalization.text("source.action.update", "Update")) {
-                Task { await sourceManager.updateSource(source) }
+                Task { await updateInstalledSource(source) }
             }
         }
 
         Button(AppLocalization.text("source.action.delete", "Delete"), role: .destructive) {
-            Task { await sourceManager.uninstallSource(source) }
+            Task { await deleteInstalledSource(source) }
+        }
+
+        Divider()
+
+        Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
+            copyInstalledSourceTitle(source)
+        }
+
+        Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
+            copyInstalledSourceKey(source)
         }
 
         Divider()
@@ -232,6 +273,25 @@ struct MacSourceWorkspaceView: View {
             Button(AppLocalization.text("source.action.select", "Select for Batch")) {
                 batchSelection.insert(source.key)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func remoteRowContextMenu(for item: SourceConfigIndexItem) -> some View {
+        let key = sourceManager.resolvedKey(for: item)
+        Button(sourceManager.installedSource(for: key) == nil ? AppLocalization.text("source.action.install", "Install") : AppLocalization.text("source.action.update", "Update")) {
+            Task { await installRemoteSource(item) }
+        }
+        .disabled(sourceManager.isOperating(on: key))
+
+        Divider()
+
+        Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
+            copyRemoteSourceTitle(item)
+        }
+
+        Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
+            copyRemoteSourceKey(item)
         }
     }
 
@@ -337,6 +397,89 @@ struct MacSourceWorkspaceView: View {
             await sourceManager.uninstallSource(source)
         }
         batchSelection.removeAll()
+    }
+
+    private func configureSelectionCommands() {
+        selectionCommandController.reset()
+
+        switch selection {
+        case .installed(let key):
+            guard let source = sourceManager.installedSource(for: key) else { return }
+            selectionCommandController.open = { useInstalledSource(source) }
+            selectionCommandController.delete = { Task { await deleteInstalledSource(source) } }
+            selectionCommandController.copyTitle = { copyInstalledSourceTitle(source) }
+            selectionCommandController.copyID = { copyInstalledSourceKey(source) }
+            selectionCommandController.export = { Task { await updateInstalledSource(source) } }
+            selectionCommandController.openTitle = AppLocalization.text("source.action.use", "Use Source")
+            selectionCommandController.exportTitle = AppLocalization.text("source.action.update", "Update")
+            selectionCommandController.canOpen = source.key != sourceManager.selectedSourceKey
+            selectionCommandController.canDelete = true
+            selectionCommandController.canCopyTitle = true
+            selectionCommandController.canCopyID = true
+            selectionCommandController.canExport = sourceManager.availableSourceUpdates[source.key] != nil
+        case .remote(let key):
+            guard let item = sourceManager.remoteSources.first(where: { sourceManager.resolvedKey(for: $0) == key }) else { return }
+            selectionCommandController.open = { Task { await installRemoteSource(item) } }
+            selectionCommandController.copyTitle = { copyRemoteSourceTitle(item) }
+            selectionCommandController.copyID = { copyRemoteSourceKey(item) }
+            selectionCommandController.openTitle = sourceManager.installedSource(for: key) == nil
+                ? AppLocalization.text("source.action.install", "Install")
+                : AppLocalization.text("source.action.update", "Update")
+            selectionCommandController.canOpen = !sourceManager.isOperating(on: key)
+            selectionCommandController.canCopyTitle = true
+            selectionCommandController.canCopyID = true
+        case .index, nil:
+            break
+        }
+    }
+
+    private func useInstalledSource(_ source: InstalledSource) {
+        selection = .installed(source.key)
+        sourceManager.selectSource(source)
+        configureSelectionCommands()
+    }
+
+    private func updateInstalledSource(_ source: InstalledSource) async {
+        selection = .installed(source.key)
+        await sourceManager.updateSource(source)
+        configureSelectionCommands()
+    }
+
+    private func deleteInstalledSource(_ source: InstalledSource) async {
+        selection = .installed(source.key)
+        await sourceManager.uninstallSource(source)
+        if selection == .installed(source.key) {
+            selection = filteredInstalledSources.first.map { .installed($0.key) } ?? .index
+        }
+        configureSelectionCommands()
+    }
+
+    private func copyInstalledSourceTitle(_ source: InstalledSource) {
+        selection = .installed(source.key)
+        PlatformPasteboard.copy(source.name)
+    }
+
+    private func copyInstalledSourceKey(_ source: InstalledSource) {
+        selection = .installed(source.key)
+        PlatformPasteboard.copy(source.key)
+    }
+
+    private func installRemoteSource(_ item: SourceConfigIndexItem) async {
+        let key = sourceManager.resolvedKey(for: item)
+        selection = .remote(key)
+        await sourceManager.installFromIndex(item)
+        configureSelectionCommands()
+    }
+
+    private func copyRemoteSourceTitle(_ item: SourceConfigIndexItem) {
+        selection = .remote(sourceManager.resolvedKey(for: item))
+        PlatformPasteboard.copy(item.name)
+    }
+
+    private func copyRemoteSourceKey(_ item: SourceConfigIndexItem) {
+        let key = sourceManager.resolvedKey(for: item)
+        selection = .remote(key)
+        PlatformPasteboard.copy(key)
     }
 }
 
@@ -460,7 +603,7 @@ private struct MacSourceIndexDetailView: View {
     var body: some View {
         Form {
             Section(AppLocalization.text("source.management.repository", "Source Index")) {
-                TextField("index.json URL", text: $sourceManager.indexURL)
+                TextField(AppLocalization.text("source.repository.index_url_placeholder", "index.json URL"), text: $sourceManager.indexURL)
                     .platformTextInputAutocapitalizationNever()
                     .autocorrectionDisabled()
 

@@ -44,9 +44,9 @@ struct ValueCachePolicy {
 }
 
 @MainActor
-final class TimedValueCache<Value> {
+final class TimedValueCache {
     private struct Entry {
-        let value: Value
+        let value: Any
         let expiresAt: Date
         var lastAccessAt: Date
     }
@@ -58,7 +58,7 @@ final class TimedValueCache<Value> {
         self.policy = policy
     }
 
-    func value(forKey key: String) -> Value? {
+    func value<Value>(forKey key: String) -> Value? {
         let now = Date()
         pruneExpiredEntries(now: now)
         guard var entry = entries[key] else { return nil }
@@ -68,14 +68,24 @@ final class TimedValueCache<Value> {
         }
         entry.lastAccessAt = now
         entries[key] = entry
-        return entry.value
+        guard let value = entry.value as? Value else {
+            entries[key] = nil
+            return nil
+        }
+        return value
     }
 
     func containsValue(forKey key: String) -> Bool {
-        value(forKey: key) != nil
+        let now = Date()
+        pruneExpiredEntries(now: now)
+        guard entries[key]?.expiresAt ?? .distantPast > now else {
+            entries[key] = nil
+            return false
+        }
+        return true
     }
 
-    func setValue(_ value: Value, forKey key: String) {
+    func setValue<Value>(_ value: Value, forKey key: String) {
         let now = Date()
         entries[key] = Entry(
             value: value,

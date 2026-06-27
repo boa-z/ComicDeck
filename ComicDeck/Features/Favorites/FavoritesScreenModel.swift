@@ -11,16 +11,16 @@ final class FavoritesScreenModel {
     var selectedFolderID: String?
     var currentPage = 1
     var sourceError = ""
-    private let foldersCache = TimedValueCache<FavoriteFolderListing>(
+    private let foldersCache = TimedValueCache(
         policy: ValueCachePolicy(ttl: 5 * 60, maxEntries: 24)
     )
-    private let favoritesCache = TimedValueCache<[ComicSummary]>(
+    private let favoritesCache = TimedValueCache(
         policy: ValueCachePolicy(ttl: 90, maxEntries: 48)
     )
-    private let nextTokenCache = TimedValueCache<String>(
+    private let nextTokenCache = TimedValueCache(
         policy: ValueCachePolicy(ttl: 10 * 60, maxEntries: 96)
     )
-    private let cursorModeCache = TimedValueCache<Bool>(
+    private let cursorModeCache = TimedValueCache(
         policy: ValueCachePolicy(ttl: 10 * 60, maxEntries: 48)
     )
     var showPagePicker = false
@@ -105,7 +105,7 @@ final class FavoritesScreenModel {
     private func removeFromVisibleFavorites(_ item: ComicSummary) {
         sourceFavorites.removeAll { $0.id == item.id && $0.sourceKey == item.sourceKey }
         let scopeKey = cacheScopeKey(sourceKey: selectedSourceKey, folderID: selectedFolderID, page: currentPage)
-        if var cached = favoritesCache.value(forKey: scopeKey) {
+        if var cached: [ComicSummary] = favoritesCache.value(forKey: scopeKey) {
             cached.removeAll { $0.id == item.id && $0.sourceKey == item.sourceKey }
             favoritesCache.setValue(cached, forKey: scopeKey)
         }
@@ -144,7 +144,8 @@ final class FavoritesScreenModel {
     func jumpToPage(_ targetPage: Int, vm: ReaderViewModel) async {
         guard targetPage > 0 else { return }
         let scopeKey = cursorScopeKey(sourceKey: selectedSourceKey, folderID: selectedFolderID)
-        if cursorModeCache.value(forKey: scopeKey) == true && targetPage > 1 {
+        let usesCursorPagination: Bool = cursorModeCache.value(forKey: scopeKey) ?? false
+        if usesCursorPagination && targetPage > 1 {
             let targetCacheKey = cacheScopeKey(sourceKey: selectedSourceKey, folderID: selectedFolderID, page: targetPage)
             if !favoritesCache.containsValue(forKey: targetCacheKey) {
                 sourceError = "This source uses cursor pagination. Please load pages sequentially."
@@ -172,10 +173,10 @@ final class FavoritesScreenModel {
         let generation = refreshGeneration
 
         if !forceNetwork {
-            if let cachedListing = foldersCache.value(forKey: sourceKey) {
+            if let cachedListing: FavoriteFolderListing = foldersCache.value(forKey: sourceKey) {
                 sourceFolders = cachedListing.folders
             }
-            if let cachedFavorites = favoritesCache.value(forKey: scopeKey) {
+            if let cachedFavorites: [ComicSummary] = favoritesCache.value(forKey: scopeKey) {
                 sourceFavorites = cachedFavorites
                 sourceError = ""
                 return
@@ -207,9 +208,10 @@ final class FavoritesScreenModel {
             let effectiveCursorScope = cursorScopeKey(sourceKey: sourceKey, folderID: effectiveFolderID)
             let previousPageToken: String? = {
                 guard page > 1 else { return nil }
-                return nextTokenCache.value(forKey: nextTokenCacheKey(sourceKey: sourceKey, folderID: effectiveFolderID, page: page - 1))
+                let cachedToken: String? = nextTokenCache.value(forKey: nextTokenCacheKey(sourceKey: sourceKey, folderID: effectiveFolderID, page: page - 1))
+                return cachedToken
             }()
-            let cursorMode = cursorModeCache.value(forKey: effectiveCursorScope) == true
+            let cursorMode: Bool = cursorModeCache.value(forKey: effectiveCursorScope) ?? false
             if cursorMode && page > 1 && previousPageToken == nil {
                 sourceFavorites = []
                 sourceError = "This source uses cursor pagination. Please load pages sequentially."
@@ -288,6 +290,24 @@ final class FavoritesScreenModel {
         requestRefresh(vm: vm, forceNetwork: true)
         if failures > 0 {
             sourceError = "Removed with \(failures) failures"
+        }
+    }
+
+    func remove(_ item: ComicSummary, using vm: ReaderViewModel) async {
+        guard !batchWorking else { return }
+        do {
+            try await vm.setSourceFavorite(
+                item,
+                favoriteId: nil,
+                folderID: mutationFolderID,
+                isAdding: false
+            )
+            removeFromVisibleFavorites(item)
+            favoritesCache.removeAll { $0.hasPrefix("\(selectedSourceKey)|") }
+            nextTokenCache.removeAll { $0.hasPrefix("\(selectedSourceKey)|") }
+            cursorModeCache.removeAll { $0.hasPrefix("\(selectedSourceKey)|") }
+        } catch {
+            sourceError = "Remove favorite failed: \(error.localizedDescription)"
         }
     }
 }

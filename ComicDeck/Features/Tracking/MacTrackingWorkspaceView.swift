@@ -49,55 +49,76 @@ struct MacTrackingWorkspaceView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: $selectedSidebarItem) {
-                Section(AppLocalization.text("tracking.workspace.providers", "Providers")) {
-                    ForEach(TrackerProvider.allCases.filter(\.supportsMangaListWorkspace)) { provider in
-                        MacTrackingProviderRow(provider: provider, account: tracker.account(for: provider))
-                            .tag(SidebarItem.provider(provider))
-                    }
-                }
+        HStack(spacing: 0) {
+            sidebar
+                .frame(width: 220)
 
-                Section {
-                    Label(AppLocalization.text("tracking.workspace.settings", "Tracking Settings"), systemImage: "gearshape")
-                        .tag(SidebarItem.settings)
+            Divider()
+
+            contentPane
+                .frame(width: 380)
+
+            Divider()
+
+            detailPane
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .navigationTitle(AppLocalization.text("tracking.navigation.title", "Tracking"))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var sidebar: some View {
+        List(selection: $selectedSidebarItem) {
+            Section(AppLocalization.text("tracking.workspace.providers", "Providers")) {
+                ForEach(TrackerProvider.allCases.filter(\.supportsMangaListWorkspace)) { provider in
+                    MacTrackingProviderRow(provider: provider, account: tracker.account(for: provider))
+                        .tag(SidebarItem.provider(provider))
                 }
             }
-            .navigationTitle(AppLocalization.text("tracking.navigation.title", "Tracking"))
-            .frame(minWidth: 210)
-        } content: {
-            if let selectedProvider {
-                MacTrackerSubscriptionListView(
-                    vm: vm,
-                    sourceManager: sourceManager,
-                    provider: selectedProvider,
-                    selection: binding(for: selectedProvider)
-                )
-                .id(selectedProvider)
-            } else {
-                TrackingSettingsView()
-            }
-        } detail: {
-            if let provider = selectedProvider, let row = selectedRows[provider] {
-                TrackerSubscriptionDetailView(
-                    vm: vm,
-                    sourceManager: sourceManager,
-                    provider: provider,
-                    row: row
-                )
-                .environment(library)
-            } else if selectedProvider != nil {
-                ContentUnavailableView(
-                    AppLocalization.text("tracking.workspace.select_entry", "Select an entry"),
-                    systemImage: "rectangle.stack.badge.person.crop",
-                    description: Text(AppLocalization.text("tracking.workspace.select_entry_hint", "Choose a tracker library item to review bindings and sync progress."))
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                TrackingSettingsView()
+
+            Section {
+                Label(AppLocalization.text("tracking.workspace.settings", "Tracking Settings"), systemImage: "gearshape")
+                    .tag(SidebarItem.settings)
             }
         }
-        .navigationSplitViewStyle(.balanced)
+        .listStyle(.sidebar)
+    }
+
+    @ViewBuilder
+    private var contentPane: some View {
+        if let selectedProvider {
+            MacTrackerSubscriptionListView(
+                vm: vm,
+                sourceManager: sourceManager,
+                provider: selectedProvider,
+                selection: binding(for: selectedProvider)
+            )
+            .id(selectedProvider)
+        } else {
+            TrackingSettingsView()
+        }
+    }
+
+    @ViewBuilder
+    private var detailPane: some View {
+        if let provider = selectedProvider, let row = selectedRows[provider] {
+            TrackerSubscriptionDetailView(
+                vm: vm,
+                sourceManager: sourceManager,
+                provider: provider,
+                row: row
+            )
+            .environment(library)
+        } else if selectedProvider != nil {
+            ContentUnavailableView(
+                AppLocalization.text("tracking.workspace.select_entry", "Select an entry"),
+                systemImage: "rectangle.stack.badge.person.crop",
+                description: Text(AppLocalization.text("tracking.workspace.select_entry_hint", "Choose a tracker library item to review bindings and sync progress."))
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            TrackingSettingsView()
+        }
     }
 
     private func binding(for provider: TrackerProvider) -> Binding<TrackerSubscriptionRow?> {
@@ -143,6 +164,9 @@ private struct MacTrackerSubscriptionListView: View {
     @Environment(LibraryViewModel.self) private var library
     @State private var model = TrackerSubscriptionsScreenModel()
     @State private var query = ""
+    @State private var selectionCommandController = MacSelectionCommandController()
+    @State private var searchCommandController = MacSearchCommandController()
+    @State private var isSearchPresented = false
 
     private var filteredRows: [TrackerSubscriptionRow] {
         let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -152,6 +176,10 @@ private struct MacTrackerSubscriptionListView: View {
             (row.entry.subtitle?.lowercased().contains(keyword) ?? false) ||
             row.localGroups.contains { $0.title.lowercased().contains(keyword) }
         }
+    }
+
+    private var filteredRowIDs: [TrackerSubscriptionRow.ID] {
+        filteredRows.map(\.id)
     }
 
     var body: some View {
@@ -186,12 +214,19 @@ private struct MacTrackerSubscriptionListView: View {
                     ForEach(filteredRows) { row in
                         MacTrackerSubscriptionRowView(row: row)
                             .tag(row.id)
+                            .contextMenu {
+                                subscriptionRowContextMenu(for: row)
+                            }
                     }
                 }
             }
         }
         .navigationTitle(AppLocalization.format("tracking.subscriptions.title_format", "%@ Library", provider.title))
-        .searchable(text: $query, prompt: AppLocalization.text("tracking.subscriptions.search", "Search tracker library"))
+        .searchable(
+            text: $query,
+            isPresented: $isSearchPresented,
+            prompt: AppLocalization.text("tracking.subscriptions.search", "Search tracker library")
+        )
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -207,18 +242,39 @@ private struct MacTrackerSubscriptionListView: View {
             }
         }
         .task {
+            configureSearchCommands()
             await loadIfConnected()
+            reconcileSelection()
+            configureSelectionCommands()
         }
         .onChange(of: tracker.bindings) { _, _ in
             model.refreshLocalBindings(provider: provider, using: tracker, library: library)
+            reconcileSelection()
+            configureSelectionCommands()
         }
         .onChange(of: model.rows) { _, rows in
             guard let current = selection else {
                 selection = rows.first
+                configureSelectionCommands()
                 return
             }
             selection = rows.first(where: { $0.id == current.id }) ?? rows.first
+            configureSelectionCommands()
         }
+        .onChange(of: selection) { _, _ in
+            configureSelectionCommands()
+        }
+        .onChange(of: filteredRowIDs) { _, _ in
+            reconcileSelection()
+            configureSelectionCommands()
+        }
+        .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
+        .focusedSceneValue(\.macSearchCommandController, searchCommandController)
+    }
+
+    private func configureSearchCommands() {
+        searchCommandController.focusSearch = { isSearchPresented = true }
+        searchCommandController.canFocusSearch = true
     }
 
     private var rowSelection: Binding<String?> {
@@ -229,9 +285,69 @@ private struct MacTrackerSubscriptionListView: View {
         }
     }
 
+    @ViewBuilder
+    private func subscriptionRowContextMenu(for row: TrackerSubscriptionRow) -> some View {
+        Button(AppLocalization.text("common.open", "Open"), systemImage: "arrow.up.right.square") {
+            openSubscription(row)
+        }
+
+        Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
+            copySubscriptionTitle(row)
+        }
+
+        Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
+            copySubscriptionID(row)
+        }
+
+        Button(AppLocalization.text("tracking.action.copy_provider", "Copy Provider"), systemImage: "rectangle.stack.badge.person.crop") {
+            copySubscriptionProvider(row)
+        }
+    }
+
     private func loadIfConnected() async {
         guard tracker.account(for: provider) != nil else { return }
         await model.load(provider: provider, using: tracker, library: library)
+    }
+
+    private func reconcileSelection() {
+        if let selection, filteredRows.contains(where: { $0.id == selection.id }) {
+            return
+        }
+        selection = filteredRows.first
+    }
+
+    private func configureSelectionCommands() {
+        selectionCommandController.reset()
+        guard let selection else { return }
+
+        selectionCommandController.open = { openSubscription(selection) }
+        selectionCommandController.copyTitle = { copySubscriptionTitle(selection) }
+        selectionCommandController.copyID = { copySubscriptionID(selection) }
+        selectionCommandController.export = { copySubscriptionProvider(selection) }
+        selectionCommandController.exportTitle = AppLocalization.text("tracking.action.copy_provider", "Copy Provider")
+        selectionCommandController.canOpen = true
+        selectionCommandController.canCopyTitle = true
+        selectionCommandController.canCopyID = true
+        selectionCommandController.canExport = true
+    }
+
+    private func openSubscription(_ row: TrackerSubscriptionRow) {
+        selection = row
+    }
+
+    private func copySubscriptionTitle(_ row: TrackerSubscriptionRow) {
+        selection = row
+        PlatformPasteboard.copy(row.entry.title)
+    }
+
+    private func copySubscriptionID(_ row: TrackerSubscriptionRow) {
+        selection = row
+        PlatformPasteboard.copy(row.entry.mediaID)
+    }
+
+    private func copySubscriptionProvider(_ row: TrackerSubscriptionRow) {
+        selection = row
+        PlatformPasteboard.copy(provider.title)
     }
 }
 

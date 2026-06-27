@@ -121,9 +121,7 @@ struct LoginWebView: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
-        coordinator.detach(from: nsView)
-        nsView.stopLoading()
-        nsView.navigationDelegate = nil
+        coordinator.tearDown(webView: nsView)
     }
 
     private nonisolated func webDebugLog(_ message: String) {
@@ -135,6 +133,7 @@ struct LoginWebView: NSViewRepresentable {
         weak var navigationState: MacLoginWebNavigationState?
         private let onCookieCaptured: () -> Void
         private let onPageChanged: (String, String) -> Void
+        private var isActive = true
 
         init(
             navigationState: MacLoginWebNavigationState?,
@@ -147,11 +146,21 @@ struct LoginWebView: NSViewRepresentable {
         }
 
         func attach(to webView: WKWebView) {
+            isActive = true
             navigationState?.attach(webView)
         }
 
         func detach(from webView: WKWebView) {
             navigationState?.detach(webView)
+        }
+
+        func tearDown(webView: WKWebView) {
+            isActive = false
+            webView.stopLoading()
+            webView.navigationDelegate = nil
+            webView.uiDelegate = nil
+            webView.loadHTMLString("", baseURL: nil)
+            detach(from: webView)
         }
 
         private nonisolated func webDebugLog(_ message: String) {
@@ -160,16 +169,19 @@ struct LoginWebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            guard isActive else { return }
             webDebugLog("didStartProvisionalNavigation: \(webView.url?.absoluteString ?? "nil")")
             navigationState?.update(from: webView, isLoading: true)
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard isActive else { return }
             let currentURL = webView.url?.absoluteString ?? ""
             let currentTitle = webView.title ?? ""
             webDebugLog("didFinish: url=\(currentURL), title=\(currentTitle)")
             navigationState?.update(from: webView, isLoading: false)
             Task { @MainActor in
+                guard self.isActive else { return }
                 self.onPageChanged(currentURL, currentTitle)
             }
 
@@ -179,22 +191,26 @@ struct LoginWebView: NSViewRepresentable {
                     HTTPCookieStorage.shared.setCookie(cookie)
                 }
                 Task { @MainActor in
+                    guard self.isActive else { return }
                     self.onCookieCaptured()
                 }
             }
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            guard isActive else { return }
             webDebugLog("didFail: \(error.localizedDescription)")
             navigationState?.update(from: webView, isLoading: false)
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            guard isActive else { return }
             webDebugLog("didFailProvisionalNavigation: \(error.localizedDescription)")
             navigationState?.update(from: webView, isLoading: false)
         }
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            guard isActive else { return }
             webDebugLog("webViewWebContentProcessDidTerminate")
             navigationState?.update(from: webView, isLoading: false)
         }

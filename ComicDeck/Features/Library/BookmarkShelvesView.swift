@@ -1,5 +1,8 @@
 import SwiftUI
 import Observation
+#if os(macOS)
+import UniformTypeIdentifiers
+#endif
 
 @MainActor
 @Observable
@@ -47,6 +50,8 @@ private struct BookmarkShelfReorderView: View {
     @Environment(\.dismiss) private var dismiss
     #if os(iOS)
     @State private var editMode: EditMode = .active
+    #else
+    @State private var draggingCategoryID: LibraryCategory.ID?
     #endif
 
     var body: some View {
@@ -84,6 +89,20 @@ private struct BookmarkShelfReorderView: View {
                         .disabled(index == model.reorderCategories.count - 1)
                         .help(AppLocalization.text("library.shelves.move_down", "Move Down"))
                     }
+                    .contentShape(Rectangle())
+                    .opacity(draggingCategoryID == category.id ? 0.55 : 1)
+                    .onDrag {
+                        draggingCategoryID = category.id
+                        return NSItemProvider(object: String(category.id) as NSString)
+                    }
+                    .onDrop(
+                        of: [UTType.text],
+                        delegate: BookmarkShelfDropDelegate(
+                            targetCategory: category,
+                            categories: $model.reorderCategories,
+                            draggingCategoryID: $draggingCategoryID
+                        )
+                    )
                 }
                 #endif
             }
@@ -117,7 +136,7 @@ private struct BookmarkShelfReorderView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(category.name)
                     .font(.headline)
-                Text("\(library.bookmarkCount(in: category)) bookmarks")
+                Text(AppLocalization.format("library.shelves.bookmark_count_format", "%lld bookmarks", Int64(library.bookmarkCount(in: category))))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -133,6 +152,42 @@ private struct BookmarkShelfReorderView: View {
     }
 }
 
+#if os(macOS)
+private struct BookmarkShelfDropDelegate: DropDelegate {
+    let targetCategory: LibraryCategory
+    @Binding var categories: [LibraryCategory]
+    @Binding var draggingCategoryID: LibraryCategory.ID?
+
+    func dropEntered(info: DropInfo) {
+        guard let draggingCategoryID,
+              draggingCategoryID != targetCategory.id,
+              let sourceIndex = categories.firstIndex(where: { $0.id == draggingCategoryID }),
+              let targetIndex = categories.firstIndex(where: { $0.id == targetCategory.id })
+        else { return }
+
+        withAnimation(.easeInOut(duration: 0.16)) {
+            let item = categories.remove(at: sourceIndex)
+            categories.insert(item, at: targetIndex)
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingCategoryID = nil
+        return true
+    }
+
+    func dropExited(info: DropInfo) {
+        if !info.hasItemsConforming(to: [UTType.text]) {
+            draggingCategoryID = nil
+        }
+    }
+}
+#endif
+
 @MainActor
 struct BookmarkShelvesView: View {
     @Bindable var vm: ReaderViewModel
@@ -141,6 +196,15 @@ struct BookmarkShelvesView: View {
     let onTagSearchRequested: (String, String) -> Void
 
     @State private var model = BookmarkShelvesScreenModel()
+    @State private var selectedCategoryID: LibraryCategory.ID?
+#if os(macOS)
+    @State private var selectionCommandController = MacSelectionCommandController()
+#endif
+
+    private var selectedCategory: LibraryCategory? {
+        guard let selectedCategoryID else { return nil }
+        return library.favoriteCategories.first { $0.id == selectedCategoryID }
+    }
 
     var body: some View {
         List {
@@ -227,6 +291,20 @@ struct BookmarkShelvesView: View {
                 onTagSearchRequested: onTagSearchRequested
             )
         }
+        .onAppear {
+            reconcileSelectedCategory()
+            configureSelectionCommands()
+        }
+        .onChange(of: library.favoriteCategories) { _, _ in
+            reconcileSelectedCategory()
+            configureSelectionCommands()
+        }
+        .onChange(of: selectedCategoryID) { _, _ in
+            configureSelectionCommands()
+        }
+#if os(macOS)
+        .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
+#endif
     }
 
     private var summarySection: some View {
@@ -249,6 +327,7 @@ struct BookmarkShelvesView: View {
                     categoryRow(category)
                         .contentShape(Rectangle())
                         .onTapGesture {
+                            selectedCategoryID = category.id
                             model.selectedCategory = category
                         }
                         .listRowInsets(EdgeInsets(top: AppSpacing.sm, leading: AppSpacing.screen, bottom: AppSpacing.sm, trailing: AppSpacing.screen))
@@ -257,19 +336,22 @@ struct BookmarkShelvesView: View {
                         .clipShape(RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
                         .padding(.vertical, 2)
                         .padding(.horizontal, 0)
+                        .contextMenu {
+                            categoryContextMenu(for: category)
+                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button("Rename") {
-                                model.beginRename(category)
+                            Button(AppLocalization.text("library.shelves.rename", "Rename Shelf")) {
+                                beginRename(category)
                             }
                             .tint(AppTint.accent)
 
-                            Button("Delete", role: .destructive) {
-                                model.categoryToDelete = category
+                            Button(AppLocalization.text("library.shelves.delete", "Delete Shelf"), role: .destructive) {
+                                beginDelete(category)
                             }
                         }
                         .swipeActions(edge: .leading, allowsFullSwipe: false) {
-                            Button("Add Bookmarks") {
-                                model.beginAddFavorites(to: category)
+                            Button(AppLocalization.text("library.shelves.add_bookmarks", "Add Bookmarks")) {
+                                beginAddFavorites(to: category)
                             }
                             .tint(AppTint.success)
                         }
@@ -290,7 +372,7 @@ struct BookmarkShelvesView: View {
                 Text(category.name)
                     .font(.headline)
                     .foregroundStyle(.primary)
-                Text("\(library.bookmarkCount(in: category)) bookmarks")
+                Text(AppLocalization.format("library.shelves.bookmark_count_format", "%lld bookmarks", Int64(library.bookmarkCount(in: category))))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -298,14 +380,14 @@ struct BookmarkShelvesView: View {
             Spacer(minLength: 0)
 
             Menu {
-                Button("Add Bookmarks", systemImage: "plus") {
-                    model.beginAddFavorites(to: category)
+                Button(AppLocalization.text("library.shelves.add_bookmarks", "Add Bookmarks"), systemImage: "plus") {
+                    beginAddFavorites(to: category)
                 }
-                Button("Rename", systemImage: "pencil") {
-                    model.beginRename(category)
+                Button(AppLocalization.text("library.shelves.rename", "Rename Shelf"), systemImage: "pencil") {
+                    beginRename(category)
                 }
-                Button("Delete", systemImage: "trash", role: .destructive) {
-                    model.categoryToDelete = category
+                Button(AppLocalization.text("library.shelves.delete", "Delete Shelf"), systemImage: "trash", role: .destructive) {
+                    beginDelete(category)
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -319,6 +401,30 @@ struct BookmarkShelvesView: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(.vertical, AppSpacing.sm)
+    }
+
+    @ViewBuilder
+    private func categoryContextMenu(for category: LibraryCategory) -> some View {
+        Button(AppLocalization.text("common.open", "Open"), systemImage: "arrow.up.right.square") {
+            openCategory(category)
+        }
+        Button(AppLocalization.text("library.shelves.add_bookmarks", "Add Bookmarks"), systemImage: "plus") {
+            beginAddFavorites(to: category)
+        }
+        Button(AppLocalization.text("library.shelves.rename", "Rename Shelf"), systemImage: "pencil") {
+            beginRename(category)
+        }
+        Divider()
+        Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
+            copyCategoryTitle(category)
+        }
+        Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
+            copyCategoryID(category)
+        }
+        Divider()
+        Button(AppLocalization.text("library.shelves.delete", "Delete Shelf"), systemImage: "trash", role: .destructive) {
+            beginDelete(category)
+        }
     }
 
     private func statCard(title: String, value: String, subtitle: String) -> some View {
@@ -344,7 +450,7 @@ struct BookmarkShelvesView: View {
 
         List {
             if availableFavorites.isEmpty {
-                Text("All bookmarks are already in this shelf.")
+                Text(AppLocalization.text("library.shelves.all_assigned_hint", "All bookmarks are already in this shelf."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
@@ -381,15 +487,15 @@ struct BookmarkShelvesView: View {
                 }
             }
         }
-        .navigationTitle("Add to \(category.name)")
+        .navigationTitle(AppLocalization.format("library.shelves.add_to_title_format", "Add to %@", category.name))
         .toolbar {
             ToolbarItem(placement: .platformTopBarLeading) {
-                Button("Cancel") {
+                Button(AppLocalization.text("common.cancel", "Cancel")) {
                     model.categoryToAddFavorites = nil
                 }
             }
             ToolbarItem(placement: .platformTopBarTrailing) {
-                Button("Add") {
+                Button(AppLocalization.text("common.add", "Add")) {
                     let favorites = availableFavorites.filter { model.selectedFavoriteKeys.contains(model.favoriteKey(for: $0)) }
                     Task { await library.addBookmarks(favorites, to: category) }
                     model.categoryToAddFavorites = nil
@@ -426,6 +532,66 @@ struct BookmarkShelvesView: View {
             set: { model.selectedCategory = $0 }
         )
     }
+
+    private func openCategory(_ category: LibraryCategory) {
+        selectedCategoryID = category.id
+        model.selectedCategory = category
+    }
+
+    private func beginRename(_ category: LibraryCategory) {
+        selectedCategoryID = category.id
+        model.beginRename(category)
+        configureSelectionCommands()
+    }
+
+    private func beginDelete(_ category: LibraryCategory) {
+        selectedCategoryID = category.id
+        model.categoryToDelete = category
+        configureSelectionCommands()
+    }
+
+    private func beginAddFavorites(to category: LibraryCategory) {
+        selectedCategoryID = category.id
+        model.beginAddFavorites(to: category)
+        configureSelectionCommands()
+    }
+
+    private func copyCategoryTitle(_ category: LibraryCategory) {
+        selectedCategoryID = category.id
+        PlatformPasteboard.copy(category.name)
+    }
+
+    private func copyCategoryID(_ category: LibraryCategory) {
+        selectedCategoryID = category.id
+        PlatformPasteboard.copy(String(category.id))
+    }
+
+    private func reconcileSelectedCategory() {
+        if let selectedCategoryID, library.favoriteCategories.contains(where: { $0.id == selectedCategoryID }) {
+            return
+        }
+        selectedCategoryID = library.favoriteCategories.first?.id
+    }
+
+    private func configureSelectionCommands() {
+#if os(macOS)
+        selectionCommandController.reset()
+        guard let category = selectedCategory else { return }
+
+        selectionCommandController.open = { openCategory(category) }
+        selectionCommandController.delete = { beginDelete(category) }
+        selectionCommandController.copyTitle = { copyCategoryTitle(category) }
+        selectionCommandController.copyID = { copyCategoryID(category) }
+        selectionCommandController.export = { beginAddFavorites(to: category) }
+        selectionCommandController.openTitle = AppLocalization.text("common.open", "Open")
+        selectionCommandController.exportTitle = AppLocalization.text("library.shelves.add_bookmarks", "Add Bookmarks")
+        selectionCommandController.canOpen = true
+        selectionCommandController.canDelete = true
+        selectionCommandController.canCopyTitle = true
+        selectionCommandController.canCopyID = true
+        selectionCommandController.canExport = true
+#endif
+    }
 }
 
 @MainActor
@@ -438,6 +604,10 @@ private struct BookmarkShelfDetailView: View {
 
     @AppStorage("ui.comicBrowseMode") private var browseModeRaw = ComicBrowseDisplayMode.list.rawValue
     @State private var selectedDetailItem: ComicSummary?
+    @State private var selectedFavoriteKey: String?
+#if os(macOS)
+    @State private var selectionCommandController = MacSelectionCommandController()
+#endif
 
     private var browseMode: ComicBrowseDisplayMode {
         get { ComicBrowseDisplayMode(rawValue: browseModeRaw) ?? .list }
@@ -446,6 +616,15 @@ private struct BookmarkShelfDetailView: View {
 
     private var favorites: [FavoriteComic] {
         library.bookmarks(in: category)
+    }
+
+    private var favoriteKeys: [String] {
+        favorites.map(favoriteKey(for:))
+    }
+
+    private var selectedFavorite: FavoriteComic? {
+        guard let selectedFavoriteKey else { return nil }
+        return favorites.first { favoriteKey(for: $0) == selectedFavoriteKey }
     }
 
     var body: some View {
@@ -461,6 +640,7 @@ private struct BookmarkShelfDetailView: View {
                     ) {
                         ForEach(favorites) { favorite in
                             Button {
+                                selectedFavoriteKey = favoriteKey(for: favorite)
                                 openDetail(for: favorite)
                             } label: {
                                 ComicPreviewGridCard(
@@ -474,6 +654,9 @@ private struct BookmarkShelfDetailView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                shelfBookmarkContextMenu(for: favorite)
+                            }
                         }
                     }
                     .padding(.horizontal, AppSpacing.screen)
@@ -486,6 +669,7 @@ private struct BookmarkShelfDetailView: View {
                     VStack(spacing: AppSpacing.md) {
                         ForEach(favorites) { favorite in
                             Button {
+                                selectedFavoriteKey = favoriteKey(for: favorite)
                                 openDetail(for: favorite)
                             } label: {
                                 ComicPreviewCard(
@@ -499,8 +683,11 @@ private struct BookmarkShelfDetailView: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                shelfBookmarkContextMenu(for: favorite)
+                            }
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button("Remove", role: .destructive) {
+                                Button(AppLocalization.text("common.remove", "Remove"), role: .destructive) {
                                     Task { await library.removeBookmark(favorite, from: category) }
                                 }
                             }
@@ -527,14 +714,101 @@ private struct BookmarkShelfDetailView: View {
         .navigationDestination(item: $selectedDetailItem) { item in
             ComicDetailRoutingView(vm: vm, item: item, onTagSelected: onTagSearchRequested, onNavigateBack: { selectedDetailItem = nil })
         }
+        .onAppear {
+            reconcileSelectedFavorite()
+            configureSelectionCommands()
+        }
+        .onChange(of: favoriteKeys) { _, _ in
+            reconcileSelectedFavorite()
+            configureSelectionCommands()
+        }
+        .onChange(of: selectedFavoriteKey) { _, _ in
+            configureSelectionCommands()
+        }
+#if os(macOS)
+        .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
+#endif
     }
 
     private func openDetail(for favorite: FavoriteComic) {
+        selectedFavoriteKey = favoriteKey(for: favorite)
         selectedDetailItem = ComicSummary(
             id: favorite.id,
             sourceKey: favorite.sourceKey,
             title: favorite.title,
             coverURL: favorite.coverURL
         )
+    }
+
+    @ViewBuilder
+    private func shelfBookmarkContextMenu(for favorite: FavoriteComic) -> some View {
+        Button(AppLocalization.text("common.open", "Open"), systemImage: "arrow.up.right.square") {
+            openDetail(for: favorite)
+        }
+        Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
+            copyFavoriteTitle(favorite)
+        }
+        Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
+            copyFavoriteID(favorite)
+        }
+        Button(AppLocalization.text("search.action.copy_source", "Copy Source"), systemImage: "shippingbox") {
+            copyFavoriteSource(favorite)
+        }
+        Divider()
+        Button(AppLocalization.text("library.shelves.remove_from_shelf", "Remove from Shelf"), systemImage: "trash", role: .destructive) {
+            Task { await removeFavoriteFromShelf(favorite) }
+        }
+    }
+
+    private func favoriteKey(for favorite: FavoriteComic) -> String {
+        "\(favorite.sourceKey)::\(favorite.id)"
+    }
+
+    private func removeFavoriteFromShelf(_ favorite: FavoriteComic) async {
+        selectedFavoriteKey = favoriteKey(for: favorite)
+        await library.removeBookmark(favorite, from: category)
+        reconcileSelectedFavorite()
+        configureSelectionCommands()
+    }
+
+    private func copyFavoriteTitle(_ favorite: FavoriteComic) {
+        selectedFavoriteKey = favoriteKey(for: favorite)
+        PlatformPasteboard.copy(favorite.title)
+    }
+
+    private func copyFavoriteID(_ favorite: FavoriteComic) {
+        selectedFavoriteKey = favoriteKey(for: favorite)
+        PlatformPasteboard.copy(favorite.id)
+    }
+
+    private func copyFavoriteSource(_ favorite: FavoriteComic) {
+        selectedFavoriteKey = favoriteKey(for: favorite)
+        PlatformPasteboard.copy(favorite.sourceKey)
+    }
+
+    private func reconcileSelectedFavorite() {
+        if let selectedFavoriteKey, favoriteKeys.contains(selectedFavoriteKey) {
+            return
+        }
+        selectedFavoriteKey = favoriteKeys.first
+    }
+
+    private func configureSelectionCommands() {
+#if os(macOS)
+        selectionCommandController.reset()
+        guard let favorite = selectedFavorite else { return }
+
+        selectionCommandController.open = { openDetail(for: favorite) }
+        selectionCommandController.delete = { Task { await removeFavoriteFromShelf(favorite) } }
+        selectionCommandController.copyTitle = { copyFavoriteTitle(favorite) }
+        selectionCommandController.copyID = { copyFavoriteID(favorite) }
+        selectionCommandController.export = { copyFavoriteSource(favorite) }
+        selectionCommandController.exportTitle = AppLocalization.text("search.action.copy_source", "Copy Source")
+        selectionCommandController.canOpen = true
+        selectionCommandController.canDelete = true
+        selectionCommandController.canCopyTitle = true
+        selectionCommandController.canCopyID = true
+        selectionCommandController.canExport = true
+#endif
     }
 }

@@ -55,8 +55,9 @@ final class RuntimeDebugConsole {
         lines = bufferedLines
         let timestamp = formatter.string(from: Date())
         let line = "[\(timestamp)] \(message)"
-        writeQueue.async { [weak self] in
-            self?.appendToFileSync(line)
+        let fileURL = activeLogFileURL
+        writeQueue.async {
+            Self.appendToFileSync(line, fileURL: fileURL)
         }
     }
 
@@ -64,8 +65,9 @@ final class RuntimeDebugConsole {
         bufferedLines.removeAll(keepingCapacity: true)
         lines.removeAll(keepingCapacity: true)
         lastWriteError = nil
-        writeQueue.async { [weak self] in
-            self?.truncateLogFileSync()
+        let fileURL = activeLogFileURL
+        writeQueue.async {
+            Self.truncateLogFileSync(fileURL)
         }
     }
 
@@ -98,28 +100,28 @@ final class RuntimeDebugConsole {
         return exportURL
     }
 
-    private func appendToFileSync(_ line: String) {
+    private nonisolated static func appendToFileSync(_ line: String, fileURL: URL) {
         do {
-            try ensureLogsDirectory()
+            try ensureLogsDirectory(for: fileURL)
             let data = Data((line + "\n").utf8)
-            if FileManager.default.fileExists(atPath: activeLogFileURL.path) {
-                let handle = try FileHandle(forWritingTo: activeLogFileURL)
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                let handle = try FileHandle(forWritingTo: fileURL)
                 defer { try? handle.close() }
                 try handle.seekToEnd()
                 try handle.write(contentsOf: data)
             } else {
-                try data.write(to: activeLogFileURL, options: .atomic)
+                try data.write(to: fileURL, options: .atomic)
             }
         } catch {
             // Silently ignore write errors in release builds
         }
     }
 
-    private func truncateLogFileSync() {
+    private nonisolated static func truncateLogFileSync(_ fileURL: URL) {
         do {
-            try ensureLogsDirectory()
-            if FileManager.default.fileExists(atPath: activeLogFileURL.path) {
-                try Data().write(to: activeLogFileURL, options: .atomic)
+            try ensureLogsDirectory(for: fileURL)
+            if FileManager.default.fileExists(atPath: fileURL.path) {
+                try Data().write(to: fileURL, options: .atomic)
             }
         } catch {
             // Silently ignore
@@ -128,6 +130,10 @@ final class RuntimeDebugConsole {
 
     private nonisolated func ensureLogsDirectory() throws {
         try FileManager.default.createDirectory(at: logsDirectoryURL, withIntermediateDirectories: true)
+    }
+
+    private nonisolated static func ensureLogsDirectory(for fileURL: URL) throws {
+        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     }
 
     private nonisolated static func exportTimestamp() -> String {

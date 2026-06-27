@@ -40,11 +40,12 @@ struct MacMainView: View {
         }
     }
 
-    @State private var vm = ReaderViewModel()
+    @Bindable var vm: ReaderViewModel
     @State private var selectedDestination: SidebarDestination? = .home
     @State private var sourceSearchRoute: SourceSearchRoute?
-    @State private var showGlobalSearch = false
+    @State private var commandController = MacAppCommandController()
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openWindow) private var openWindow
 
     private struct SourceSearchRoute: Identifiable {
         let id = UUID()
@@ -73,6 +74,9 @@ struct MacMainView: View {
         .task {
             await vm.prepareIfNeeded()
         }
+        .onAppear {
+            configureCommandController()
+        }
         .environment(vm.library)
         .environment(vm.tracker)
         .onChange(of: scenePhase) { _, phase in
@@ -87,14 +91,40 @@ struct MacMainView: View {
             )
             .environment(vm.library)
             .environment(vm.tracker)
-        }
-        .sheet(isPresented: $showGlobalSearch) {
-            MacSearchWorkspaceView(vm: vm)
-                .environment(vm.library)
-                .environment(vm.tracker)
+            .frame(minWidth: 880, minHeight: 600)
         }
         .overlay {
             LoginSheetPresenter(login: vm.login, appDebugLog: appDebugLog)
+        }
+        .focusedSceneValue(\.macAppCommandController, commandController)
+    }
+
+    private func configureCommandController() {
+        commandController.openSearch = { openSearchWindow() }
+        commandController.openDownloads = { selectedDestination = .downloads }
+        commandController.openSources = { selectedDestination = .sources }
+        commandController.openSettings = { MacAppCommandsActions.showSettingsWindow() }
+        commandController.refreshCurrentView = {
+            Task { await refreshSelectedDestination() }
+        }
+        commandController.canOpenDownloads = true
+        commandController.canOpenSources = true
+        commandController.canOpenSettings = true
+        commandController.canRefreshCurrentView = true
+    }
+
+    private func refreshSelectedDestination() async {
+        switch selectedDestination ?? .home {
+        case .home, .discover, .library:
+            await vm.prepareIfNeeded()
+        case .downloads:
+            await vm.library.refreshDownloadList()
+        case .sources:
+            await vm.sourceManager.refreshRemoteSources(forceRefresh: true)
+        case .tracking:
+            try? await vm.tracker.reload()
+        case .settings:
+            await vm.prepareIfNeeded()
         }
     }
 
@@ -106,7 +136,7 @@ struct MacMainView: View {
                 HomeView(
                     vm: vm,
                     sourceManager: vm.sourceManager,
-                    onOpenSearch: { showGlobalSearch = true },
+                    onOpenSearch: openSearchWindow,
                     onOpenSettings: { selectedDestination = .settings },
                     onOpenDiscover: { selectedDestination = .discover },
                     onOpenLibrary: { selectedDestination = .library },
@@ -119,29 +149,32 @@ struct MacMainView: View {
             }
         case .discover:
             NavigationStack {
-                DiscoverView(vm: vm, onOpenSearch: { showGlobalSearch = true })
+                DiscoverView(vm: vm, onOpenSearch: openSearchWindow)
                     .environment(vm.library)
                     .environment(vm.tracker)
             }
         case .library:
-            NavigationStack {
-                LibraryHomeView(vm: vm, sourceManager: vm.sourceManager) { tag, sourceKey in
-                    sourceSearchRoute = SourceSearchRoute(sourceKey: sourceKey, keyword: tag)
-                }
-                .environment(vm.library)
-                .environment(vm.tracker)
+            MacLibraryWorkspaceView(vm: vm, sourceManager: vm.sourceManager) { tag, sourceKey in
+                sourceSearchRoute = SourceSearchRoute(sourceKey: sourceKey, keyword: tag)
             }
+            .environment(vm.library)
+            .environment(vm.tracker)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         case .downloads:
             NavigationStack {
-                DownloadManagerView(vm: vm)
+                MacDownloadWorkspaceView(vm: vm)
                     .environment(vm.library)
             }
         case .sources:
-            MacSourceWorkspaceView(vm: vm, sourceManager: vm.sourceManager)
+            NavigationStack {
+                MacSourceWorkspaceView(vm: vm, sourceManager: vm.sourceManager)
+            }
         case .tracking:
-            MacTrackingWorkspaceView(vm: vm, sourceManager: vm.sourceManager)
-                .environment(vm.library)
-                .environment(vm.tracker)
+            NavigationStack {
+                MacTrackingWorkspaceView(vm: vm, sourceManager: vm.sourceManager)
+                    .environment(vm.library)
+                    .environment(vm.tracker)
+            }
         case .settings:
             NavigationStack {
                 SettingsView()
@@ -150,6 +183,10 @@ struct MacMainView: View {
                     .environment(vm.tracker)
             }
         }
+    }
+
+    private func openSearchWindow() {
+        openWindow(id: "search")
     }
 }
 #endif

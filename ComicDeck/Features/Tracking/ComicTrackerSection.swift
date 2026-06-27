@@ -153,27 +153,27 @@ struct TrackerSearchSheet: View {
         NavigationStack {
             List {
                 Section {
-                    TextField("Search \(provider.title) manga", text: $query)
+                    TextField(AppLocalization.format("tracking.search.placeholder", "Search %@ manga", provider.title), text: $query)
                         .platformTextInputAutocapitalizationNever()
                         .autocorrectionDisabled()
                 }
 
                 if loading {
                     Section {
-                        ProgressView("Searching...")
+                        ProgressView(AppLocalization.text("search.status.searching", "Searching..."))
                     }
                 } else if !errorText.isEmpty {
-                    Section("Error") {
+                    Section(AppLocalization.text("common.error", "Error")) {
                         Text(errorText)
                             .foregroundStyle(.red)
                     }
                 } else if results.isEmpty {
                     Section {
-                        Text("No \(provider.title) results yet.")
+                        Text(AppLocalization.format("tracking.search.no_results_yet", "No %@ results yet.", provider.title))
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Section("Results") {
+                    Section(AppLocalization.text("search.results.title", "Results")) {
                         ForEach(results) { result in
                             Button {
                                 Task { await bind(result) }
@@ -191,7 +191,7 @@ struct TrackerSearchSheet: View {
                                         }
                                         HStack(spacing: 6) {
                                             if let chapterCount = result.chapterCount {
-                                                Text("\(chapterCount) ch")
+                                                Text(AppLocalization.format("common.chapter_count_short", "%lld ch", Int64(chapterCount)))
                                             }
                                             if let statusText = result.statusText {
                                                 Text(statusText)
@@ -207,13 +207,13 @@ struct TrackerSearchSheet: View {
                     }
                 }
             }
-            .navigationTitle("Link \(provider.title)")
+            .navigationTitle(AppLocalization.format("tracking.search.navigation_title", "Link %@", provider.title))
             .toolbar {
                 ToolbarItem(placement: .platformTopBarLeading) {
-                    Button("Close") { dismiss() }
+                    Button(AppLocalization.text("common.close", "Close")) { dismiss() }
                 }
                 ToolbarItem(placement: .platformTopBarTrailing) {
-                    Button("Search") {
+                    Button(AppLocalization.text("search.title", "Search")) {
                         Task { await search() }
                     }
                     .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || loading)

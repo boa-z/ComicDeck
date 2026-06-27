@@ -8,13 +8,20 @@ import AppKit
 #endif
 import CommonCrypto
 
-final class NSLockProtected<Value>: @unchecked Sendable {
+final class NSLockProtected: @unchecked Sendable {
     private let lock = NSLock()
-    nonisolated(unsafe) private var _value: Value
-    nonisolated init(_ value: Value) { self._value = value }
-    nonisolated var value: Value {
-        get { lock.withLock { _value } }
-        set { lock.withLock { _value = newValue } }
+    nonisolated(unsafe) private var value: Any?
+
+    nonisolated init(_ value: Any?) {
+        self.value = value
+    }
+
+    nonisolated func typedValue<Value>() -> Value? {
+        lock.withLock { value as? Value }
+    }
+
+    nonisolated func setValue(_ value: Any?) {
+        lock.withLock { self.value = value }
     }
 }
 
@@ -3970,24 +3977,27 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
         waitSeconds: TimeInterval
     ) -> (data: Data?, response: URLResponse?, error: Error?) {
         let semaphore = DispatchSemaphore(value: 0)
-        let responseDataBox = NSLockProtected<Data?>(nil)
-        let responseObjBox = NSLockProtected<URLResponse?>(nil)
-        let responseErrBox = NSLockProtected<Error?>(nil)
+        let responseDataBox = NSLockProtected(nil)
+        let responseObjBox = NSLockProtected(nil)
+        let responseErrBox = NSLockProtected(nil)
 
         let task = sharedSession.dataTask(with: request) { data, response, error in
-            responseDataBox.value = data
-            responseObjBox.value = response
-            responseErrBox.value = error
+            responseDataBox.setValue(data)
+            responseObjBox.setValue(response)
+            responseErrBox.setValue(error)
             semaphore.signal()
         }
         task.resume()
         let waitResult = semaphore.wait(timeout: .now() + waitSeconds)
         if waitResult == .timedOut {
             task.cancel()
-            responseErrBox.value = URLError(.timedOut)
+            responseErrBox.setValue(URLError(.timedOut))
             jsDebugLog("HTTP request semaphore timeout: method=\(method), url=\(url), wait=\(waitSeconds)s", level: .warn)
         }
-        return (responseDataBox.value, responseObjBox.value, responseErrBox.value)
+        let responseData: Data? = responseDataBox.typedValue()
+        let responseObj: URLResponse? = responseObjBox.typedValue()
+        let responseErr: Error? = responseErrBox.typedValue()
+        return (responseData, responseObj, responseErr)
     }
 
     private static func makeRedirectedRequest(
@@ -4026,31 +4036,34 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
     private func performRequestViaDownload(request: URLRequest) -> (data: Data?, response: URLResponse?, error: Error?) {
         let waitSeconds = max(20.0, request.timeoutInterval + 8.0)
         let semaphore = DispatchSemaphore(value: 0)
-        let outDataBox = NSLockProtected<Data?>(nil)
-        let outResponseBox = NSLockProtected<URLResponse?>(nil)
-        let outErrorBox = NSLockProtected<Error?>(nil)
+        let outDataBox = NSLockProtected(nil)
+        let outResponseBox = NSLockProtected(nil)
+        let outErrorBox = NSLockProtected(nil)
         var task: URLSessionDownloadTask?
 
         task = sharedSession.downloadTask(with: request) { localURL, response, error in
             defer { semaphore.signal() }
-            outResponseBox.value = response
+            outResponseBox.setValue(response)
             if let error {
-                outErrorBox.value = error
+                outErrorBox.setValue(error)
                 return
             }
             guard let localURL else {
                 return
             }
-            outDataBox.value = try? Data(contentsOf: localURL)
+            outDataBox.setValue(try? Data(contentsOf: localURL))
         }
         task?.resume()
         let waitResult = semaphore.wait(timeout: .now() + waitSeconds)
         if waitResult == .timedOut {
             task?.cancel()
-            outErrorBox.value = URLError(.timedOut)
+            outErrorBox.setValue(URLError(.timedOut))
             jsDebugLog("HTTP downloadTask semaphore timeout: wait=\(waitSeconds)s", level: .warn)
         }
-        return (outDataBox.value, outResponseBox.value, outErrorBox.value)
+        let outData: Data? = outDataBox.typedValue()
+        let outResponse: URLResponse? = outResponseBox.typedValue()
+        let outError: Error? = outErrorBox.typedValue()
+        return (outData, outResponse, outError)
     }
 }
 
@@ -4321,27 +4334,29 @@ private enum BridgeUIRuntime {
 
 nonisolated private func runBlockingOnMain<T>(defaultValue: T, _ work: @escaping @MainActor () -> T) -> T {
     if Thread.isMainThread {
-        let resultBox = NSLockProtected<T?>(nil)
+        let resultBox = NSLockProtected(nil)
         let semaphore = DispatchSemaphore(value: 0)
         _ = DispatchQueue.main.sync {
             Task { @MainActor in
-                resultBox.value = work()
+                resultBox.setValue(work())
                 semaphore.signal()
             }
         }
         _ = semaphore.wait(timeout: .now() + 180)
-        return resultBox.value!
+        let result: T? = resultBox.typedValue()
+        return result ?? defaultValue
     }
-    let resultBox = NSLockProtected<T?>(nil)
+    let resultBox = NSLockProtected(nil)
     let semaphore = DispatchSemaphore(value: 0)
     _ = DispatchQueue.main.sync {
         Task { @MainActor in
-            resultBox.value = work()
+            resultBox.setValue(work())
             semaphore.signal()
         }
     }
     _ = semaphore.wait(timeout: .now() + 180)
-    return resultBox.value!
+    let result: T? = resultBox.typedValue()
+    return result ?? defaultValue
 }
 
 private nonisolated func bytesFromAny(_ any: Any?) -> [UInt8] {

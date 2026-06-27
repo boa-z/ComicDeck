@@ -10,7 +10,7 @@ private struct BookmarkBatchSelectionBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(AppLocalization.text("library.bookmarks.selected", "\(selectedCount) selected"))
+            Text(AppLocalization.format("library.bookmarks.selected", "%lld selected", Int64(selectedCount)))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .padding(.horizontal, 10)
@@ -120,6 +120,12 @@ struct LibraryBookmarksView: View {
     @State private var showShelfManager = false
     @State private var searchText = ""
     @State private var model = LibraryBookmarksScreenModel()
+    @State private var selectedBookmarkKey: String?
+#if os(macOS)
+    @State private var selectionCommandController = MacSelectionCommandController()
+    @State private var searchCommandController = MacSearchCommandController()
+    @State private var isSearchPresented = false
+#endif
 
     private var browseMode: ComicBrowseDisplayMode {
         get { ComicBrowseDisplayMode(rawValue: browseModeRaw) ?? .list }
@@ -136,6 +142,15 @@ struct LibraryBookmarksView: View {
         }
     }
 
+    private var filteredBookmarkKeys: [String] {
+        filteredBookmarks.map(model.favoriteKey(for:))
+    }
+
+    private var selectedBookmark: FavoriteComic? {
+        guard let selectedBookmarkKey else { return nil }
+        return filteredBookmarks.first { model.favoriteKey(for: $0) == selectedBookmarkKey }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
@@ -147,16 +162,16 @@ struct LibraryBookmarksView: View {
             .padding(.bottom, AppSpacing.xl)
         }
         .background(AppSurface.grouped.ignoresSafeArea())
-        .navigationTitle("Bookmarks")
-        .searchable(text: $searchText, prompt: "Search bookmarks")
+        .navigationTitle(AppLocalization.text("library.bookmarks.title", "Bookmarks"))
+        .bookmarkSearchable(text: $searchText, isPresented: searchPresentationBinding)
         .toolbar {
             ToolbarItem(placement: .platformTopBarTrailing) {
-                Button("Shelves") {
+                Button(AppLocalization.text("library.shelves.shelves", "Shelves")) {
                     showShelfManager = true
                 }
             }
             ToolbarItem(placement: .platformTopBarTrailing) {
-                Button(model.isSelecting ? "Done" : "Select") {
+                Button(model.isSelecting ? AppLocalization.text("common.done", "Done") : AppLocalization.text("common.select", "Select")) {
                     model.toggleSelecting()
                 }
             }
@@ -191,7 +206,7 @@ struct LibraryBookmarksView: View {
             BookmarkShelvesView(vm: vm, onTagSearchRequested: onTagSearchRequested)
         }
         .confirmationDialog(
-            "Add selected bookmarks to shelf",
+            AppLocalization.text("library.bookmarks.add_dialog.title", "Add selected bookmarks to shelf"),
             isPresented: Binding(
                 get: { model.showAddToShelfSheet },
                 set: { model.showAddToShelfSheet = $0 }
@@ -199,36 +214,68 @@ struct LibraryBookmarksView: View {
             titleVisibility: .visible
         ) {
             if library.favoriteCategories.isEmpty {
-                Button("No Shelves Available", role: .cancel) {}
+                Button(AppLocalization.text("library.shelves.empty", "No Shelves Available"), role: .cancel) {}
             } else {
                 ForEach(library.favoriteCategories) { shelf in
                     Button(shelf.name) {
                         Task { await addSelectedBookmarks(to: shelf) }
                     }
                 }
-                Button("Cancel", role: .cancel) {}
+                Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) {}
             }
         } message: {
-            Text(library.favoriteCategories.isEmpty ? "Create a shelf first in Library -> Shelves." : "Choose where to place \(model.selectedKeys.count) bookmark\(model.selectedKeys.count == 1 ? "" : "s").")
+            Text(addToShelfDialogMessage)
         }
-        .alert("Remove selected bookmarks?", isPresented: Binding(
+        .alert(AppLocalization.text("library.bookmarks.remove_dialog.title", "Remove selected bookmarks?"), isPresented: Binding(
             get: { model.showRemoveConfirm },
             set: { model.showRemoveConfirm = $0 }
         )) {
-            Button("Remove", role: .destructive) {
+            Button(AppLocalization.text("library.bookmarks.remove", "Remove"), role: .destructive) {
                 Task { await removeSelectedBookmarks() }
             }
-            Button("Cancel", role: .cancel) {}
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) {}
         } message: {
-            Text("Remove \(model.selectedKeys.count) selected bookmark\(model.selectedKeys.count == 1 ? "" : "s") from your local library?")
+            Text(AppLocalization.format("library.bookmarks.remove_dialog.message_format", "Remove %lld selected bookmarks from your local library?", Int64(model.selectedKeys.count)))
         }
+        .onAppear {
+            reconcileSelectedBookmark()
+            configureSelectionCommands()
+            configureSearchCommands()
+        }
+        .onChange(of: filteredBookmarkKeys) { _, _ in
+            reconcileSelectedBookmark()
+            configureSelectionCommands()
+        }
+        .onChange(of: selectedBookmarkKey) { _, _ in
+            configureSelectionCommands()
+        }
+#if os(macOS)
+        .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
+        .focusedSceneValue(\.macSearchCommandController, searchCommandController)
+#endif
+    }
+
+    private var searchPresentationBinding: Binding<Bool> {
+#if os(macOS)
+        $isSearchPresented
+#else
+        .constant(false)
+#endif
     }
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(spacing: AppSpacing.md) {
-                statCard(title: "Bookmarks", value: "\(library.favorites.count)", subtitle: "Saved locally")
-                statCard(title: "Shelves", value: "\(library.favoriteCategories.count)", subtitle: "Organization")
+                statCard(
+                    title: AppLocalization.text("library.bookmarks.title", "Bookmarks"),
+                    value: "\(library.favorites.count)",
+                    subtitle: AppLocalization.text("library.bookmarks.saved_locally", "Saved locally")
+                )
+                statCard(
+                    title: AppLocalization.text("library.shelves.shelves", "Shelves"),
+                    value: "\(library.favoriteCategories.count)",
+                    subtitle: AppLocalization.text("library.shelves.organization", "Organization")
+                )
             }
             shelfFilterRow
         }
@@ -237,11 +284,11 @@ struct LibraryBookmarksView: View {
     @ViewBuilder
     private var contentSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            Text("Saved Comics")
+            Text(AppLocalization.text("library.bookmarks.saved_comics", "Saved Comics"))
                 .font(.title3.weight(.semibold))
 
             if filteredBookmarks.isEmpty {
-                Text(searchText.isEmpty ? "Bookmark comics from detail pages to keep them in your local library." : "No bookmarks match your search.")
+                Text(searchText.isEmpty ? AppLocalization.text("library.bookmarks.empty_hint", "Bookmark comics from detail pages to keep them in your local library.") : AppLocalization.text("library.bookmarks.empty_search", "No bookmarks match your search."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -290,6 +337,9 @@ struct LibraryBookmarksView: View {
             }
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            bookmarkContextMenu(for: favorite)
+        }
     }
 
     private func bookmarkListItem(for favorite: FavoriteComic) -> some View {
@@ -314,18 +364,14 @@ struct LibraryBookmarksView: View {
             }
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            bookmarkContextMenu(for: favorite)
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if !model.isSelecting {
-                Button("Remove", role: .destructive) {
+                Button(AppLocalization.text("library.bookmarks.remove", "Remove"), role: .destructive) {
                     Task {
-                        await library.removeBookmark(
-                            ComicSummary(
-                                id: favorite.id,
-                                sourceKey: favorite.sourceKey,
-                                title: favorite.title,
-                                coverURL: favorite.coverURL
-                            )
-                        )
+                        await removeBookmark(favorite)
                     }
                 }
             }
@@ -359,7 +405,7 @@ struct LibraryBookmarksView: View {
     private var shelfFilterRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                shelfFilterChip(title: "All", isSelected: model.selectedShelfID == nil) {
+                shelfFilterChip(title: AppLocalization.text("library.bookmarks.all", "All"), isSelected: model.selectedShelfID == nil) {
                     model.selectedShelfID = nil
                 }
 
@@ -392,6 +438,7 @@ struct LibraryBookmarksView: View {
     }
 
     private func handleTap(on favorite: FavoriteComic) {
+        selectedBookmarkKey = model.favoriteKey(for: favorite)
         if model.isSelecting {
             model.toggleSelection(for: favorite)
         } else {
@@ -400,6 +447,7 @@ struct LibraryBookmarksView: View {
     }
 
     private func openDetail(for favorite: FavoriteComic) {
+        selectedBookmarkKey = model.favoriteKey(for: favorite)
         selectedDetailItem = ComicSummary(
             id: favorite.id,
             sourceKey: favorite.sourceKey,
@@ -408,12 +456,56 @@ struct LibraryBookmarksView: View {
         )
     }
 
+    @ViewBuilder
+    private func bookmarkContextMenu(for favorite: FavoriteComic) -> some View {
+        Button(AppLocalization.text("common.open", "Open"), systemImage: "arrow.up.right.square") {
+            openDetail(for: favorite)
+        }
+        Menu(AppLocalization.text("library.bookmarks.add_to_shelf", "Add to Shelf"), systemImage: "square.stack.3d.up") {
+            if library.favoriteCategories.isEmpty {
+                Button(AppLocalization.text("library.shelves.empty", "No Shelves Available")) { }
+                    .disabled(true)
+            } else {
+                ForEach(library.favoriteCategories) { shelf in
+                    Button(shelf.name) {
+                        Task { await library.addBookmarks([favorite], to: shelf) }
+                    }
+                }
+            }
+        }
+        Divider()
+        Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
+            copyBookmarkTitle(favorite)
+        }
+        Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
+            copyBookmarkID(favorite)
+        }
+        Button(AppLocalization.text("search.action.copy_source", "Copy Source"), systemImage: "shippingbox") {
+            copyBookmarkSource(favorite)
+        }
+        Divider()
+        Button(AppLocalization.text("library.bookmarks.remove", "Remove"), systemImage: "trash", role: .destructive) {
+            Task { await removeBookmark(favorite) }
+        }
+    }
+
     private func shelfSubtitle(for favorite: FavoriteComic) -> String? {
         let shelves = library.favoriteCategories.compactMap { category -> String? in
             let members = library.favoriteCategoryMemberships[category.id] ?? []
             return members.contains("\(favorite.sourceKey)::\(favorite.id)") ? category.name : nil
         }
         return shelves.isEmpty ? "Bookmark" : shelves.prefix(2).joined(separator: " · ")
+    }
+
+    private var addToShelfDialogMessage: String {
+        if library.favoriteCategories.isEmpty {
+            return AppLocalization.text("library.bookmarks.add_dialog.empty_hint", "Create a shelf first in Library -> Shelves.")
+        }
+        return AppLocalization.format(
+            "library.bookmarks.add_dialog.message_format",
+            "Choose where to place %lld bookmarks.",
+            Int64(model.selectedKeys.count)
+        )
     }
 
     private func bookmarksForSelectedShelf() -> [FavoriteComic] {
@@ -449,5 +541,85 @@ struct LibraryBookmarksView: View {
         }
         model.showRemoveConfirm = false
         model.finishWork()
+    }
+
+    private func removeBookmark(_ favorite: FavoriteComic) async {
+        selectedBookmarkKey = model.favoriteKey(for: favorite)
+        await library.removeBookmark(
+            ComicSummary(
+                id: favorite.id,
+                sourceKey: favorite.sourceKey,
+                title: favorite.title,
+                coverURL: favorite.coverURL
+            )
+        )
+        reconcileSelectedBookmark()
+        configureSelectionCommands()
+    }
+
+    private func copyBookmarkTitle(_ favorite: FavoriteComic) {
+        selectedBookmarkKey = model.favoriteKey(for: favorite)
+        PlatformPasteboard.copy(favorite.title)
+    }
+
+    private func copyBookmarkID(_ favorite: FavoriteComic) {
+        selectedBookmarkKey = model.favoriteKey(for: favorite)
+        PlatformPasteboard.copy(favorite.id)
+    }
+
+    private func copyBookmarkSource(_ favorite: FavoriteComic) {
+        selectedBookmarkKey = model.favoriteKey(for: favorite)
+        PlatformPasteboard.copy(favorite.sourceKey)
+    }
+
+    private func reconcileSelectedBookmark() {
+        if let selectedBookmarkKey, filteredBookmarkKeys.contains(selectedBookmarkKey) {
+            return
+        }
+        selectedBookmarkKey = filteredBookmarkKeys.first
+    }
+
+    private func configureSelectionCommands() {
+#if os(macOS)
+        selectionCommandController.reset()
+        guard let favorite = selectedBookmark else { return }
+
+        selectionCommandController.open = { openDetail(for: favorite) }
+        selectionCommandController.delete = { Task { await removeBookmark(favorite) } }
+        selectionCommandController.copyTitle = { copyBookmarkTitle(favorite) }
+        selectionCommandController.copyID = { copyBookmarkID(favorite) }
+        selectionCommandController.export = { copyBookmarkSource(favorite) }
+        selectionCommandController.exportTitle = AppLocalization.text("search.action.copy_source", "Copy Source")
+        selectionCommandController.canOpen = true
+        selectionCommandController.canDelete = true
+        selectionCommandController.canCopyTitle = true
+        selectionCommandController.canCopyID = true
+        selectionCommandController.canExport = true
+#endif
+    }
+
+    private func configureSearchCommands() {
+#if os(macOS)
+        searchCommandController.focusSearch = { isSearchPresented = true }
+        searchCommandController.canFocusSearch = true
+#endif
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func bookmarkSearchable(text: Binding<String>, isPresented: Binding<Bool>) -> some View {
+#if os(macOS)
+        searchable(
+            text: text,
+            isPresented: isPresented,
+            prompt: AppLocalization.text("library.bookmarks.search_placeholder", "Search bookmarks")
+        )
+#else
+        searchable(
+            text: text,
+            prompt: AppLocalization.text("library.bookmarks.search_placeholder", "Search bookmarks")
+        )
+#endif
     }
 }

@@ -595,7 +595,7 @@ final class CenteringClipView: NSClipView {
 ///
 /// Uses `NSScrollView.magnification` for zoom, which decouples content layout
 /// from the scroll geometry and eliminates the SwiftUI layout feedback loop.
-final class ZoomingImageScrollView: NSScrollView {
+final class ZoomingImageScrollView: NSScrollView, NSDraggingSource {
     let imageView = NSImageView()
     let doubleClickRecognizer = NSClickGestureRecognizer()
     let longPressRecognizer = NSPressGestureRecognizer()
@@ -607,6 +607,7 @@ final class ZoomingImageScrollView: NSScrollView {
     private var lastBoundsSize: CGSize = .zero
     private var isLongPressZoomed = false
     private var longPressRestoreMagnification: CGFloat = 1
+    private var dragStartEvent: NSEvent?
     var onLongPressZoomStart: ((CGPoint) -> Void)?
     var onLongPressZoomEnd: (() -> Void)?
 
@@ -708,6 +709,42 @@ final class ZoomingImageScrollView: NSScrollView {
         super.viewDidEndLiveResize()
         recalculateMagnificationScales()
         layoutSubtreeIfNeeded()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        dragStartEvent = event
+        super.mouseDown(with: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        dragStartEvent = nil
+        super.mouseUp(with: event)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard
+            let dragStartEvent,
+            shouldBeginImageDrag(from: dragStartEvent, to: event),
+            let image = imageView.image,
+            let imageURL = writeTemporaryDragImage(image)
+        else {
+            super.mouseDragged(with: event)
+            return
+        }
+
+        self.dragStartEvent = nil
+        beginImageDrag(image: image, imageURL: imageURL, event: dragStartEvent)
+    }
+
+    func draggingSession(
+        _ session: NSDraggingSession,
+        sourceOperationMaskFor context: NSDraggingContext
+    ) -> NSDragOperation {
+        .copy
+    }
+
+    func ignoreModifierKeys(for session: NSDraggingSession) -> Bool {
+        true
     }
 
     func setLoading(_ loading: Bool) {
@@ -937,6 +974,76 @@ final class ZoomingImageScrollView: NSScrollView {
         guard let image = imageView.image else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects([image])
+    }
+
+    private func shouldBeginImageDrag(from startEvent: NSEvent, to event: NSEvent) -> Bool {
+        let start = convert(startEvent.locationInWindow, from: nil)
+        let current = convert(event.locationInWindow, from: nil)
+        let deltaX = current.x - start.x
+        let deltaY = current.y - start.y
+        return hypot(deltaX, deltaY) >= 4
+    }
+
+    private func beginImageDrag(image: NSImage, imageURL: URL, event: NSEvent) {
+        let draggingItem = NSDraggingItem(pasteboardWriter: imageURL as NSURL)
+        draggingItem.setDraggingFrame(dragPreviewFrame(for: image, event: event), contents: image)
+        beginDraggingSession(with: [draggingItem], event: event, source: self)
+    }
+
+    private func dragPreviewFrame(for image: NSImage, event: NSEvent) -> NSRect {
+        let location = convert(event.locationInWindow, from: nil)
+        let imageSize = image.size
+        guard imageSize.width > 0, imageSize.height > 0 else {
+            return NSRect(x: location.x - 48, y: location.y - 48, width: 96, height: 96)
+        }
+
+        let maxEdge: CGFloat = 180
+        let scale = min(maxEdge / imageSize.width, maxEdge / imageSize.height, 1)
+        let previewSize = NSSize(width: imageSize.width * scale, height: imageSize.height * scale)
+        return NSRect(
+            x: location.x - previewSize.width * 0.5,
+            y: location.y - previewSize.height * 0.5,
+            width: previewSize.width,
+            height: previewSize.height
+        )
+    }
+
+    private func writeTemporaryDragImage(_ image: NSImage) -> URL? {
+        guard let data = image.platformPNGData else { return nil }
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ComicDeckReaderDrags", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            removeStaleDragImages(in: directory)
+            let url = directory.appendingPathComponent("page-\(UUID().uuidString).png")
+            try data.write(to: url, options: .atomic)
+            return url
+        } catch {
+            readerDebugLog("macOS image drag export failed: \(error.localizedDescription)", level: .error)
+            return nil
+        }
+    }
+
+    private func removeStaleDragImages(in directory: URL) {
+        let expirationDate = Date().addingTimeInterval(-24 * 60 * 60)
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        for url in urls {
+            guard
+                let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
+                let modifiedAt = values.contentModificationDate,
+                modifiedAt < expirationDate
+            else {
+                continue
+            }
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     @objc private func actualSize(_ sender: Any?) {

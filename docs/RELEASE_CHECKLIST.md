@@ -9,11 +9,12 @@ Confirm:
 3. app launches cleanly on a fresh install
 4. GitHub Actions produces an unsigned `.ipa` artifact
 5. GitHub Actions produces a native macOS `.dmg` artifact
-6. GitHub Actions produces a native macOS `.app.zip` artifact
+6. CI verifies the native macOS `.app.zip` contains a complete `ComicDeck.app`
 7. nightly release includes `ComicDeck.ipa`, `ComicDeck-macos.dmg`, and `apps.json` release assets
 8. nightly `apps.json` update includes the direct GitHub release `.ipa` URL at the app top level and in the nightly release channel
 9. AltStore source parsing fields remain present, including `developerName`, `subtitle`, `localizedDescription`, `category`, and top-level source metadata
-10. the native macOS `.dmg` mounts cleanly and contains `ComicDeck.app` plus an `Applications` shortcut
+10. CI verifies the native macOS `.dmg` mounts cleanly and contains `ComicDeck.app` plus an `Applications` shortcut
+11. the native macOS target uses `Config/ComicDeckMac.entitlements` for sandbox, network-client, and user-selected-file access
 
 Recommended command:
 
@@ -36,6 +37,32 @@ xcodebuild -project ComicDeck.xcodeproj \
   CODE_SIGNING_ALLOWED=NO \
   build
 ```
+
+For public macOS distribution beyond unsigned nightly artifacts, additionally confirm:
+
+1. `ComicDeck.app` is signed with a Developer ID Application identity
+2. the signed app preserves the `Config/ComicDeckMac.entitlements` sandbox/network-client/user-selected-file permissions
+3. the `.dmg` is signed with the same Developer ID Application identity
+4. the `.dmg` is notarized and stapled
+5. CI runs `spctl --assess --type open --context context:primary-signature` against the notarized `.dmg`
+6. a fresh install from the signed `.dmg` can complete web login, WebDAV backup/restore, offline import/export, Finder reveal, and reader image drag-out
+7. AniList OAuth completes from the native macOS app and returns through the `comicdeck://` callback registered in `Config/ComicDeckMac-Info.plist`
+8. notarization failures include the `notarytool` JSON result and Apple notary log in the CI output
+
+GitHub Actions signs and notarizes macOS artifacts only when these repository secrets are configured:
+
+- `MACOS_DEVELOPER_ID_CERTIFICATE_BASE64`: base64-encoded Developer ID Application `.p12`
+- `MACOS_DEVELOPER_ID_CERTIFICATE_PASSWORD`: password for the `.p12`
+- `MACOS_DEVELOPER_ID_APPLICATION`: codesign identity name, for example `Developer ID Application: Team Name (TEAMID)`
+- `MACOS_KEYCHAIN_PASSWORD`: optional temporary keychain password
+- `MACOS_NOTARY_APPLE_ID`: Apple ID used for notarization
+- `MACOS_NOTARY_TEAM_ID`: Apple Developer Team ID
+- `MACOS_NOTARY_APP_PASSWORD`: app-specific password for `notarytool`
+
+If all signing and notarization secrets are absent, the workflow still produces unsigned nightly `.app.zip` and `.dmg` artifacts for local verification.
+Partial macOS signing or notarization secret configuration fails fast before packaging so release artifacts do not silently mix signed and unsigned states.
+The notarization step runs only after the app signing step verifies the signed app's sandbox, network-client, and user-selected-file entitlements.
+The signing step also signs nested code in `Contents/Frameworks`, `Contents/PlugIns`, `Contents/XPCServices`, and `Contents/Helpers` before signing the app bundle itself.
 
 ## Primary User Flows
 

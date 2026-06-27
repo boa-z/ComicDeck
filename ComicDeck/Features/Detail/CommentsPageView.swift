@@ -272,7 +272,9 @@ struct CommentItemRow: View {
                         Task { await like() }
                     } label: {
                         Label(
-                            isLiked == true ? "Liked" : "Like",
+                            isLiked == true
+                                ? AppLocalization.text("comments.liked", "Liked")
+                                : AppLocalization.text("comments.like", "Like"),
                             systemImage: isLiked == true ? "heart.fill" : "heart"
                         )
                         .font(.caption)
@@ -281,13 +283,13 @@ struct CommentItemRow: View {
                 }
 
                 if comment.actionableCommentID != nil {
-                    Button("Reply") {
+                    Button(AppLocalization.text("comments.reply", "Reply")) {
                         onReply(comment)
                     }
                     .font(.caption)
                 }
                 if let replyCount = comment.replyCount, replyCount > 0, comment.actionableCommentID != nil {
-                    Button("Replies \(replyCount)") {
+                    Button(AppLocalization.format("comments.replies", "Replies %lld", Int64(replyCount))) {
                         onOpenReplies(comment)
                     }
                     .font(.caption)

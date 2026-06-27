@@ -12,7 +12,7 @@ private struct BatchSelectionBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text("\(selectedCount) selected")
+            Text(AppLocalization.format("common.selected_count", "%lld selected", Int64(selectedCount)))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .padding(.horizontal, 10)
@@ -22,7 +22,7 @@ private struct BatchSelectionBar: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 8) {
-                Button(selectedCount == totalCount ? "Clear" : "Select All") {
+                Button(selectedCount == totalCount ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("common.select_all", "Select All")) {
                     selectAllAction()
                 }
                 .font(.subheadline.weight(.semibold))
@@ -69,6 +69,10 @@ struct FavoritesView: View {
     let onTagSearchRequested: (String, String) -> Void
     @State private var model = FavoritesScreenModel()
     @State private var selectedDetailItem: ComicSummary?
+    @State private var selectedFavoriteKey: String?
+#if os(macOS)
+    @State private var selectionCommandController = MacSelectionCommandController()
+#endif
     @AppStorage("favorites.selectedSourceKey") private var persistedSourceKey: String = ""
     @AppStorage("ui.comicBrowseMode") private var browseModeRaw = ComicBrowseDisplayMode.list.rawValue
 
@@ -91,13 +95,13 @@ struct FavoritesView: View {
         sourceManager.installedSource(for: model.selectedSourceKey)
     }
     private var currentFolderLabel: String {
-        guard hasFolders else { return "All" }
+        guard hasFolders else { return AppLocalization.text("favorites.folder.all", "All") }
         guard let id = model.canonicalFolderID(model.selectedFolderID, availableFolders: model.sourceFolders) else { return defaultFolderTitle }
         return model.sourceFolders.first(where: { $0.id == id })?.title ?? defaultFolderTitle
     }
 
     private var defaultFolderTitle: String {
-        model.sourceFolders.first(where: { $0.id == "-1" })?.title ?? "All"
+        model.sourceFolders.first(where: { $0.id == "-1" })?.title ?? AppLocalization.text("favorites.folder.all", "All")
     }
     private var shouldShowPager: Bool {
         !model.selectedSourceKey.isEmpty && model.sourceError.isEmpty && (model.currentPage > 1 || !model.sourceFavorites.isEmpty)
@@ -105,6 +109,15 @@ struct FavoritesView: View {
     private var browseMode: ComicBrowseDisplayMode {
         get { ComicBrowseDisplayMode(rawValue: browseModeRaw) ?? .list }
         nonmutating set { browseModeRaw = newValue.rawValue }
+    }
+
+    private var favoriteKeys: [String] {
+        model.sourceFavorites.map(model.selectionKey(for:))
+    }
+
+    private var selectedFavorite: ComicSummary? {
+        guard let selectedFavoriteKey else { return nil }
+        return model.sourceFavorites.first { model.selectionKey(for: $0) == selectedFavoriteKey }
     }
 
     var body: some View {
@@ -129,23 +142,23 @@ struct FavoritesView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             bottomInset
         }
-        .navigationTitle("Favorites")
+        .navigationTitle(AppLocalization.text("favorites.navigation.title", "Favorites"))
         .toolbar {
             favoritesToolbar
         }
         .refreshable {
             await model.refreshNow(vm: vm, forceNetwork: true)
         }
-        .alert("Remove selected favorites?", isPresented: Binding(
+        .alert(AppLocalization.text("favorites.remove_selected", "Remove selected favorites?"), isPresented: Binding(
             get: { model.showBatchRemoveConfirm },
             set: { model.showBatchRemoveConfirm = $0 }
         )) {
-            Button("Remove", role: .destructive) {
+            Button(AppLocalization.text("common.remove", "Remove"), role: .destructive) {
                 Task { await model.removeSelected(using: vm) }
             }
-            Button("Cancel", role: .cancel) { }
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) { }
         } message: {
-            Text("Remove \(model.selectedCount) selected favorite\(model.selectedCount == 1 ? "" : "s") from this source folder?")
+            Text(AppLocalization.format("favorites.remove_selected_confirm", "Remove %lld selected favorites from this source folder?", Int64(model.selectedCount)))
         }
         .onDisappear {
             model.refreshTask?.cancel()
@@ -167,6 +180,13 @@ struct FavoritesView: View {
             model.setSelecting(false)
             requestRefresh()
         }
+        .onChange(of: favoriteKeys) { _, _ in
+            reconcileSelectedFavorite()
+            configureSelectionCommands()
+        }
+        .onChange(of: selectedFavoriteKey) { _, _ in
+            configureSelectionCommands()
+        }
         .task {
             if model.selectedSourceKey.isEmpty {
                 let keys = sourceOptions.map(\.key)
@@ -177,7 +197,12 @@ struct FavoritesView: View {
             }
             await prepareFavoriteContext(for: model.selectedSourceKey)
             await model.refreshNow(vm: vm)
+            reconcileSelectedFavorite()
+            configureSelectionCommands()
         }
+#if os(macOS)
+        .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
+#endif
         .sheet(isPresented: Binding(
             get: { model.showPagePicker },
             set: { model.showPagePicker = $0 }
@@ -201,7 +226,7 @@ struct FavoritesView: View {
             .disabled(model.refreshing)
         }
         ToolbarItem(placement: .platformTopBarTrailing) {
-            Button(model.isSelecting ? "Done" : "Select") {
+            Button(model.isSelecting ? AppLocalization.text("common.done", "Done") : AppLocalization.text("common.select", "Select")) {
                 model.toggleSelecting()
             }
         }
@@ -239,26 +264,26 @@ struct FavoritesView: View {
     private var pagePickerSheet: some View {
         NavigationStack {
             Form {
-                Section("Jump to page") {
-                    TextField("Page number", value: Binding(
+                Section(AppLocalization.text("favorites.page.jump_section", "Jump to page")) {
+                    TextField(AppLocalization.text("favorites.page.number_placeholder", "Page number"), value: Binding(
                         get: { Int(model.pageInput) ?? model.currentPage },
                         set: { model.pageInput = String($0) }
                     ), format: .number)
                     .platformKeyboardNumberPad()
                 }
             }
-            .navigationTitle("Select Page")
+            .navigationTitle(AppLocalization.text("favorites.page.select_title", "Select Page"))
             .platformNavigationBarTitleDisplayModeInline()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+                    Button(AppLocalization.text("common.cancel", "Cancel")) {
                         model.showPagePicker = false
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Go") {
+                    Button(AppLocalization.text("favorites.page.go", "Go")) {
                         guard let page = Int(model.pageInput), page > 0 else {
-                            model.sourceError = "Invalid page number"
+                            model.sourceError = AppLocalization.text("favorites.page.invalid", "Invalid page number")
                             return
                         }
                         model.showPagePicker = false
@@ -287,13 +312,13 @@ struct FavoritesView: View {
             Button {
                 model.openPagePicker()
             } label: {
-                Text("Page \(model.currentPage)")
+                Text(AppLocalization.format("favorites.page.current_format", "Page %lld", Int64(model.currentPage)))
                     .font(.subheadline.monospacedDigit())
                     .frame(minWidth: 72, minHeight: 28)
                     .padding(.horizontal, 8)
             }
             .buttonStyle(.plain)
-            .accessibilityHint("Open page picker")
+            .accessibilityHint(AppLocalization.text("favorites.page.open_picker_hint", "Open page picker"))
 
             Button {
                 Task { await model.jumpToPage(model.currentPage + 1, vm: vm) }
@@ -389,7 +414,7 @@ struct FavoritesView: View {
                     .padding(AppSpacing.md)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else if model.sourceFavorites.isEmpty {
-                Text("No source favorites")
+                Text(AppLocalization.text("favorites.empty.source", "No source favorites"))
                     .foregroundStyle(.secondary)
                     .padding(AppSpacing.lg)
             } else {
@@ -514,7 +539,7 @@ struct FavoritesView: View {
             Text(model.sourceError)
                 .foregroundStyle(.red)
         } else if model.sourceFavorites.isEmpty {
-            Text("No source favorites")
+            Text(AppLocalization.text("favorites.empty.source", "No source favorites"))
                 .foregroundStyle(.secondary)
         } else {
             ForEach(model.sourceFavorites) { item in
@@ -542,7 +567,7 @@ struct FavoritesView: View {
             totalCount: model.sourceFavorites.count,
             isWorking: model.batchWorking,
             progressText: model.batchProgressText,
-            actionTitle: "Remove",
+            actionTitle: AppLocalization.text("common.remove", "Remove"),
             selectAllAction: {
                 if model.selectedCount == model.sourceFavorites.count {
                     model.clearSelection()
@@ -561,17 +586,11 @@ struct FavoritesView: View {
         @ViewBuilder label: () -> Label
     ) -> some View {
         Button {
+            selectedFavoriteKey = model.selectionKey(for: item)
             if model.isSelecting {
                 model.toggleSelection(item)
             } else {
-                selectedDetailItem = ComicSummary(
-                    id: item.id,
-                    sourceKey: item.sourceKey,
-                    title: item.title,
-                    coverURL: item.coverURL,
-                    author: item.author,
-                    tags: item.tags
-                )
+                openFavorite(item)
             }
         } label: {
             if model.isSelecting {
@@ -584,6 +603,29 @@ struct FavoritesView: View {
             }
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            favoriteContextMenu(for: item)
+        }
+    }
+
+    @ViewBuilder
+    private func favoriteContextMenu(for item: ComicSummary) -> some View {
+        Button(AppLocalization.text("common.open", "Open"), systemImage: "arrow.up.right.square") {
+            openFavorite(item)
+        }
+        Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
+            copyFavoriteTitle(item)
+        }
+        Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
+            copyFavoriteID(item)
+        }
+        Button(AppLocalization.text("search.action.copy_source", "Copy Source"), systemImage: "shippingbox") {
+            copyFavoriteSource(item)
+        }
+        Divider()
+        Button(AppLocalization.text("library.bookmarks.remove", "Remove"), systemImage: "trash", role: .destructive) {
+            Task { await removeFavorite(item) }
+        }
     }
 
     private func selectableCard<Content: View>(
@@ -603,6 +645,66 @@ struct FavoritesView: View {
             }
     }
 
+    private func openFavorite(_ item: ComicSummary) {
+        selectedFavoriteKey = model.selectionKey(for: item)
+        selectedDetailItem = ComicSummary(
+            id: item.id,
+            sourceKey: item.sourceKey,
+            title: item.title,
+            coverURL: item.coverURL,
+            author: item.author,
+            tags: item.tags
+        )
+    }
+
+    private func removeFavorite(_ item: ComicSummary) async {
+        selectedFavoriteKey = model.selectionKey(for: item)
+        await model.remove(item, using: vm)
+        reconcileSelectedFavorite()
+        configureSelectionCommands()
+    }
+
+    private func copyFavoriteTitle(_ item: ComicSummary) {
+        selectedFavoriteKey = model.selectionKey(for: item)
+        PlatformPasteboard.copy(item.title)
+    }
+
+    private func copyFavoriteID(_ item: ComicSummary) {
+        selectedFavoriteKey = model.selectionKey(for: item)
+        PlatformPasteboard.copy(item.id)
+    }
+
+    private func copyFavoriteSource(_ item: ComicSummary) {
+        selectedFavoriteKey = model.selectionKey(for: item)
+        PlatformPasteboard.copy(item.sourceKey)
+    }
+
+    private func reconcileSelectedFavorite() {
+        if let selectedFavoriteKey, favoriteKeys.contains(selectedFavoriteKey) {
+            return
+        }
+        selectedFavoriteKey = favoriteKeys.first
+    }
+
+    private func configureSelectionCommands() {
+#if os(macOS)
+        selectionCommandController.reset()
+        guard let item = selectedFavorite else { return }
+
+        selectionCommandController.open = { openFavorite(item) }
+        selectionCommandController.delete = { Task { await removeFavorite(item) } }
+        selectionCommandController.copyTitle = { copyFavoriteTitle(item) }
+        selectionCommandController.copyID = { copyFavoriteID(item) }
+        selectionCommandController.export = { copyFavoriteSource(item) }
+        selectionCommandController.exportTitle = AppLocalization.text("search.action.copy_source", "Copy Source")
+        selectionCommandController.canOpen = true
+        selectionCommandController.canDelete = true
+        selectionCommandController.canCopyTitle = true
+        selectionCommandController.canCopyID = true
+        selectionCommandController.canExport = true
+#endif
+    }
+
 }
 
 @MainActor
@@ -613,11 +715,24 @@ struct HistoryView: View {
     @State private var model = HistoryScreenModel()
     @State private var selectedDetailItem: ComicSummary?
     @State private var pendingDetailReadRoute: ReaderLaunchContext?
+    @State private var selectedHistoryID: ReadingHistoryItem.ID?
+#if os(macOS)
+    @State private var selectionCommandController = MacSelectionCommandController()
+#endif
     @AppStorage("ui.comicBrowseMode") private var browseModeRaw = ComicBrowseDisplayMode.list.rawValue
 
     private var browseMode: ComicBrowseDisplayMode {
         get { ComicBrowseDisplayMode(rawValue: browseModeRaw) ?? .list }
         nonmutating set { browseModeRaw = newValue.rawValue }
+    }
+
+    private var historyIDs: [ReadingHistoryItem.ID] {
+        model.items.map(\.id)
+    }
+
+    private var selectedHistoryItem: ReadingHistoryItem? {
+        guard let selectedHistoryID else { return nil }
+        return model.items.first { $0.id == selectedHistoryID }
     }
 
     var body: some View {
@@ -641,11 +756,11 @@ struct HistoryView: View {
                 onNavigateBack: { selectedDetailItem = nil }
             )
         }
-        .navigationTitle("History")
+        .navigationTitle(AppLocalization.text("history.navigation.title", "History"))
         .toolbar {
             if !model.items.isEmpty {
                 ToolbarItem(placement: .platformTopBarTrailing) {
-                    Button(model.isSelecting ? "Done" : "Select") {
+                    Button(model.isSelecting ? AppLocalization.text("common.done", "Done") : AppLocalization.text("common.select", "Select")) {
                         model.toggleSelecting()
                     }
                 }
@@ -666,31 +781,45 @@ struct HistoryView: View {
                 }
             }
         }
-        .alert("Clear all history?", isPresented: $model.showClearConfirm) {
-            Button("Clear", role: .destructive) {
+        .alert(AppLocalization.text("history.clear_all", "Clear all history?"), isPresented: $model.showClearConfirm) {
+            Button(AppLocalization.text("common.clear", "Clear"), role: .destructive) {
                 Task { await model.clear(using: library) }
             }
-            Button("Cancel", role: .cancel) { }
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) { }
         } message: {
-            Text("This action cannot be undone.")
+            Text(AppLocalization.text("history.clear_all_confirm", "This action cannot be undone."))
         }
-        .alert("Delete selected history?", isPresented: Binding(
+        .alert(AppLocalization.text("history.delete_selected", "Delete selected history?"), isPresented: Binding(
             get: { model.showBatchDeleteConfirm },
             set: { model.showBatchDeleteConfirm = $0 }
         )) {
-            Button("Delete", role: .destructive) {
+            Button(AppLocalization.text("common.delete", "Delete"), role: .destructive) {
                 Task { await model.deleteSelected(using: library) }
             }
-            Button("Cancel", role: .cancel) { }
+            Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) { }
         } message: {
-            Text("Delete \(model.selectedCount) selected history item\(model.selectedCount == 1 ? "" : "s")? This action cannot be undone.")
+            Text(AppLocalization.format("history.delete_selected_confirm", "Delete %lld selected history items? This action cannot be undone.", Int64(model.selectedCount)))
         }
         .task {
             model.sync(from: library)
+            reconcileSelectedHistory()
+            configureSelectionCommands()
         }
         .onChange(of: library.history) { _, items in
             model.sync(from: library)
+            reconcileSelectedHistory()
+            configureSelectionCommands()
         }
+        .onChange(of: historyIDs) { _, _ in
+            reconcileSelectedHistory()
+            configureSelectionCommands()
+        }
+        .onChange(of: selectedHistoryID) { _, _ in
+            configureSelectionCommands()
+        }
+#if os(macOS)
+        .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
+#endif
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if model.isSelecting {
                 historySelectionBar
@@ -703,9 +832,9 @@ struct HistoryView: View {
 
     private func historySubtitle(_ item: ReadingHistoryItem) -> String {
         if let chapter = item.chapter, !chapter.isEmpty {
-            return "Page \(item.page) · \(chapter)"
+            return AppLocalization.format("history.page_with_chapter_format", "Page %lld · %@", Int64(item.page), chapter)
         }
-        return "Page \(item.page)"
+        return AppLocalization.format("history.page_format", "Page %lld", Int64(item.page))
     }
 
     private var historyList: some View {
@@ -718,7 +847,7 @@ struct HistoryView: View {
     private var historyGrid: some View {
         ScrollView {
             if model.items.isEmpty {
-                Text("No reading history")
+                Text(AppLocalization.text("history.empty", "No reading history"))
                     .foregroundStyle(.secondary)
                     .padding(AppSpacing.lg)
             } else {
@@ -749,7 +878,7 @@ struct HistoryView: View {
     @ViewBuilder
     private var historyContent: some View {
         if model.items.isEmpty {
-            Text("No reading history")
+            Text(AppLocalization.text("history.empty", "No reading history"))
                 .foregroundStyle(.secondary)
         } else {
             ForEach(model.items) { item in
@@ -777,7 +906,7 @@ struct HistoryView: View {
             totalCount: model.items.count,
             isWorking: model.batchWorking,
             progressText: model.batchProgressText,
-            actionTitle: "Delete",
+            actionTitle: AppLocalization.text("common.delete", "Delete"),
             selectAllAction: {
                 if model.selectedCount == model.items.count {
                     model.clearSelection()
@@ -796,17 +925,11 @@ struct HistoryView: View {
         @ViewBuilder label: () -> Label
     ) -> some View {
         Button {
+            selectedHistoryID = item.id
             if model.isSelecting {
                 model.toggleSelection(item)
             } else {
-                selectedDetailItem = ComicSummary(
-                    id: item.comicID,
-                    sourceKey: item.sourceKey,
-                    title: item.title,
-                    coverURL: item.coverURL,
-                    author: item.author,
-                    tags: item.tags
-                )
+                openHistoryItem(item)
             }
         } label: {
             if model.isSelecting {
@@ -824,18 +947,47 @@ struct HistoryView: View {
                     Button {
                         resumeReading(item)
                     } label: {
-                        SwiftUI.Label("Resume", systemImage: "play.fill")
+                        SwiftUI.Label(AppLocalization.text("history.action.resume", "Resume"), systemImage: "play.fill")
                     }
                     .tint(AppTint.accent)
                 }
                 Button(role: .destructive) {
-                    Task { await model.delete(item, using: library) }
+                    Task { await deleteHistoryItem(item) }
                 } label: {
-                    SwiftUI.Label("Delete", systemImage: "trash")
+                    SwiftUI.Label(AppLocalization.text("common.delete", "Delete"), systemImage: "trash")
                 }
             }
         }
+        .contextMenu {
+            historyContextMenu(for: item)
+        }
         .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func historyContextMenu(for item: ReadingHistoryItem) -> some View {
+        if item.chapterID?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            Button(AppLocalization.text("history.action.resume", "Resume"), systemImage: "play.fill") {
+                resumeReading(item)
+            }
+        }
+        Button(AppLocalization.text("common.open", "Open"), systemImage: "arrow.up.right.square") {
+            openHistoryItem(item)
+        }
+        Divider()
+        Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
+            copyHistoryTitle(item)
+        }
+        Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
+            copyHistoryID(item)
+        }
+        Button(AppLocalization.text("search.action.copy_source", "Copy Source"), systemImage: "shippingbox") {
+            copyHistorySource(item)
+        }
+        Divider()
+        Button(AppLocalization.text("common.delete", "Delete"), systemImage: "trash", role: .destructive) {
+            Task { await deleteHistoryItem(item) }
+        }
     }
 
     private func selectableCard<Content: View>(
@@ -856,16 +1008,9 @@ struct HistoryView: View {
     }
 
     private func resumeReading(_ item: ReadingHistoryItem) {
+        selectedHistoryID = item.id
         guard let context = ReaderLaunchContext.fromHistory(item, using: library) else {
-            pendingDetailReadRoute = nil
-            selectedDetailItem = ComicSummary(
-                id: item.comicID,
-                sourceKey: item.sourceKey,
-                title: item.title,
-                coverURL: item.coverURL,
-                author: item.author,
-                tags: item.tags
-            )
+            openHistoryItem(item)
             return
         }
 
@@ -893,6 +1038,67 @@ struct HistoryView: View {
 
     private func toggleHistoryBrowseMode() {
         browseMode = browseMode == .list ? .grid : .list
+    }
+
+    private func openHistoryItem(_ item: ReadingHistoryItem) {
+        selectedHistoryID = item.id
+        pendingDetailReadRoute = nil
+        selectedDetailItem = ComicSummary(
+            id: item.comicID,
+            sourceKey: item.sourceKey,
+            title: item.title,
+            coverURL: item.coverURL,
+            author: item.author,
+            tags: item.tags
+        )
+    }
+
+    private func deleteHistoryItem(_ item: ReadingHistoryItem) async {
+        selectedHistoryID = item.id
+        await model.delete(item, using: library)
+        reconcileSelectedHistory()
+        configureSelectionCommands()
+    }
+
+    private func copyHistoryTitle(_ item: ReadingHistoryItem) {
+        selectedHistoryID = item.id
+        PlatformPasteboard.copy(item.title)
+    }
+
+    private func copyHistoryID(_ item: ReadingHistoryItem) {
+        selectedHistoryID = item.id
+        PlatformPasteboard.copy(item.comicID)
+    }
+
+    private func copyHistorySource(_ item: ReadingHistoryItem) {
+        selectedHistoryID = item.id
+        PlatformPasteboard.copy(item.sourceKey)
+    }
+
+    private func reconcileSelectedHistory() {
+        if let selectedHistoryID, historyIDs.contains(selectedHistoryID) {
+            return
+        }
+        selectedHistoryID = historyIDs.first
+    }
+
+    private func configureSelectionCommands() {
+#if os(macOS)
+        selectionCommandController.reset()
+        guard let item = selectedHistoryItem else { return }
+
+        selectionCommandController.open = { openHistoryItem(item) }
+        selectionCommandController.delete = { Task { await deleteHistoryItem(item) } }
+        selectionCommandController.copyTitle = { copyHistoryTitle(item) }
+        selectionCommandController.copyID = { copyHistoryID(item) }
+        selectionCommandController.export = { copyHistorySource(item) }
+        selectionCommandController.exportTitle = AppLocalization.text("search.action.copy_source", "Copy Source")
+        selectionCommandController.canOpen = true
+        selectionCommandController.canDelete = true
+        selectionCommandController.canCopyTitle = true
+        selectionCommandController.canCopyID = true
+        selectionCommandController.canExport = true
+#endif
     }
 
 }

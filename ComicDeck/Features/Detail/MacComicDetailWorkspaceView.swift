@@ -903,6 +903,17 @@ private struct MacChapterRow: View {
                 .controlSize(.small)
         }
         .padding(.vertical, 4)
+        .contextMenu {
+            Button(AppLocalization.text("reader.action.read", "Read"), systemImage: "play.fill", action: onRead)
+            Button(AppLocalization.text("detail.hero.action.download", "Download"), systemImage: "arrow.down.circle", action: onDownload)
+            Divider()
+            Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
+                PlatformPasteboard.copy(chapter.title.isEmpty ? chapter.id : chapter.title)
+            }
+            Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
+                PlatformPasteboard.copy(chapter.id)
+            }
+        }
     }
 
     private func statusTint(_ status: DownloadStatus) -> Color {

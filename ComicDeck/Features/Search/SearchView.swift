@@ -50,7 +50,7 @@ struct SearchView: View {
                     }
                     .accessibilityLabel(AppLocalization.text("search.action.open_filters", "Open search filters"))
 
-                    Button("Done") { dismiss() }
+                    Button(AppLocalization.text("common.done", "Done")) { dismiss() }
                 }
             }
             .sheet(isPresented: $showSearchSettings) {
@@ -104,7 +104,10 @@ struct SearchView: View {
 
     private var gridResults: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            sectionHeader(title: "Results", subtitle: "\(model.results.count) comics")
+            sectionHeader(
+                title: AppLocalization.text("search.results", "Results"),
+                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(model.results.count))
+            )
                 .padding(.horizontal, AppSpacing.md)
 
             LazyVGrid(columns: [
@@ -123,7 +126,10 @@ struct SearchView: View {
 
     private var listResults: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            sectionHeader(title: "Results", subtitle: "\(model.results.count) comics")
+            sectionHeader(
+                title: AppLocalization.text("search.results", "Results"),
+                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(model.results.count))
+            )
                 .padding(.horizontal, AppSpacing.md)
 
             LazyVStack(spacing: AppSpacing.md) {
@@ -146,7 +152,7 @@ struct SearchView: View {
                 if model.isSearching {
                     ProgressView().controlSize(.small)
                 } else {
-                    Label("Load More", systemImage: "arrow.down.circle")
+                    Label(AppLocalization.text("common.load_more", "Load More"), systemImage: "arrow.down.circle")
                 }
                 Spacer()
             }
@@ -184,13 +190,13 @@ struct SearchView: View {
                 .font(.system(size: 26))
                 .foregroundStyle(.secondary)
             if model.isSearching {
-                Text("Searching...")
+                Text(AppLocalization.text("search.searching", "Searching..."))
                     .foregroundStyle(.secondary)
             } else if model.keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Search comics")
+                Text(AppLocalization.text("search.comics", "Search comics"))
                     .foregroundStyle(.secondary)
             } else {
-                Text("No results")
+                Text(AppLocalization.text("search.no_results", "No results"))
                     .foregroundStyle(.secondary)
             }
 
@@ -216,7 +222,10 @@ struct SearchView: View {
     private var searchQuickCardsSection: some View {
         if !quickCardGroups.isEmpty {
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                sectionHeader(title: "Quick Filters", subtitle: "Source-defined shortcuts")
+                sectionHeader(
+                    title: AppLocalization.text("search.quick_filters", "Quick Filters"),
+                    subtitle: AppLocalization.text("search.quick_filters.subtitle", "Source-defined shortcuts")
+                )
                     .padding(.horizontal, AppSpacing.md)
 
                 ForEach(quickCardGroups, id: \.group.id) { pair in
@@ -268,7 +277,10 @@ struct SearchView: View {
 
     private var recentKeywordsSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            sectionHeader(title: "Recent Keywords", subtitle: "Tap to search again")
+            sectionHeader(
+                title: AppLocalization.text("search.recent_keywords", "Recent Keywords"),
+                subtitle: AppLocalization.text("search.recent_keywords.subtitle", "Tap to search again")
+            )
                 .padding(.horizontal, AppSpacing.md)
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -353,7 +365,7 @@ struct SearchView: View {
 
     private var searchContextSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            sectionHeader(title: "Search Context", subtitle: searchContextSubtitle)
+            sectionHeader(title: AppLocalization.text("search.context", "Search Context"), subtitle: searchContextSubtitle)
                 .padding(.horizontal, AppSpacing.md)
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -361,7 +373,7 @@ struct SearchView: View {
                     contextChip(title: activeSourceTitle, systemImage: "antenna.radiowaves.left.and.right")
                     switch model.lastSearchTrigger {
                     case .keyword:
-                        contextChip(title: "Keyword Search", systemImage: "text.magnifyingglass")
+                        contextChip(title: AppLocalization.text("search.context.keyword", "Keyword Search"), systemImage: "text.magnifyingglass")
                     case .tag(let tag):
                         contextChip(title: "#\(tag)", systemImage: "tag")
                     }
@@ -375,15 +387,15 @@ struct SearchView: View {
 
     private var activeSourceTitle: String {
         vm.sourceManager.installedSources.first(where: { $0.key == vm.sourceManager.selectedSourceKey })?.name
-            ?? "No Source Selected"
+            ?? AppLocalization.text("search.no_source_selected", "No Source Selected")
     }
 
     private var searchContextSubtitle: String {
         switch model.lastSearchTrigger {
         case .keyword:
-            return "Searching the active source by keyword."
+            return AppLocalization.text("search.context.keyword_subtitle", "Searching the active source by keyword.")
         case .tag(let tag):
-            return "Results started from the tag “\(tag)”."
+            return AppLocalization.format("search.results_started_from_tag", "Results started from the tag \"%@\".", tag)
         }
     }
 
@@ -408,12 +420,12 @@ struct SearchSettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Source") {
+                Section(AppLocalization.text("search.section.source", "Source")) {
                     if vm.sourceManager.installedSources.isEmpty {
-                        Text("No source installed")
+                        Text(AppLocalization.text("search.no_source_installed", "No source installed"))
                             .foregroundStyle(.secondary)
                     } else {
-                        Picker("Active Source", selection: $vm.sourceManager.selectedSourceKey) {
+                        Picker(AppLocalization.text("search.active_source", "Active Source"), selection: $vm.sourceManager.selectedSourceKey) {
                             ForEach(vm.sourceManager.installedSources) { source in
                                 Text(source.name).tag(source.key)
                             }
@@ -422,7 +434,7 @@ struct SearchSettingsSheet: View {
                 }
 
                 if !vm.login.searchOptionGroups.isEmpty {
-                    Section("Filters") {
+                    Section(AppLocalization.text("search.filters", "Filters")) {
                         ForEach(Array(vm.login.searchOptionGroups.enumerated()), id: \.element.id) { index, group in
                             if group.type == "multi-select" {
                                 MultiSelectOptionGroupView(
@@ -454,7 +466,7 @@ struct SearchSettingsSheet: View {
                 }
 
                 if !model.recentKeywords.isEmpty {
-                    Section("Recent Keywords") {
+                    Section(AppLocalization.text("search.recent_keywords", "Recent Keywords")) {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: AppSpacing.sm) {
                                 ForEach(model.recentKeywords, id: \.self) { keyword in
@@ -468,32 +480,32 @@ struct SearchSettingsSheet: View {
                             .padding(.vertical, 4)
                         }
 
-                        Button("Clear History", role: .destructive) {
+                        Button(AppLocalization.text("search.clear_history", "Clear History"), role: .destructive) {
                             model.clearRecentKeywords()
                         }
                     }
                 }
 
-                Section("Status") {
+                Section(AppLocalization.text("common.status", "Status")) {
                     Text(model.status)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Source Search Features") {
-                    featureRow("Keyword Search", enabled: vm.login.searchFeatureProfile.hasKeywordSearch)
-                    featureRow("Paged Keyword Search", enabled: vm.login.searchFeatureProfile.supportsPagedKeywordSearch)
+                Section(AppLocalization.text("search.features", "Source Search Features")) {
+                    featureRow(AppLocalization.text("search.feature.keyword", "Keyword Search"), enabled: vm.login.searchFeatureProfile.hasKeywordSearch)
+                    featureRow(AppLocalization.text("search.feature.paged_keyword", "Paged Keyword Search"), enabled: vm.login.searchFeatureProfile.supportsPagedKeywordSearch)
                     featureRow("loadPage()", enabled: vm.login.searchFeatureProfile.supportsLoadPage)
                     featureRow("loadNext()", enabled: vm.login.searchFeatureProfile.supportsLoadNext)
                     HStack {
-                        Text("Filter Groups")
+                        Text(AppLocalization.text("search.filter_groups", "Filter Groups"))
                         Spacer()
                         Text("\(vm.login.searchFeatureProfile.optionGroupCount)")
                             .foregroundStyle(.secondary)
                     }
                     if !vm.login.searchFeatureProfile.availableMethods.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Exposed Methods")
+                            Text(AppLocalization.text("search.exposed_methods", "Exposed Methods"))
                             Text(vm.login.searchFeatureProfile.availableMethods.joined(separator: ", "))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -501,10 +513,10 @@ struct SearchSettingsSheet: View {
                     }
                 }
             }
-            .navigationTitle("Search Settings")
+            .navigationTitle(AppLocalization.text("search.settings.navigation", "Search Settings"))
             .toolbar {
                 ToolbarItem(placement: .platformTopBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button(AppLocalization.text("common.done", "Done")) { dismiss() }
                 }
             }
         }

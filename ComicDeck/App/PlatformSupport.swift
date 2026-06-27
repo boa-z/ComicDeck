@@ -17,6 +17,56 @@ enum PlatformPasteboard {
     }
 }
 
+enum PlatformFileActions {
+    static func copyFileToUserSelectedDestination(sourceURL: URL, suggestedFileName: String) throws -> URL? {
+        #if os(macOS)
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = suggestedFileName
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+
+        guard panel.runModal() == .OK, let destinationURL = panel.url else {
+            return nil
+        }
+
+        if FileManager.default.fileExists(atPath: destinationURL.path) {
+            try FileManager.default.removeItem(at: destinationURL)
+        }
+        try FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+        return destinationURL
+        #else
+        _ = suggestedFileName
+        return sourceURL
+        #endif
+    }
+
+    static func reveal(url: URL) {
+        #if os(macOS)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+        #else
+        _ = url
+        #endif
+    }
+
+    static func reveal(path: String) {
+        #if os(macOS)
+        let url = URL(fileURLWithPath: path)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+        #else
+        _ = path
+        #endif
+    }
+
+    static func revealDirectory(path: String) {
+        #if os(macOS)
+        let url = URL(fileURLWithPath: path, isDirectory: true)
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
+        #else
+        _ = path
+        #endif
+    }
+}
+
 enum PlatformColors {
     static var systemBackground: Color {
         #if os(iOS)

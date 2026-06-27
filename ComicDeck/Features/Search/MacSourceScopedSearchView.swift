@@ -18,6 +18,8 @@ struct MacSourceScopedSearchView: View {
     @State private var model: SearchScreenModel
     @State private var showSearchSettings = false
     @State private var detailItem: ComicSummary?
+    @State private var searchCommandController = MacSearchCommandController()
+    @State private var isSearchPresented = true
 
     private var browseMode: ComicBrowseDisplayMode {
         get { ComicBrowseDisplayMode(rawValue: browseModeRaw) ?? .list }
@@ -54,8 +56,9 @@ struct MacSourceScopedSearchView: View {
                 get: { model.keyword },
                 set: { model.keyword = $0 }
             ),
+            isPresented: $isSearchPresented,
             placement: .toolbar,
-            prompt: "Search keyword"
+            prompt: AppLocalization.text("search.placeholder", "Search keyword")
         )
         .onSubmit(of: .search) {
             Task { await search(model.keyword, sourceKey: sourceKey) }
@@ -63,7 +66,7 @@ struct MacSourceScopedSearchView: View {
         .frame(minWidth: 880, minHeight: 600)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Done") { dismiss() }
+                Button(AppLocalization.text("common.done", "Done")) { dismiss() }
                     .keyboardShortcut(.cancelAction)
             }
             ToolbarItemGroup(placement: .primaryAction) {
@@ -85,6 +88,7 @@ struct MacSourceScopedSearchView: View {
                     Task { await search(keyword, sourceKey: sourceKey) }
                 }
             )
+            .platformPresentationDetentsMediumLarge()
         }
         .sheet(item: $detailItem) { item in
             NavigationStack {
@@ -95,6 +99,10 @@ struct MacSourceScopedSearchView: View {
             }
             .frame(minWidth: 880, minHeight: 640)
         }
+        .onAppear {
+            configureSearchCommands()
+        }
+        .focusedSceneValue(\.macSearchCommandController, searchCommandController)
         .task {
             guard !didInitialSearch else { return }
             didInitialSearch = true
@@ -102,11 +110,16 @@ struct MacSourceScopedSearchView: View {
         }
     }
 
+    private func configureSearchCommands() {
+        searchCommandController.focusSearch = { isSearchPresented = true }
+        searchCommandController.canFocusSearch = true
+    }
+
     // MARK: - Sidebar
 
     private var filterSidebar: some View {
         List {
-            Section("Source") {
+            Section(AppLocalization.text("search.section.source", "Source")) {
                 Text(sourceTitle)
                     .font(.subheadline.weight(.medium))
             }
@@ -122,7 +135,7 @@ struct MacSourceScopedSearchView: View {
     private var filterGroupsSection: some View {
         let groups = vm.login.searchOptionGroups
         if !groups.isEmpty {
-            Section("Filters") {
+            Section(AppLocalization.text("search.filters", "Filters")) {
                 ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                     if group.type == "multi-select" {
                         ScopedMultiSelectRow(
@@ -159,7 +172,7 @@ struct MacSourceScopedSearchView: View {
     @ViewBuilder
     private var recentKeywordsSidebarSection: some View {
         if !model.recentKeywords.isEmpty {
-            Section("Recent") {
+            Section(AppLocalization.text("search.recent", "Recent")) {
                 ForEach(model.recentKeywords.prefix(8), id: \.self) { keyword in
                     Button {
                         model.keyword = keyword
@@ -171,7 +184,7 @@ struct MacSourceScopedSearchView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Button("Clear History", role: .destructive) {
+                Button(AppLocalization.text("search.clear_history", "Clear History"), role: .destructive) {
                     model.clearRecentKeywords()
                 }
                 .font(.caption)
@@ -180,7 +193,7 @@ struct MacSourceScopedSearchView: View {
     }
 
     private var searchInfoSection: some View {
-        Section("Status") {
+        Section(AppLocalization.text("common.status", "Status")) {
             Text(model.status)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -234,8 +247,8 @@ struct MacSourceScopedSearchView: View {
             }
             Spacer(minLength: 0)
             HStack(spacing: AppSpacing.sm) {
-                statusPill(title: "Layout", value: browseMode.title)
-                statusPill(title: "Results", value: "\(model.results.count)")
+                statusPill(title: AppLocalization.text("search.layout", "Layout"), value: browseMode.title)
+                statusPill(title: AppLocalization.text("search.results", "Results"), value: "\(model.results.count)")
             }
             if model.isSearching {
                 ProgressView().controlSize(.small)
@@ -248,10 +261,12 @@ struct MacSourceScopedSearchView: View {
         switch model.lastSearchTrigger {
         case .keyword:
             let keyword = model.keyword.trimmingCharacters(in: .whitespacesAndNewlines)
-            if keyword.isEmpty { return "Search this source directly." }
-            return "Searching for \"\(keyword)\""
+            if keyword.isEmpty {
+                return AppLocalization.text("search.source_direct_hint", "Search this source directly.")
+            }
+            return AppLocalization.format("search.searching_for", "Searching for \"%@\"", keyword)
         case .tag(let tag):
-            return "Results started from the tag \"\(tag)\"."
+            return AppLocalization.format("search.results_started_from_tag", "Results started from the tag \"%@\".", tag)
         }
     }
 
@@ -271,9 +286,9 @@ struct MacSourceScopedSearchView: View {
     private var resultsHeader: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Results")
+                Text(AppLocalization.text("search.results", "Results"))
                     .font(.title3.weight(.semibold))
-                Text("\(model.results.count) comics")
+                Text(AppLocalization.format("search.results_count", "%lld comics", Int64(model.results.count)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -283,7 +298,7 @@ struct MacSourceScopedSearchView: View {
             } label: {
                 Image(systemName: "line.3.horizontal.decrease.circle")
             }
-            .help("Search settings")
+            .help(AppLocalization.text("search.settings.navigation", "Search Settings"))
         }
         .padding(.horizontal, AppSpacing.lg)
     }
@@ -323,7 +338,7 @@ struct MacSourceScopedSearchView: View {
                 if model.isSearching {
                     ProgressView().controlSize(.small)
                 } else {
-                    Label("Load More", systemImage: "arrow.down.circle")
+                    Label(AppLocalization.text("common.load_more", "Load More"), systemImage: "arrow.down.circle")
                 }
                 Spacer()
             }
@@ -337,7 +352,7 @@ struct MacSourceScopedSearchView: View {
             Image(systemName: model.isSearching ? "hourglass" : "text.magnifyingglass")
                 .font(.system(size: 36))
                 .foregroundStyle(.secondary)
-            Text(model.isSearching ? "Searching…" : "No results")
+            Text(model.isSearching ? AppLocalization.text("search.searching", "Searching...") : AppLocalization.text("search.no_results", "No results"))
                 .font(.headline)
                 .foregroundStyle(.secondary)
             Text(model.status)
@@ -410,6 +425,20 @@ struct MacSourceScopedSearchView: View {
             label()
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button(AppLocalization.text("common.open", "Open"), systemImage: "arrow.up.right.square") {
+                detailItem = item
+            }
+            Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
+                PlatformPasteboard.copy(item.title)
+            }
+            Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
+                PlatformPasteboard.copy(item.id)
+            }
+            Button(AppLocalization.text("search.action.copy_source", "Copy Source"), systemImage: "shippingbox") {
+                PlatformPasteboard.copy(item.sourceKey)
+            }
+        }
     }
 
     // MARK: - Actions

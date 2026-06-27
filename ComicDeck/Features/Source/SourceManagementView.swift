@@ -85,7 +85,11 @@ struct SourceManagementView: View {
             }
             Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) { }
         } message: {
-            Text(AppLocalization.text("source.alert.batch_update.message", "Update \(selectedInstalledSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }.count) selected source\(selectedInstalledSources.count == 1 ? "" : "s") with available updates?"))
+            Text(AppLocalization.format(
+                "source.alert.batch_update.message",
+                "Update %lld selected sources with available updates?",
+                Int64(selectedInstalledSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }.count)
+            ))
         }
         .alert(AppLocalization.text("source.alert.batch_delete.title", "Delete selected sources?"), isPresented: $showBatchDeleteConfirm) {
             Button(AppLocalization.text("source.action.delete", "Delete"), role: .destructive) {
@@ -93,7 +97,11 @@ struct SourceManagementView: View {
             }
             Button(AppLocalization.text("common.cancel", "Cancel"), role: .cancel) { }
         } message: {
-            Text(AppLocalization.text("source.alert.batch_delete.message", "Delete \(selectedInstalledSources.count) selected installed source\(selectedInstalledSources.count == 1 ? "" : "s")? This action cannot be undone."))
+            Text(AppLocalization.format(
+                "source.alert.batch_delete.message",
+                "Delete %lld selected installed sources? This action cannot be undone.",
+                Int64(selectedInstalledSources.count)
+            ))
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if isSelecting {
@@ -179,7 +187,7 @@ struct SourceManagementView: View {
 
     private var selectionBar: some View {
         HStack(spacing: 10) {
-            Text(AppLocalization.text("source.management.selected", "\(selectedSourceKeys.count) selected"))
+            Text(AppLocalization.format("source.management.selected", "%lld selected", Int64(selectedSourceKeys.count)))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .padding(.horizontal, 10)
@@ -211,7 +219,7 @@ struct SourceManagementView: View {
                     }
                     .font(.subheadline.weight(.semibold))
                 } else {
-                    Text("Update")
+                    Text(AppLocalization.text("source.action.update", "Update"))
                         .font(.subheadline.weight(.semibold))
                 }
             }
@@ -231,7 +239,7 @@ struct SourceManagementView: View {
                     }
                     .font(.subheadline.weight(.semibold))
                 } else {
-                    Text("Delete")
+                    Text(AppLocalization.text("source.action.delete", "Delete"))
                         .font(.subheadline.weight(.semibold))
                 }
             }
@@ -309,7 +317,7 @@ struct SourceManagementView: View {
                     .font(.caption)
                     .foregroundStyle(isSelected ? AppTint.accent : .secondary)
                 if let updateVersion {
-                    Text("Update available: \(updateVersion)")
+                    Text(AppLocalization.format("source.management.update_available", "Update available: %@", updateVersion))
                         .font(.caption)
                         .foregroundStyle(AppTint.warning)
                 }
@@ -356,7 +364,7 @@ struct SourceManagementView: View {
         let targets = selectedInstalledSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }
         guard !targets.isEmpty else { return }
         batchWorking = true
-        batchProgressText = "Preparing..."
+        batchProgressText = AppLocalization.text("source.action.preparing", "Preparing...")
         defer {
             batchWorking = false
             batchProgressText = ""
@@ -374,7 +382,7 @@ struct SourceManagementView: View {
         let targets = selectedInstalledSources
         guard !targets.isEmpty else { return }
         batchWorking = true
-        batchProgressText = "Preparing..."
+        batchProgressText = AppLocalization.text("source.action.preparing", "Preparing...")
         defer {
             batchWorking = false
             batchProgressText = ""

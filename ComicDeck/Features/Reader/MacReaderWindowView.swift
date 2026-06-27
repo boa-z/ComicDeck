@@ -141,6 +141,13 @@ struct MacReaderWindowView: View {
             Task { await controller.cleanupAfterStop() }
         }
         .focusedSceneValue(\.readerController, controller)
+        .focusedSceneValue(\.macReaderCommandState, MacReaderCommandState(
+            readerMode: readerMode,
+            backgroundMode: readerBackgroundMode,
+            setReaderMode: { readerMode = $0 },
+            setBackgroundMode: { readerBackgroundMode = $0 },
+            closeWindow: { dismiss() }
+        ))
     }
 
     @ToolbarContentBuilder
@@ -165,13 +172,13 @@ struct MacReaderWindowView: View {
             Button(AppLocalization.text("reader.action.previous_page", "Previous page"), systemImage: "chevron.left") {
                 controller.previousPage()
             }
-            .disabled(controller.session.currentPage <= 0 || controller.session.totalPages <= 0)
+            .disabled(!controller.canGoToPreviousPage)
             .help(AppLocalization.text("reader.action.previous_page", "Previous page"))
 
             Button(AppLocalization.text("reader.action.next_page", "Next page"), systemImage: "chevron.right") {
                 controller.nextPage()
             }
-            .disabled(controller.session.totalPages <= 0 || controller.session.currentPage >= controller.session.totalPages - 1)
+            .disabled(!controller.canGoToNextPage)
             .help(AppLocalization.text("reader.action.next_page", "Next page"))
 
             Divider()
@@ -179,13 +186,13 @@ struct MacReaderWindowView: View {
             Button(AppLocalization.text("reader.action.previous_chapter", "Previous chapter"), systemImage: "backward.end.fill") {
                 controller.openAdjacentChapter(step: -1)
             }
-            .disabled(controller.session.previousChapter == nil)
+            .disabled(!controller.canGoToPreviousChapter)
             .help(AppLocalization.text("reader.action.previous_chapter", "Previous chapter"))
 
             Button(AppLocalization.text("reader.action.next_chapter", "Next chapter"), systemImage: "forward.end.fill") {
                 controller.openAdjacentChapter(step: 1)
             }
-            .disabled(controller.session.nextChapter == nil)
+            .disabled(!controller.canGoToNextChapter)
             .help(AppLocalization.text("reader.action.next_chapter", "Next chapter"))
 
             Divider()
@@ -193,6 +200,7 @@ struct MacReaderWindowView: View {
             Button(AppLocalization.text("reader.action.reload_page", "Reload current page"), systemImage: "arrow.clockwise") {
                 controller.reloadCurrentPage()
             }
+            .disabled(!controller.canReloadCurrentPage)
             .help(AppLocalization.text("reader.action.reload_page", "Reload current page"))
 
             Menu {
