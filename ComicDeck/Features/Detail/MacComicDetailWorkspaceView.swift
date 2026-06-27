@@ -175,14 +175,17 @@ struct MacComicDetailWorkspaceView: View {
     }
 
     private func workspace(detail: ComicDetail) -> some View {
-        HSplitView {
+        HStack(spacing: 0) {
             summaryPane(detail: detail)
-                .frame(minWidth: 260, idealWidth: 310, maxWidth: 380)
+                .frame(width: 300)
+
+            Divider()
 
             detailPane(detail: detail)
-                .frame(minWidth: 480, maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(AppSurface.grouped)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func summaryPane(detail: ComicDetail) -> some View {
@@ -425,25 +428,7 @@ struct MacComicDetailWorkspaceView: View {
 
     private func chaptersTab(detail: ComicDetail) -> some View {
         VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                TextField(
-                    AppLocalization.text("detail.chapters.search", "Search chapters"),
-                    text: Binding(
-                        get: { model.chapterQuery },
-                        set: { model.chapterQuery = $0 }
-                    )
-                )
-                .textFieldStyle(.roundedBorder)
-
-                Toggle(
-                    AppLocalization.text("detail.chapters.descending", "Newest first"),
-                    isOn: Binding(
-                        get: { model.chapterDescending },
-                        set: { model.chapterDescending = $0 }
-                    )
-                )
-                .toggleStyle(.checkbox)
-            }
+            chapterFilterControls
             .padding(14)
             .background(AppSurface.card)
 
@@ -475,6 +460,42 @@ struct MacComicDetailWorkspaceView: View {
             }
             .listStyle(.inset)
         }
+    }
+
+    private var chapterFilterControls: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) {
+                chapterSearchField
+                newestFirstToggle
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                chapterSearchField
+                newestFirstToggle
+            }
+        }
+    }
+
+    private var chapterSearchField: some View {
+        TextField(
+            AppLocalization.text("detail.chapters.search", "Search chapters"),
+            text: Binding(
+                get: { model.chapterQuery },
+                set: { model.chapterQuery = $0 }
+            )
+        )
+        .textFieldStyle(.roundedBorder)
+    }
+
+    private var newestFirstToggle: some View {
+        Toggle(
+            AppLocalization.text("detail.chapters.descending", "Newest first"),
+            isOn: Binding(
+                get: { model.chapterDescending },
+                set: { model.chapterDescending = $0 }
+            )
+        )
+        .toggleStyle(.checkbox)
     }
 
     private func tagsTab(detail: ComicDetail) -> some View {
@@ -882,6 +903,8 @@ private struct MacChapterRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
 
             Spacer(minLength: 0)
 
@@ -894,13 +917,17 @@ private struct MacChapterRow: View {
                     .background(statusTint(status).opacity(0.12), in: Capsule())
             }
 
-            Button(AppLocalization.text("reader.action.read", "Read"), systemImage: "play.fill", action: onRead)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    readButton
+                    downloadButton
+                }
 
-            Button(AppLocalization.text("detail.hero.action.download", "Download"), systemImage: "arrow.down.circle", action: onDownload)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                HStack(spacing: 6) {
+                    readButton.labelStyle(.iconOnly)
+                    downloadButton.labelStyle(.iconOnly)
+                }
+            }
         }
         .padding(.vertical, 4)
         .contextMenu {
@@ -927,6 +954,20 @@ private struct MacChapterRow: View {
         case .pending:
             return AppTint.warning
         }
+    }
+
+    private var readButton: some View {
+        Button(AppLocalization.text("reader.action.read", "Read"), systemImage: "play.fill", action: onRead)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .help(AppLocalization.text("reader.action.read", "Read"))
+    }
+
+    private var downloadButton: some View {
+        Button(AppLocalization.text("detail.hero.action.download", "Download"), systemImage: "arrow.down.circle", action: onDownload)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help(AppLocalization.text("detail.hero.action.download", "Download"))
     }
 }
 
