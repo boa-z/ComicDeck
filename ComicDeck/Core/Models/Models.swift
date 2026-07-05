@@ -335,6 +335,25 @@ struct TagGroup: Identifiable, Hashable {
     let values: [String]
 }
 
+struct ComicPreviewImage: Identifiable, Hashable {
+    let id: String
+    let imageURL: String
+    let sourceURL: String?
+    let page: Int
+
+    nonisolated init(id: String = UUID().uuidString, imageURL: String, sourceURL: String? = nil, page: Int) {
+        self.id = id
+        self.imageURL = imageURL
+        self.sourceURL = sourceURL
+        self.page = page
+    }
+}
+
+struct ComicPreviewImagePage: Hashable {
+    let images: [ComicPreviewImage]
+    let nextToken: String?
+}
+
 struct ComicDetail: Hashable {
     let title: String
     let cover: String?
@@ -347,6 +366,8 @@ struct ComicDetail: Hashable {
     let chapters: [ComicChapter]
     let commentsCount: Int?
     let comments: [ComicComment]
+    let previewImages: [ComicPreviewImage]
+    let previewNextToken: String?
 }
 
 struct ComicCommentsPage: Hashable {

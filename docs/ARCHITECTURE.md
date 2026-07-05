@@ -226,6 +226,8 @@ shared source repository:
 - `UI.showLoading`, `UI.cancelLoading`, and `UI.showSelectDialog` no-op/sync
   fallbacks for source scripts that wrap long-running source-side workflows
 - `Convert.hmac` byte output alongside `Convert.hmacString`
+- `ComicDetails.thumbnails` and `comic.loadThumbnails(id, next)` normalized into
+  detail-page preview images with page numbers and optional source page URLs
 
 Implementation details now live fully inside the Runtime layer.
 

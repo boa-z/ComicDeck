@@ -24,6 +24,11 @@ final class ComicDetailScreenModel {
     var showCommentPreview = false
     var chapterQuery = ""
     var chapterDescending = false
+    var previewImages: [ComicPreviewImage] = []
+    var previewNextToken: String?
+    var previewLoading = false
+    var previewUnavailable = false
+    var previewErrorText = ""
 
     init(item: ComicSummary) {
         self.item = item
@@ -63,7 +68,9 @@ final class ComicDetailScreenModel {
                 favoriteId: detail.favoriteId,
                 chapters: detail.chapters,
                 commentsCount: detail.commentsCount,
-                comments: detail.comments
+                comments: detail.comments,
+                previewImages: detail.previewImages,
+                previewNextToken: detail.previewNextToken
             )
         }
         return detail
@@ -86,6 +93,13 @@ final class ComicDetailScreenModel {
             isBookmarked = library.isBookmarked(item)
             await library.refreshDownloadList()
             detail = try await vm.loadComicDetail(item)
+            previewImages = detail?.previewImages ?? []
+            previewNextToken = detail?.previewNextToken
+            previewUnavailable = false
+            previewErrorText = ""
+            if previewImages.isEmpty {
+                await loadMorePreviewImages(using: vm)
+            }
             do {
                 commentCapabilities = try await vm.getComicCommentCapabilities(item)
             } catch {
@@ -104,6 +118,34 @@ final class ComicDetailScreenModel {
             errorText = error.localizedDescription
         }
         loading = false
+    }
+
+    func loadMorePreviewImages(using vm: ReaderViewModel) async {
+        guard !previewLoading, !previewUnavailable else { return }
+        if !previewImages.isEmpty, previewNextToken == nil { return }
+
+        previewLoading = true
+        defer { previewLoading = false }
+
+        do {
+            let page = try await vm.loadComicThumbnailPage(
+                item,
+                nextToken: previewNextToken,
+                startPage: previewImages.count + 1
+            )
+            if page.images.isEmpty, page.nextToken == nil {
+                previewUnavailable = previewImages.isEmpty
+            }
+            previewImages.append(contentsOf: page.images)
+            previewNextToken = page.nextToken
+            previewErrorText = ""
+        } catch {
+            if previewImages.isEmpty {
+                previewUnavailable = true
+            } else {
+                previewErrorText = error.localizedDescription
+            }
+        }
     }
 
     func startToggleBookmark(using library: LibraryViewModel) {

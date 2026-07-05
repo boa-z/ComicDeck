@@ -349,6 +349,27 @@ struct ComicDetailView: View {
         )
         .id("hero")
 
+        ComicDetailPreviewSection(
+            images: model.previewImages,
+            loading: model.previewLoading,
+            canLoadMore: model.previewNextToken != nil && !model.previewLoading,
+            errorText: model.previewErrorText,
+            onOpenPage: { preview in
+                let target = readTarget(from: detail)
+                readRoute = ReaderLaunchContext(
+                    item: item,
+                    chapterID: target.chapterID,
+                    chapterTitle: target.chapterTitle,
+                    localDirectory: target.localDirectory,
+                    initialPage: preview.page,
+                    chapterSequence: detail.chapters
+                )
+            },
+            onLoadMore: {
+                Task { await model.loadMorePreviewImages(using: vm) }
+            }
+        )
+
         ComicDetailChaptersSection(
             chapters: displayedChapters(from: detail),
             totalChapterCount: detail.chapters.count,

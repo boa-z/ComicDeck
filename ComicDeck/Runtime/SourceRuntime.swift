@@ -248,6 +248,21 @@ final class SourceRuntime {
         }
     }
 
+    func loadComicThumbnailPage(_ item: ComicSummary, nextToken: String?, startPage: Int) async throws -> ComicPreviewImagePage {
+        let (source, engine) = try await sourceEngine(item: item)
+        vmDebugLog(
+            "loadComicThumbnailPage: key=\(source.key), comicID=\(item.id), next=\(nextToken ?? "nil"), startPage=\(startPage)",
+            level: .info
+        )
+        return try await runEngine {
+            try engine.loadComicThumbnailPage(
+                comicID: item.id,
+                nextToken: nextToken,
+                startPage: max(1, startPage)
+            )
+        }
+    }
+
     func prepareReaderPageRequestSession(_ item: ComicSummary, chapterID: String) async throws -> ReaderPageRequestSessionPreparation {
         let (source, engine) = try await sourceEngine(item: item)
         vmDebugLog("prepareReaderPageRequestSession: key=\(source.key), comicID=\(item.id), chapter=\(chapterID)", level: .info)
@@ -551,7 +566,9 @@ final class SourceRuntime {
             favoriteId: nil,
             chapters: chapters,
             commentsCount: nil,
-            comments: []
+            comments: [],
+            previewImages: [],
+            previewNextToken: nil
         )
     }
 

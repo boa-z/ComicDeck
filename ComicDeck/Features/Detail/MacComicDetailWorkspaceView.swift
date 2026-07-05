@@ -394,6 +394,8 @@ struct MacComicDetailWorkspaceView: View {
                     }
                 }
 
+                previewPanel(detail: detail)
+
                 if let url = model.browserURLString {
                     MacDetailPanel(title: AppLocalization.text("detail.link.title", "Source Link")) {
                         Text(url)
@@ -423,6 +425,59 @@ struct MacComicDetailWorkspaceView: View {
             }
             .padding(18)
             .frame(maxWidth: 900, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func previewPanel(detail: ComicDetail) -> some View {
+        if !model.previewImages.isEmpty || model.previewLoading || !model.previewErrorText.isEmpty {
+            MacDetailPanel(title: AppLocalization.text("detail.preview.title", "Preview")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if model.previewImages.isEmpty, model.previewLoading {
+                        ProgressView(AppLocalization.text("detail.preview.loading", "Loading previews..."))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    if !model.previewImages.isEmpty {
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 92, maximum: 136), spacing: 10)],
+                            alignment: .leading,
+                            spacing: 10
+                        ) {
+                            ForEach(model.previewImages) { image in
+                                MacComicPreviewTile(image: image) {
+                                    openPreview(image, detail: detail)
+                                }
+                                .onAppear {
+                                    if image.id == model.previewImages.last?.id,
+                                       model.previewNextToken != nil,
+                                       !model.previewLoading {
+                                        Task { await model.loadMorePreviewImages(using: vm) }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if model.previewLoading, !model.previewImages.isEmpty {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                    } else if model.previewNextToken != nil {
+                        Button(AppLocalization.text("detail.preview.load_more", "Load More"), systemImage: "arrow.down.circle") {
+                            Task { await model.loadMorePreviewImages(using: vm) }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+
+                    if !model.previewErrorText.isEmpty {
+                        Text(model.previewErrorText)
+                            .font(.caption)
+                            .foregroundStyle(AppTint.danger)
+                    }
+                }
+            }
         }
     }
 
@@ -672,6 +727,18 @@ struct MacComicDetailWorkspaceView: View {
         ))
     }
 
+    private func openPreview(_ preview: ComicPreviewImage, detail: ComicDetail) {
+        let target = readTarget(from: detail)
+        openWindow(id: "reader", value: ReaderLaunchContext(
+            item: item,
+            chapterID: target.chapterID,
+            chapterTitle: target.chapterTitle,
+            localDirectory: target.localDirectory,
+            initialPage: max(1, preview.page),
+            chapterSequence: detail.chapters
+        ))
+    }
+
     private func openFirstChapter(detail: ComicDetail) {
         let first = firstChapter(from: detail)
         openWindow(id: "reader", value: ReaderLaunchContext.fromChapter(
@@ -853,6 +920,50 @@ struct MacComicDetailWorkspaceView: View {
             }
         }
         return output
+    }
+}
+
+private struct MacComicPreviewTile: View {
+    let image: ComicPreviewImage
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            ZStack(alignment: .bottomTrailing) {
+                ComicPreviewThumbnailImage(
+                    urlString: image.imageURL,
+                    refererURLString: image.sourceURL
+                )
+                .frame(maxWidth: .infinity)
+                .aspectRatio(0.72, contentMode: .fit)
+                .clipped()
+
+                Text(String(image.page))
+                    .font(.caption2.weight(.bold))
+                    .monospacedDigit()
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(.thinMaterial, in: Capsule())
+                    .padding(6)
+            }
+            .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous)
+                    .stroke(AppSurface.border, lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(AppLocalization.format(
+            "detail.preview.open_page_accessibility_format",
+            "Open page %lld",
+            Int64(image.page)
+        ))
+        .help(AppLocalization.format(
+            "detail.preview.open_page_accessibility_format",
+            "Open page %lld",
+            Int64(image.page)
+        ))
     }
 }
 

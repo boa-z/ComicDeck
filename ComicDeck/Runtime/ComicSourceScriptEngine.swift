@@ -1666,6 +1666,26 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
                 const commentsCount = Number.isFinite(Number(commentsCountRaw))
                   ? Math.floor(Number(commentsCountRaw))
                   : comments.length;
+                const normalizePreviewURL = (value) => {
+                  if (typeof value !== 'string') return '';
+                  const text = value.trim();
+                  if (!text) return '';
+                  const marker = text.search(/@(?:x|y)=/);
+                  const withoutPart = marker >= 0 ? text.slice(0, marker) : text;
+                  if (withoutPart.startsWith('//')) return `https:${withoutPart}`;
+                  return withoutPart;
+                };
+                const thumbnailsRaw = Array.isArray(info?.thumbnails) ? info.thumbnails : [];
+                const previewImages = thumbnailsRaw.map((raw, idx) => {
+                  const imageURL = normalizePreviewURL(raw);
+                  if (!imageURL) return null;
+                  return {
+                    id: `detail_${idx}`,
+                    imageURL,
+                    sourceURL: null,
+                    page: idx + 1
+                  };
+                }).filter((x) => x != null);
 
                 return {
                   title: info?.title ? String(info.title) : "",
@@ -1688,7 +1708,9 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
                         : ((typeof info?.subId === 'string' && info.subId.length > 0) ? info.subId : null)),
                   chapters: chapters,
                   commentsCount,
-                  comments
+                  comments,
+                  previewImages,
+                  previewNextToken: null
                 };
               });
             })()
@@ -1734,6 +1756,11 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
                         replyCount: item["replyCount"] as? Int
                     )
                 }
+                let previewImages = Self.normalizePreviewImages(
+                    object["previewImages"],
+                    startPage: 1,
+                    urls: nil
+                )
                 return ComicDetail(
                     title: object["title"] as? String ?? "",
                     cover: object["cover"] as? String,
@@ -1745,9 +1772,71 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
                     favoriteId: object["favoriteId"] as? String,
                     chapters: chapters,
                     commentsCount: object["commentsCount"] as? Int,
-                    comments: comments
+                    comments: comments,
+                    previewImages: previewImages,
+                    previewNextToken: object["previewNextToken"] as? String
                 )
             }
+
+    func loadComicThumbnailPage(comicID: String, nextToken: String?, startPage: Int) throws -> ComicPreviewImagePage {
+        let result = try callExpression(
+            """
+            (() => {
+              const comic = this.__source_temp && this.__source_temp.comic;
+              if (!comic || typeof comic.loadThumbnails !== 'function') {
+                throw new Error("comic.loadThumbnails is not supported by this source");
+              }
+              const normalizePreviewURL = (value) => {
+                if (typeof value !== 'string') return '';
+                const text = value.trim();
+                if (!text) return '';
+                const marker = text.search(/@(?:x|y)=/);
+                const withoutPart = marker >= 0 ? text.slice(0, marker) : text;
+                if (withoutPart.startsWith('//')) return `https:${withoutPart}`;
+                return withoutPart;
+              };
+              return Promise.resolve(
+                comic.loadThumbnails.call(this.__source_temp, arguments[0], arguments[1])
+              ).then((payload) => {
+                const root = (payload && typeof payload === 'object') ? payload : {};
+                const thumbnails = Array.isArray(root.thumbnails) ? root.thumbnails : [];
+                const urls = Array.isArray(root.urls) ? root.urls : [];
+                const startPage = Math.max(1, Math.floor(Number(arguments[2] ?? 1)));
+                const images = thumbnails.map((raw, idx) => {
+                  const imageURL = normalizePreviewURL(raw);
+                  if (!imageURL) return null;
+                  const sourceRaw = urls[idx];
+                  const sourceURL = typeof sourceRaw === 'string' && sourceRaw.trim().length > 0
+                    ? sourceRaw.trim()
+                    : null;
+                  const page = startPage + idx;
+                  return {
+                    id: `thumb_${page}_${idx}`,
+                    imageURL,
+                    sourceURL,
+                    page
+                  };
+                }).filter((x) => x != null);
+                const next = root.next ?? root.nextToken ?? root.token ?? null;
+                return {
+                  images,
+                  nextToken: (next == null || next === '') ? null : String(next)
+                };
+              });
+            })()
+            """,
+            arguments: [comicID, nextToken ?? NSNull(), max(1, startPage)]
+        )
+        guard let object = result as? [String: Any] else {
+            return ComicPreviewImagePage(images: [], nextToken: nil)
+        }
+        let images = Self.normalizePreviewImages(
+            object["images"],
+            startPage: max(1, startPage),
+            urls: nil
+        )
+        return ComicPreviewImagePage(images: images, nextToken: object["nextToken"] as? String)
+    }
 
     func loadFavoriteFolders(comicID: String?) throws -> FavoriteFolderListing {
         let result = try callExpression(
@@ -3043,6 +3132,61 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
                 tags: tags
             )
         }
+    }
+
+    private static func normalizePreviewImages(_ result: Any?, startPage: Int, urls: [String]?) -> [ComicPreviewImage] {
+        let array: [[String: Any]]
+        if let rows = result as? [[String: Any]] {
+            array = rows
+        } else if let rows = result as? [Any] {
+            array = rows.enumerated().compactMap { idx, raw in
+                if let object = raw as? [String: Any] {
+                    return object
+                }
+                guard let imageURL = raw as? String else { return nil }
+                var object: [String: Any] = [
+                    "id": "preview_\(startPage + idx)",
+                    "imageURL": imageURL,
+                    "page": startPage + idx
+                ]
+                if let urls, urls.indices.contains(idx) {
+                    object["sourceURL"] = urls[idx]
+                }
+                return object
+            }
+        } else {
+            array = []
+        }
+
+        return array.enumerated().compactMap { idx, object in
+            let rawImageURL = (object["imageURL"] as? String) ?? (object["url"] as? String) ?? (object["thumbnail"] as? String)
+            guard let imageURL = sanitizePreviewImageURL(rawImageURL) else { return nil }
+            let pageValue = object["page"]
+            let page = (pageValue as? Int) ?? (pageValue as? NSNumber)?.intValue ?? (startPage + idx)
+            let rawSourceURL = object["sourceURL"] as? String
+            let sourceURL = rawSourceURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return ComicPreviewImage(
+                id: object["id"] as? String ?? "preview_\(page)_\(idx)",
+                imageURL: imageURL,
+                sourceURL: (sourceURL?.isEmpty == false) ? sourceURL : nil,
+                page: max(1, page)
+            )
+        }
+    }
+
+    private static func sanitizePreviewImageURL(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let markerRange = trimmed.range(of: #"@(?:x|y)="#, options: .regularExpression)
+        let withoutPart = markerRange.map { String(trimmed[..<$0.lowerBound]) } ?? trimmed
+        let normalized = withoutPart.hasPrefix("//") ? "https:\(withoutPart)" : withoutPart
+        guard let url = URL(string: normalized),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            return nil
+        }
+        return normalized
     }
 
     private static func fixSourceKeyIfNeeded(_ item: ComicSummary, defaultSourceKey: String) -> ComicSummary {

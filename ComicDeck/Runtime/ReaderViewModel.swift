@@ -271,6 +271,15 @@ final class ReaderViewModel {
         return try await requireSourceRuntime().loadComicPageRequests(item, chapterID: chapterID)
     }
 
+    func loadComicThumbnailPage(_ item: ComicSummary, nextToken: String?, startPage: Int) async throws -> ComicPreviewImagePage {
+        await prepareIfNeeded()
+        return try await requireSourceRuntime().loadComicThumbnailPage(
+            item,
+            nextToken: nextToken,
+            startPage: startPage
+        )
+    }
+
     func prepareReaderPageRequestSession(_ item: ComicSummary, chapterID: String) async throws -> ReaderPageRequestSessionPreparation {
         await prepareIfNeeded()
         return try await requireSourceRuntime().prepareReaderPageRequestSession(item, chapterID: chapterID)
