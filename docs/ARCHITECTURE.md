@@ -204,11 +204,28 @@ Source scripts keep using the same JS-facing DOM contract exposed by `ComicSourc
 - `Html.elementQuerySelector`
 - `Html.elementQuerySelectorAll`
 - `Html.children`
+- `Html.nodes`
 - `Html.text`
 - `Html.innerHTML`
+- `Html.outerHTML`
+- `Html.tagName`
 - `Html.attributes`
+- `Html.nodeText`
+- `Html.nodeType`
+- `Html.nodeToElement`
 - `Html.dispose`
-- JS wrappers `HtmlDocument` and `HtmlElement`
+- JS wrappers `HtmlDocument`, `HtmlElement`, and `HtmlNode`
+
+The source runtime also keeps Venera-compatible convenience aliases used by the
+shared source repository:
+
+- DOM aliases such as `HtmlElement.nodes`, `parent`, `classNames`, `localName`,
+  `innerHtml`, `previousSibling`, and `nextSibling`
+- legacy `Network.request(url, method, headers, data)` forwarding to
+  `Network.sendRequest`
+- `UI.showLoading`, `UI.cancelLoading`, and `UI.showSelectDialog` no-op/sync
+  fallbacks for source scripts that wrap long-running source-side workflows
+- `Convert.hmac` byte output alongside `Convert.hmacString`
 
 Implementation details now live fully inside the Runtime layer.
 
@@ -227,6 +244,8 @@ Design intent:
 - source-script HTML parsing is fully in-process
 - runtime HTML parsing does not depend on a hidden `WKWebView`
 - DOM queries stay synchronous from the JS bridge point of view
+- element and child-node handles are retained by document lifetime and released
+  through `Html.dispose`
 - parsing runs on the existing runtime engine queue rather than the main thread
 - document and element handles preserve the compatibility behavior expected by installed scripts
 

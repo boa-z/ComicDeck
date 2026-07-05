@@ -72,6 +72,13 @@ nonisolated final class HtmlRuntimeBridge: @unchecked Sendable {
         }
     }
 
+    nonisolated func nodes(elementKey: Int) -> [Int] {
+        guard elementKey > 0 else { return [] }
+        return withEngine { engine in
+            engine.nodes(elementKey: elementKey)
+        }
+    }
+
     nonisolated func previousElementSibling(elementKey: Int) -> Int? {
         guard elementKey > 0 else { return nil }
         return withEngine { engine in
@@ -125,6 +132,27 @@ nonisolated final class HtmlRuntimeBridge: @unchecked Sendable {
         guard elementKey > 0 else { return [:] }
         return withEngine { engine in
             engine.attributes(elementKey: elementKey)
+        }
+    }
+
+    func nodeText(nodeKey: Int) -> String {
+        guard nodeKey > 0 else { return "" }
+        return withEngine { engine in
+            engine.nodeText(nodeKey: nodeKey)
+        }
+    }
+
+    func nodeType(nodeKey: Int) -> String {
+        guard nodeKey > 0 else { return "unknown" }
+        return withEngine { engine in
+            engine.nodeType(nodeKey: nodeKey)
+        }
+    }
+
+    func nodeToElement(nodeKey: Int) -> Int? {
+        guard nodeKey > 0 else { return nil }
+        return withEngine { engine in
+            engine.nodeToElement(nodeKey: nodeKey)
         }
     }
 

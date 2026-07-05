@@ -3149,6 +3149,11 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
             };
           };
           ['sendRequest', 'get', 'post', 'put', 'patch', 'delete', 'fetchBytes'].forEach(__wrapNet);
+          if (__net && typeof __net.request !== 'function') {
+            __net.request = (url, method = 'GET', headers = {}, data = null) => {
+              return __net.sendRequest(String(method || 'GET'), String(url || ''), headers || {}, data);
+            };
+          }
         } catch (_) {}
         const UI = {
           showMessage: (msg) => {
@@ -3198,6 +3203,24 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
           copyToClipboard: (text) => {
             try { BridgeUI.copyToClipboard(String(text ?? '')); } catch (_) {}
             return null;
+          },
+          showLoading: (onCancel) => {
+            try { return BridgeUI.showLoading(); } catch (_) { return 0; }
+          },
+          cancelLoading: (id) => {
+            try { BridgeUI.cancelLoading(Number(id ?? 0)); } catch (_) {}
+            return null;
+          },
+          showSelectDialog: (title, options, initialIndex = 0) => {
+            try {
+              return BridgeUI.showSelectDialog(
+                String(title ?? ''),
+                Array.isArray(options) ? options.map((x) => String(x)) : [],
+                Number(initialIndex ?? 0)
+              );
+            } catch (_) {
+              return null;
+            }
           }
         };
 
@@ -3216,13 +3239,25 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
           get children() {
             return Html.children(this.key).map((k) => new HtmlElement(k, this.docKey));
           }
+          get nodes() {
+            return Html.nodes(this.key).map((k) => new HtmlNode(k, this.docKey));
+          }
+          get parent() {
+            return this.parentElement;
+          }
           get previousElementSibling() {
             const k = Html.previousElementSibling(this.key);
             return k ? new HtmlElement(k, this.docKey) : null;
           }
+          get previousSibling() {
+            return this.previousElementSibling;
+          }
           get nextElementSibling() {
             const k = Html.nextElementSibling(this.key);
             return k ? new HtmlElement(k, this.docKey) : null;
+          }
+          get nextSibling() {
+            return this.nextElementSibling;
           }
           get parentElement() {
             const k = Html.parentElement(this.key);
@@ -3238,6 +3273,9 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
             return Html.text(this.key);
           }
           get innerHTML() {
+            return Html.innerHTML(this.key);
+          }
+          get innerHtml() {
             return Html.innerHTML(this.key);
           }
           get outerHTML() {
@@ -3258,6 +3296,12 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
           get className() {
             return Html.attributes(this.key).class || '';
           }
+          get classNames() {
+            return this.className.split(/\\s+/).filter((x) => x.length > 0);
+          }
+          get localName() {
+            return Html.tagName(this.key);
+          }
           getAttribute(name) {
             const attrs = Html.attributes(this.key);
             const key = String(name ?? '');
@@ -3266,6 +3310,23 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
           hasAttribute(name) {
             const attrs = Html.attributes(this.key);
             return Object.prototype.hasOwnProperty.call(attrs, String(name ?? ''));
+          }
+        }
+
+        class HtmlNode {
+          constructor(key, docKey) {
+            this.key = key;
+            this.docKey = docKey;
+          }
+          get text() {
+            return Html.nodeText(this.key);
+          }
+          get type() {
+            return Html.nodeType(this.key);
+          }
+          toElement() {
+            const k = Html.nodeToElement(this.key);
+            return k ? new HtmlElement(k, this.docKey) : null;
           }
         }
 
@@ -3514,6 +3575,24 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
             let digest = SHA512.hash(data: Data(bytesFromAny(value)))
             return Array(digest).map(Int.init)
         }
+        let hmac: @convention(block) (Any?, Any?, String) -> [Int] = { key, value, hash in
+            let keyData = Data(bytesFromAny(key))
+            let valData = Data(bytesFromAny(value))
+            switch hash.lowercased() {
+            case "sha1":
+                let k = SymmetricKey(data: keyData)
+                let mac = HMAC<Insecure.SHA1>.authenticationCode(for: valData, using: k)
+                return Array(mac).map(Int.init)
+            case "sha512":
+                let k = SymmetricKey(data: keyData)
+                let mac = HMAC<SHA512>.authenticationCode(for: valData, using: k)
+                return Array(mac).map(Int.init)
+            default:
+                let k = SymmetricKey(data: keyData)
+                let mac = HMAC<SHA256>.authenticationCode(for: valData, using: k)
+                return Array(mac).map(Int.init)
+            }
+        }
         let hmacString: @convention(block) (Any?, Any?, String) -> String = { key, value, hash in
             let keyData = Data(bytesFromAny(key))
             let valData = Data(bytesFromAny(value))
@@ -3562,6 +3641,7 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
         convert.setObject(bridgeBlock(sha1), forKeyedSubscript: "sha1" as NSString)
         convert.setObject(bridgeBlock(sha256), forKeyedSubscript: "sha256" as NSString)
         convert.setObject(bridgeBlock(sha512), forKeyedSubscript: "sha512" as NSString)
+        convert.setObject(bridgeBlock(hmac), forKeyedSubscript: "hmac" as NSString)
         convert.setObject(bridgeBlock(hmacString), forKeyedSubscript: "hmacString" as NSString)
         convert.setObject(bridgeBlock(randomInt), forKeyedSubscript: "randomInt" as NSString)
         convert.setObject(bridgeBlock(decryptAesEcb), forKeyedSubscript: "decryptAesEcb" as NSString)
@@ -3593,6 +3673,24 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
                 BridgeUIRuntime.showInputDialog(title: title) ?? ""
             }
         }
+        let showLoading: @convention(block) () -> Int = {
+            if RuntimeDebugConsole.isEnabled {
+                RuntimeDebugConsole.appendRuntimeLine("[SourceRuntime][INFO][UI] loading dialog requested")
+            }
+            return Int(Date.now.timeIntervalSince1970 * 1000)
+        }
+        let cancelLoading: @convention(block) (Int) -> Void = { id in
+            if RuntimeDebugConsole.isEnabled {
+                RuntimeDebugConsole.appendRuntimeLine("[SourceRuntime][INFO][UI] loading dialog canceled: \(id)")
+            }
+        }
+        let showSelectDialog: @convention(block) (String, [String], Int) -> Int = { title, options, initialIndex in
+            if RuntimeDebugConsole.isEnabled {
+                RuntimeDebugConsole.appendRuntimeLine("[SourceRuntime][INFO][UI] select dialog requested: \(title)")
+            }
+            guard !options.isEmpty else { return -1 }
+            return min(max(0, initialIndex), options.count - 1)
+        }
         let launchUrl: @convention(block) (String) -> Void = { urlStr in
             guard let url = URL(string: urlStr) else { return }
             DispatchQueue.main.async {
@@ -3611,6 +3709,9 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
         bridgeUI.setObject(bridgeBlock(showMessage), forKeyedSubscript: "showMessage" as NSString)
         bridgeUI.setObject(bridgeBlock(showDialog), forKeyedSubscript: "showDialog" as NSString)
         bridgeUI.setObject(bridgeBlock(showInputDialog), forKeyedSubscript: "showInputDialog" as NSString)
+        bridgeUI.setObject(bridgeBlock(showLoading), forKeyedSubscript: "showLoading" as NSString)
+        bridgeUI.setObject(bridgeBlock(cancelLoading), forKeyedSubscript: "cancelLoading" as NSString)
+        bridgeUI.setObject(bridgeBlock(showSelectDialog), forKeyedSubscript: "showSelectDialog" as NSString)
         bridgeUI.setObject(bridgeBlock(launchUrl), forKeyedSubscript: "launchUrl" as NSString)
         bridgeUI.setObject(bridgeBlock(copyToClipboard), forKeyedSubscript: "copyToClipboard" as NSString)
         ctx.setObject(bridgeUI, forKeyedSubscript: "BridgeUI" as NSString)
@@ -3637,6 +3738,9 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
         let children: @convention(block) (Int) -> [Int] = { key in
             HtmlRuntimeBridge.shared.children(elementKey: key)
         }
+        let nodes: @convention(block) (Int) -> [Int] = { key in
+            HtmlRuntimeBridge.shared.nodes(elementKey: key)
+        }
         let previousElementSibling: @convention(block) (Int) -> Int = { key in
             HtmlRuntimeBridge.shared.previousElementSibling(elementKey: key) ?? 0
         }
@@ -3661,6 +3765,15 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
         let attributes: @convention(block) (Int) -> [String: String] = { key in
             HtmlRuntimeBridge.shared.attributes(elementKey: key)
         }
+        let nodeText: @convention(block) (Int) -> String = { key in
+            HtmlRuntimeBridge.shared.nodeText(nodeKey: key)
+        }
+        let nodeType: @convention(block) (Int) -> String = { key in
+            HtmlRuntimeBridge.shared.nodeType(nodeKey: key)
+        }
+        let nodeToElement: @convention(block) (Int) -> Int = { key in
+            HtmlRuntimeBridge.shared.nodeToElement(nodeKey: key) ?? 0
+        }
         let dispose: @convention(block) (Int) -> Void = { key in
             HtmlRuntimeBridge.shared.dispose(documentKey: key)
         }
@@ -3672,6 +3785,7 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
         html.setObject(bridgeBlock(elementQuerySelector), forKeyedSubscript: "elementQuerySelector" as NSString)
         html.setObject(bridgeBlock(elementQuerySelectorAll), forKeyedSubscript: "elementQuerySelectorAll" as NSString)
         html.setObject(bridgeBlock(children), forKeyedSubscript: "children" as NSString)
+        html.setObject(bridgeBlock(nodes), forKeyedSubscript: "nodes" as NSString)
         html.setObject(bridgeBlock(previousElementSibling), forKeyedSubscript: "previousElementSibling" as NSString)
         html.setObject(bridgeBlock(nextElementSibling), forKeyedSubscript: "nextElementSibling" as NSString)
         html.setObject(bridgeBlock(parentElement), forKeyedSubscript: "parentElement" as NSString)
@@ -3680,6 +3794,9 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
         html.setObject(bridgeBlock(outerHTML), forKeyedSubscript: "outerHTML" as NSString)
         html.setObject(bridgeBlock(tagName), forKeyedSubscript: "tagName" as NSString)
         html.setObject(bridgeBlock(attributes), forKeyedSubscript: "attributes" as NSString)
+        html.setObject(bridgeBlock(nodeText), forKeyedSubscript: "nodeText" as NSString)
+        html.setObject(bridgeBlock(nodeType), forKeyedSubscript: "nodeType" as NSString)
+        html.setObject(bridgeBlock(nodeToElement), forKeyedSubscript: "nodeToElement" as NSString)
         html.setObject(bridgeBlock(dispose), forKeyedSubscript: "dispose" as NSString)
         ctx.setObject(html, forKeyedSubscript: "Html" as NSString)
     }

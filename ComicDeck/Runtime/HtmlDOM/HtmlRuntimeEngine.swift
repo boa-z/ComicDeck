@@ -9,6 +9,7 @@ protocol HtmlRuntimeEngine: AnyObject {
     nonisolated func elementQuerySelector(elementKey: Int, query: String) -> Int?
     nonisolated func elementQuerySelectorAll(elementKey: Int, query: String) -> [Int]
     nonisolated func children(elementKey: Int) -> [Int]
+    nonisolated func nodes(elementKey: Int) -> [Int]
     nonisolated func previousElementSibling(elementKey: Int) -> Int?
     nonisolated func nextElementSibling(elementKey: Int) -> Int?
     nonisolated func parentElement(elementKey: Int) -> Int?
@@ -17,6 +18,9 @@ protocol HtmlRuntimeEngine: AnyObject {
     nonisolated func outerHTML(elementKey: Int) -> String
     nonisolated func tagName(elementKey: Int) -> String
     nonisolated func attributes(elementKey: Int) -> [String: String]
+    nonisolated func nodeText(nodeKey: Int) -> String
+    nonisolated func nodeType(nodeKey: Int) -> String
+    nonisolated func nodeToElement(nodeKey: Int) -> Int?
     nonisolated func dispose(documentKey: Int)
 }
 
@@ -65,6 +69,11 @@ nonisolated final class InProcessHtmlRuntimeEngine: HtmlRuntimeEngine {
         return element.children().array().compactMap { register(element: $0, documentKey: documentKey) }
     }
 
+    func nodes(elementKey: Int) -> [Int] {
+        guard let element = store.element(for: elementKey), let documentKey = store.documentKey(forElementKey: elementKey) else { return [] }
+        return element.childNodesCopy().compactMap { store.registerNode($0, documentKey: documentKey) }
+    }
+
     func previousElementSibling(elementKey: Int) -> Int? {
         sibling(elementKey: elementKey, offset: -1)
     }
@@ -110,6 +119,35 @@ nonisolated final class InProcessHtmlRuntimeEngine: HtmlRuntimeEngine {
             result[attribute.getKey()] = attribute.getValue()
         }
         return result
+    }
+
+    func nodeText(nodeKey: Int) -> String {
+        guard let node = store.node(for: nodeKey) else { return "" }
+        return textContent(of: node)
+    }
+
+    func nodeType(nodeKey: Int) -> String {
+        guard let node = store.node(for: nodeKey) else { return "unknown" }
+        if node is Element {
+            return "element"
+        }
+        if node is TextNode {
+            return "text"
+        }
+        if node is Comment {
+            return "comment"
+        }
+        if node is Document {
+            return "document"
+        }
+        return "unknown"
+    }
+
+    func nodeToElement(nodeKey: Int) -> Int? {
+        guard let element = store.node(for: nodeKey) as? Element,
+              let documentKey = store.documentKey(forNodeKey: nodeKey)
+        else { return nil }
+        return register(element: element, documentKey: documentKey)
     }
 
     func dispose(documentKey: Int) {
