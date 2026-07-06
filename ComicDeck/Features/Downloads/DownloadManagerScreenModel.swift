@@ -501,29 +501,31 @@ final class DownloadManagerScreenModel {
             "\(item.sourceKey)::\(item.comicID)"
         }
 
-        return grouped.values.compactMap { bucket in
-            guard let first = bucket.first else { return nil }
+        var groups: [DownloadComicGroup] = []
+        groups.reserveCapacity(grouped.count)
+        for bucket in grouped.values {
+            guard let first = bucket.first else { continue }
             let snapshot = queueGroupSnapshot(for: bucket)
             let chapters = bucket.sorted { lhs, rhs in
                 if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
                 if lhs.createdAt != rhs.createdAt { return lhs.createdAt > rhs.createdAt }
                 return lhs.chapterTitle.localizedCaseInsensitiveCompare(rhs.chapterTitle) == .orderedAscending
             }
-            return DownloadComicGroup(
+            groups.append(DownloadComicGroup(
                 sourceKey: first.sourceKey,
                 comicID: first.comicID,
                 comicTitle: first.comicTitle,
                 coverURL: first.coverURL,
-                comicDescription: bucket.lazy.compactMap(\.comicDescription).first,
+                comicDescription: snapshot.comicDescription,
                 chapters: chapters,
                 chapterIDs: snapshot.chapterIDs,
                 updatedAt: snapshot.updatedAt,
                 pendingCount: snapshot.pendingCount,
                 downloadingCount: snapshot.downloadingCount,
                 failedCount: snapshot.failedCount
-            )
+            ))
         }
-        .sorted { lhs, rhs in
+        return groups.sorted { lhs, rhs in
             if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
             return lhs.comicTitle.localizedCaseInsensitiveCompare(rhs.comicTitle) == .orderedAscending
         }
@@ -534,8 +536,10 @@ final class DownloadManagerScreenModel {
             "\(item.sourceKey)::\(item.comicID)"
         }
 
-        return grouped.values.compactMap { bucket in
-            guard let first = bucket.first else { return nil }
+        var groups: [OfflineComicGroup] = []
+        groups.reserveCapacity(grouped.count)
+        for bucket in grouped.values {
+            guard let first = bucket.first else { continue }
             let snapshot = offlineGroupSnapshot(for: bucket)
             let chapters = bucket.sorted { lhs, rhs in
                 if lhs.integrityStatus != rhs.integrityStatus {
@@ -545,13 +549,13 @@ final class DownloadManagerScreenModel {
                 if lhs.downloadedAt != rhs.downloadedAt { return lhs.downloadedAt > rhs.downloadedAt }
                 return lhs.chapterTitle.localizedCaseInsensitiveCompare(rhs.chapterTitle) == .orderedAscending
             }
-            return OfflineComicGroup(
+            groups.append(OfflineComicGroup(
                 sourceKey: first.sourceKey,
                 comicID: first.comicID,
                 comicTitle: first.comicTitle,
                 coverURL: first.coverURL,
                 localCoverFileURL: offlineComicCoverURL(from: bucket),
-                comicDescription: bucket.lazy.compactMap(\.comicDescription).first,
+                comicDescription: snapshot.comicDescription,
                 chapters: chapters,
                 readableChapters: snapshot.readableChapters,
                 incompleteChapters: snapshot.incompleteChapters,
@@ -561,9 +565,9 @@ final class DownloadManagerScreenModel {
                 completeCount: snapshot.completeCount,
                 incompleteCount: snapshot.incompleteCount,
                 isImportedGroup: snapshot.isImportedGroup
-            )
+            ))
         }
-        .sorted { lhs, rhs in
+        return groups.sorted { lhs, rhs in
             if lhs.incompleteCount != rhs.incompleteCount { return lhs.incompleteCount > rhs.incompleteCount }
             if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
             return lhs.comicTitle.localizedCaseInsensitiveCompare(rhs.comicTitle) == .orderedAscending
@@ -572,17 +576,28 @@ final class DownloadManagerScreenModel {
 
     private static func queueGroupSnapshot(
         for bucket: [DownloadChapterItem]
-    ) -> (chapterIDs: Set<Int64>, updatedAt: Int64, pendingCount: Int, downloadingCount: Int, failedCount: Int) {
+    ) -> (
+        chapterIDs: Set<Int64>,
+        updatedAt: Int64,
+        pendingCount: Int,
+        downloadingCount: Int,
+        failedCount: Int,
+        comicDescription: String?
+    ) {
         var chapterIDs = Set<Int64>()
         chapterIDs.reserveCapacity(bucket.count)
         var updatedAt: Int64 = 0
         var pendingCount = 0
         var downloadingCount = 0
         var failedCount = 0
+        var comicDescription: String?
 
         for item in bucket {
             chapterIDs.insert(item.id)
             updatedAt = max(updatedAt, item.updatedAt)
+            if comicDescription == nil {
+                comicDescription = item.comicDescription
+            }
             switch item.status {
             case .pending:
                 pendingCount += 1
@@ -595,7 +610,7 @@ final class DownloadManagerScreenModel {
             }
         }
 
-        return (chapterIDs, updatedAt, pendingCount, downloadingCount, failedCount)
+        return (chapterIDs, updatedAt, pendingCount, downloadingCount, failedCount, comicDescription)
     }
 
     private static func offlineGroupSnapshot(
@@ -608,7 +623,8 @@ final class DownloadManagerScreenModel {
         readableChapters: [OfflineChapterAsset],
         incompleteChapters: [OfflineChapterAsset],
         readerChapterSequence: [ComicChapter],
-        isImportedGroup: Bool
+        isImportedGroup: Bool,
+        comicDescription: String?
     ) {
         var chapterIDs = Set<Int64>()
         chapterIDs.reserveCapacity(bucket.count)
@@ -618,11 +634,15 @@ final class DownloadManagerScreenModel {
         var readableChapters: [OfflineChapterAsset] = []
         var incompleteChapters: [OfflineChapterAsset] = []
         var isImportedGroup = !bucket.isEmpty
+        var comicDescription: String?
 
         for item in bucket {
             chapterIDs.insert(item.id)
             updatedAt = max(updatedAt, item.updatedAt)
             isImportedGroup = isImportedGroup && item.sourceKey == OfflineImportService.importedSourceKey
+            if comicDescription == nil {
+                comicDescription = item.comicDescription
+            }
             switch item.integrityStatus {
             case .complete:
                 completeCount += 1
@@ -657,7 +677,8 @@ final class DownloadManagerScreenModel {
             readableChapters: readableChapters,
             incompleteChapters: incompleteChapters,
             readerChapterSequence: readerChapterSequence,
-            isImportedGroup: isImportedGroup
+            isImportedGroup: isImportedGroup,
+            comicDescription: comicDescription
         )
     }
 }
