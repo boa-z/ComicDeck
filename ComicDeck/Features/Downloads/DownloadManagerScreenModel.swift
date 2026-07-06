@@ -354,11 +354,14 @@ final class DownloadManagerScreenModel {
 
     private func applyQueueSnapshot(_ nextQueueItems: [DownloadChapterItem]) {
         queueItems = nextQueueItems
-        refreshQueueCounts()
+        let metadata = Self.queueSnapshotMetadata(from: nextQueueItems)
+        queueItemIDs = metadata.ids
+        queuePendingCount = metadata.pendingCount
+        queueDownloadingCount = metadata.downloadingCount
+        queueFailedCount = metadata.failedCount
 
         let nextQueueGroups = Self.makeQueueGroups(from: nextQueueItems)
         queueGroups = nextQueueGroups
-        queueItemIDs = Self.queueItemIDSet(from: nextQueueItems)
         queueGroupIDs = Self.queueGroupIDSet(from: nextQueueGroups)
 
         expandedQueueGroupIDs.formIntersection(queueGroupIDs)
@@ -371,11 +374,13 @@ final class DownloadManagerScreenModel {
 
     private func applyOfflineSnapshot(_ nextOfflineItems: [OfflineChapterAsset]) {
         offlineItems = nextOfflineItems
-        refreshOfflineCounts()
+        let metadata = Self.offlineSnapshotMetadata(from: nextOfflineItems)
+        offlineItemIDs = metadata.ids
+        offlineCompleteCount = metadata.completeCount
+        offlineIncompleteCount = metadata.incompleteCount
 
         let nextOfflineGroups = Self.makeOfflineGroups(from: nextOfflineItems)
         offlineGroups = nextOfflineGroups
-        offlineItemIDs = Self.offlineItemIDSet(from: nextOfflineItems)
         offlineGroupIDs = Self.offlineGroupIDSet(from: nextOfflineGroups)
 
         expandedOfflineGroupIDs.formIntersection(offlineGroupIDs)
@@ -430,11 +435,16 @@ final class DownloadManagerScreenModel {
         return output
     }
 
-    private func refreshQueueCounts() {
+    private static func queueSnapshotMetadata(
+        from items: [DownloadChapterItem]
+    ) -> (ids: Set<Int64>, pendingCount: Int, downloadingCount: Int, failedCount: Int) {
+        var ids = Set<Int64>()
+        ids.reserveCapacity(items.count)
         var pending = 0
         var downloading = 0
         var failed = 0
-        for item in queueItems {
+        for item in items {
+            ids.insert(item.id)
             switch item.status {
             case .pending:
                 pending += 1
@@ -446,15 +456,18 @@ final class DownloadManagerScreenModel {
                 break
             }
         }
-        queuePendingCount = pending
-        queueDownloadingCount = downloading
-        queueFailedCount = failed
+        return (ids, pending, downloading, failed)
     }
 
-    private func refreshOfflineCounts() {
+    private static func offlineSnapshotMetadata(
+        from items: [OfflineChapterAsset]
+    ) -> (ids: Set<Int64>, completeCount: Int, incompleteCount: Int) {
+        var ids = Set<Int64>()
+        ids.reserveCapacity(items.count)
         var complete = 0
         var incomplete = 0
-        for item in offlineItems {
+        for item in items {
+            ids.insert(item.id)
             switch item.integrityStatus {
             case .complete:
                 complete += 1
@@ -462,26 +475,7 @@ final class DownloadManagerScreenModel {
                 incomplete += 1
             }
         }
-        offlineCompleteCount = complete
-        offlineIncompleteCount = incomplete
-    }
-
-    private static func queueItemIDSet(from items: [DownloadChapterItem]) -> Set<Int64> {
-        var ids = Set<Int64>()
-        ids.reserveCapacity(items.count)
-        for item in items {
-            ids.insert(item.id)
-        }
-        return ids
-    }
-
-    private static func offlineItemIDSet(from items: [OfflineChapterAsset]) -> Set<Int64> {
-        var ids = Set<Int64>()
-        ids.reserveCapacity(items.count)
-        for item in items {
-            ids.insert(item.id)
-        }
-        return ids
+        return (ids, complete, incomplete)
     }
 
     private static func queueGroupIDSet(from groups: [DownloadComicGroup]) -> Set<String> {
