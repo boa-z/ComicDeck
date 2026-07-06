@@ -242,13 +242,36 @@ struct DownloadManagerView: View {
     }
 
     private var selectionBar: some View {
-        HStack(spacing: AppSpacing.md) {
-            Text(AppLocalization.format("common.selected_count", "%lld selected", Int64(model.selectedCount)))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: AppSpacing.md) {
+                selectionCountLabel
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
+                selectionActions
+            }
+
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                selectionCountLabel
+
+                selectionActions
+            }
+        }
+        .padding(.horizontal, AppSpacing.screen)
+        .padding(.vertical, AppSpacing.md)
+        .background(.thinMaterial)
+    }
+
+    private var selectionCountLabel: some View {
+        Text(AppLocalization.format("common.selected_count", "%lld selected", Int64(model.selectedCount)))
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private var selectionActions: some View {
+        HStack(spacing: AppSpacing.sm) {
             if model.workspace == .offline {
                 Button(AppLocalization.text("downloads.action.export_zip", "Export ZIP")) {
                     exportSelectedOfflineZIP()
@@ -270,9 +293,8 @@ struct DownloadManagerView: View {
             .disabled(model.selectedCount == 0 || model.isDeletingSelection || model.isExportingSelection)
         }
         .font(.subheadline)
-        .padding(.horizontal, AppSpacing.screen)
-        .padding(.vertical, AppSpacing.md)
-        .background(.thinMaterial)
+        .buttonStyle(.bordered)
+        .controlSize(.small)
     }
 
     private func metric(title: String, value: String, tint: Color) -> some View {
