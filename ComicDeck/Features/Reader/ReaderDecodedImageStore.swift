@@ -235,7 +235,11 @@ final class ReaderDecodedImageStore {
     ) -> String {
         let width = Int(max(targetSize.width, 1).rounded(.up))
         let height = Int(max(targetSize.height, 1).rounded(.up))
-        return "\(urlRequestKey(request))|\(width)x\(height)@\(scale)|\(allowOriginalSize)|crop=\(cropRegion?.cacheKey ?? "none")"
+        return "\(cacheResourceKey(for: request))|\(width)x\(height)@\(scale)|\(allowOriginalSize)|crop=\(cropRegion?.cacheKey ?? "none")"
+    }
+
+    private nonisolated static func cacheResourceKey(for request: URLRequest) -> String {
+        RequestCacheKeyBuilder.sharedImageResourceKey(for: request) ?? urlRequestKey(request)
     }
 
     private nonisolated static func decodeImage(
