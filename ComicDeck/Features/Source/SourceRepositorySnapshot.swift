@@ -28,12 +28,16 @@ struct SourceRepositorySnapshot {
         resolvedKey: (SourceConfigIndexItem) -> String,
         isOperating: (String) -> Bool
     ) {
-        let installedByKey = installedSources.reduce(into: [String: InstalledSource]()) { partialResult, source in
-            partialResult[source.key] = source
+        var installedByKey: [String: InstalledSource] = [:]
+        installedByKey.reserveCapacity(installedSources.count)
+        for source in installedSources {
+            installedByKey[source.key] = source
         }
 
         var rows: [SourceRepositoryRowSnapshot] = []
+        var visibleRows: [SourceRepositoryRowSnapshot] = []
         rows.reserveCapacity(remoteSources.count)
+        visibleRows.reserveCapacity(min(remoteSources.count, Self.displayLimit))
         for item in remoteSources {
             let key = resolvedKey(item)
             let installedSource = installedByKey[key]
@@ -45,18 +49,22 @@ struct SourceRepositorySnapshot {
                 continue
             }
 
-            rows.append(SourceRepositoryRowSnapshot(
+            let row = SourceRepositoryRowSnapshot(
                 id: "\(key)|\(item.id)",
                 item: item,
                 key: key,
                 installedSource: installedSource,
                 hasUpdate: availableUpdates[key] != nil,
                 isOperating: isOperating(key)
-            ))
+            )
+            rows.append(row)
+            if visibleRows.count < Self.displayLimit {
+                visibleRows.append(row)
+            }
         }
 
         self.rows = rows
-        self.visibleRows = Array(rows.prefix(Self.displayLimit))
+        self.visibleRows = visibleRows
         self.hiddenRowCount = max(0, rows.count - Self.displayLimit)
     }
 
