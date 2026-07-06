@@ -76,24 +76,7 @@ struct FavoritesView: View {
     @AppStorage("favorites.selectedSourceKey") private var persistedSourceKey: String = ""
     @AppStorage("ui.comicBrowseMode") private var browseModeRaw = ComicBrowseDisplayMode.list.rawValue
 
-    private var sourceOptions: [(key: String, name: String, label: String)] {
-        var map: [String: String] = [:]
-        for source in sourceManager.installedSources {
-            map[source.key] = source.name
-        }
-        for item in library.favorites where map[item.sourceKey] == nil {
-            map[item.sourceKey] = item.sourceKey
-        }
-        let rows = map
-            .map { (key: $0.key, name: $0.value, label: "\($0.value) (\($0.key))") }
-            .sorted { $0.label.localizedCaseInsensitiveCompare($1.label) == .orderedAscending }
-        return rows
-    }
-
     private var hasFolders: Bool { model.hasFolders }
-    private var selectedInstalledSource: InstalledSource? {
-        sourceManager.installedSource(for: model.selectedSourceKey)
-    }
     private var currentFolderLabel: String {
         guard hasFolders else { return AppLocalization.text("favorites.folder.all", "All") }
         guard let id = model.canonicalFolderID(model.selectedFolderID, availableFolders: model.sourceFolders) else { return defaultFolderTitle }
@@ -111,16 +94,22 @@ struct FavoritesView: View {
         nonmutating set { browseModeRaw = newValue.rawValue }
     }
 
-    private var favoriteKeys: [String] {
-        model.sourceFavorites.map(model.selectionKey(for:))
+    private var presentationSnapshot: FavoritesPresentationSnapshot {
+        FavoritesPresentationSnapshot(
+            installedSources: sourceManager.installedSources,
+            libraryFavorites: library.favorites,
+            sourceFavorites: model.sourceFavorites,
+            selectedSourceKey: model.selectedSourceKey
+        )
     }
 
     private var selectedFavorite: ComicSummary? {
-        guard let selectedFavoriteKey else { return nil }
-        return model.sourceFavorites.first { model.selectionKey(for: $0) == selectedFavoriteKey }
+        presentationSnapshot.favorite(matching: selectedFavoriteKey)
     }
 
     var body: some View {
+        let snapshot = presentationSnapshot
+
         Group {
             if browseMode == .list {
                 favoritesList
@@ -144,7 +133,7 @@ struct FavoritesView: View {
         }
         .navigationTitle(AppLocalization.text("favorites.navigation.title", "Favorites"))
         .toolbar {
-            favoritesToolbar
+            favoritesToolbar(snapshot: snapshot)
         }
         .refreshable {
             await model.refreshNow(vm: vm, forceNetwork: true)
@@ -164,7 +153,7 @@ struct FavoritesView: View {
             model.refreshTask?.cancel()
             model.refreshTask = nil
         }
-        .onChange(of: sourceOptions.map(\.key)) { _, optionKeys in
+        .onChange(of: snapshot.sourceOptionKeys) { _, optionKeys in
             guard !optionKeys.isEmpty else { return }
             if !optionKeys.contains(model.selectedSourceKey) {
                 model.selectedSourceKey = restoredSourceKey(from: optionKeys)
@@ -180,7 +169,7 @@ struct FavoritesView: View {
             model.setSelecting(false)
             requestRefresh()
         }
-        .onChange(of: favoriteKeys) { _, _ in
+        .onChange(of: snapshot.favoriteKeys) { _, _ in
             reconcileSelectedFavorite()
             configureSelectionCommands()
         }
@@ -189,7 +178,7 @@ struct FavoritesView: View {
         }
         .task {
             if model.selectedSourceKey.isEmpty {
-                let keys = sourceOptions.map(\.key)
+                let keys = presentationSnapshot.sourceOptionKeys
                 guard !keys.isEmpty else { return }
                 model.selectedSourceKey = restoredSourceKey(from: keys)
             } else if persistedSourceKey != model.selectedSourceKey {
@@ -212,7 +201,7 @@ struct FavoritesView: View {
     }
 
     @ToolbarContentBuilder
-    private var favoritesToolbar: some ToolbarContent {
+    private func favoritesToolbar(snapshot: FavoritesPresentationSnapshot) -> some ToolbarContent {
         ToolbarItem(placement: .platformTopBarLeading) {
             Button {
                 requestRefresh(forceNetwork: true)
@@ -231,7 +220,7 @@ struct FavoritesView: View {
             }
         }
         ToolbarItem(placement: .platformTopBarTrailing) {
-            sourceContextMenu
+            sourceContextMenu(snapshot: snapshot)
         }
         ToolbarItem(placement: .platformTopBarTrailing) {
             folderContextMenu
@@ -357,8 +346,7 @@ struct FavoritesView: View {
         await vm.prepareSourceFavoriteSession(sourceKey: sourceKey)
     }
 
-    private func switchFavoriteAccount(_ profile: WebLoginCookieStore.AuthProfile) {
-        guard let source = selectedInstalledSource else { return }
+    private func switchFavoriteAccount(_ profile: WebLoginCookieStore.AuthProfile, source: InstalledSource) {
         Task {
             await vm.login.switchAuthProfile(profile, for: source)
             model.currentPage = 1
@@ -442,9 +430,9 @@ struct FavoritesView: View {
         }
     }
 
-    private var sourceContextMenu: some View {
+    private func sourceContextMenu(snapshot: FavoritesPresentationSnapshot) -> some View {
         Menu {
-            sourceContextMenuContent
+            sourceContextMenuContent(snapshot: snapshot)
         } label: {
             Label(AppLocalization.text("favorites.menu.source_account", "Source & Account"), systemImage: "person.crop.circle.badge.checkmark")
         }
@@ -459,9 +447,9 @@ struct FavoritesView: View {
     }
 
     @ViewBuilder
-    private var sourceContextMenuContent: some View {
+    private func sourceContextMenuContent(snapshot: FavoritesPresentationSnapshot) -> some View {
         Section(AppLocalization.text("favorites.menu.source", "Source")) {
-            ForEach(sourceOptions, id: \.key) { option in
+            ForEach(snapshot.sourceOptions) { option in
                 Button {
                     model.selectedSourceKey = option.key
                 } label: {
@@ -481,7 +469,9 @@ struct FavoritesView: View {
             } else {
                 ForEach(vm.login.authProfiles) { profile in
                     Button {
-                        switchFavoriteAccount(profile)
+                        if let source = snapshot.selectedInstalledSource {
+                            switchFavoriteAccount(profile, source: source)
+                        }
                     } label: {
                         if profile.id == vm.login.activeAuthProfileID {
                             Label(profile.label, systemImage: "checkmark")
@@ -492,7 +482,7 @@ struct FavoritesView: View {
                 }
             }
 
-            if let source = selectedInstalledSource {
+            if let source = snapshot.selectedInstalledSource {
                 Button(AppLocalization.text("source.detail.refresh_login", "Refresh Login Status")) {
                     Task { await vm.login.refreshCurrentSourceLoginState(for: source) }
                 }
@@ -680,10 +670,11 @@ struct FavoritesView: View {
     }
 
     private func reconcileSelectedFavorite() {
-        if let selectedFavoriteKey, favoriteKeys.contains(selectedFavoriteKey) {
+        let snapshot = presentationSnapshot
+        if let selectedFavoriteKey, snapshot.favoriteKeys.contains(selectedFavoriteKey) {
             return
         }
-        selectedFavoriteKey = favoriteKeys.first
+        selectedFavoriteKey = snapshot.favoriteKeys.first
     }
 
     private func configureSelectionCommands() {
