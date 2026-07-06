@@ -46,11 +46,12 @@ struct MacSourceScopedSearchView: View {
     var body: some View {
         let snapshot = SearchPresentationSnapshot(
             results: model.results,
-            optionGroups: vm.login.searchOptionGroups
+            optionGroups: vm.login.searchOptionGroups,
+            recentKeywords: model.recentKeywords
         )
 
         NavigationSplitView {
-            filterSidebar
+            filterSidebar(snapshot: snapshot)
                 .navigationTitle(sourceTitle)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
         } detail: {
@@ -122,7 +123,7 @@ struct MacSourceScopedSearchView: View {
 
     // MARK: - Sidebar
 
-    private var filterSidebar: some View {
+    private func filterSidebar(snapshot: SearchPresentationSnapshot) -> some View {
         List {
             Section(AppLocalization.text("search.section.source", "Source")) {
                 Text(sourceTitle)
@@ -130,7 +131,7 @@ struct MacSourceScopedSearchView: View {
             }
 
             filterGroupsSection
-            recentKeywordsSidebarSection
+            recentKeywordsSidebarSection(keywords: snapshot.sidebarRecentKeywords)
             searchInfoSection
         }
         .listStyle(.sidebar)
@@ -176,10 +177,10 @@ struct MacSourceScopedSearchView: View {
     }
 
     @ViewBuilder
-    private var recentKeywordsSidebarSection: some View {
-        if !model.recentKeywords.isEmpty {
+    private func recentKeywordsSidebarSection(keywords: [String]) -> some View {
+        if !keywords.isEmpty {
             Section(AppLocalization.text("search.recent", "Recent")) {
-                ForEach(model.recentKeywords.prefix(8), id: \.self) { keyword in
+                ForEach(keywords, id: \.self) { keyword in
                     Button {
                         model.keyword = keyword
                         Task { await search(keyword, sourceKey: sourceKey) }

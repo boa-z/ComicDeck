@@ -8,14 +8,24 @@ struct SearchQuickFilterGroup: Identifiable, Hashable {
 }
 
 struct SearchPresentationSnapshot: Hashable {
+    static let sidebarRecentKeywordLimit = 8
+
     let results: [ComicSummary]
     let resultIDs: [ComicSummary.ID]
     let quickFilterGroups: [SearchQuickFilterGroup]
+    let recentKeywords: [String]
+    let sidebarRecentKeywords: [String]
     private let resultByID: [ComicSummary.ID: ComicSummary]
 
-    init(results: [ComicSummary], optionGroups: [SearchOptionGroup]) {
+    var hasRecentKeywords: Bool {
+        !recentKeywords.isEmpty
+    }
+
+    init(results: [ComicSummary], optionGroups: [SearchOptionGroup], recentKeywords: [String]) {
         self.results = results
         self.resultIDs = results.map(\.id)
+        self.recentKeywords = recentKeywords
+        self.sidebarRecentKeywords = Array(recentKeywords.prefix(Self.sidebarRecentKeywordLimit))
         var resultByID: [ComicSummary.ID: ComicSummary] = [:]
         resultByID.reserveCapacity(results.count)
         for result in results {

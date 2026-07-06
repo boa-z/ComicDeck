@@ -33,11 +33,12 @@ struct MacSearchWorkspaceView: View {
     var body: some View {
         let snapshot = SearchPresentationSnapshot(
             results: model.results,
-            optionGroups: vm.login.searchOptionGroups
+            optionGroups: vm.login.searchOptionGroups,
+            recentKeywords: model.recentKeywords
         )
 
         NavigationSplitView {
-            filterSidebar
+            filterSidebar(snapshot: snapshot)
                 .navigationTitle(AppLocalization.text("search.title", "Search"))
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
         } detail: {
@@ -121,11 +122,11 @@ struct MacSearchWorkspaceView: View {
 
     // MARK: - Sidebar
 
-    private var filterSidebar: some View {
+    private func filterSidebar(snapshot: SearchPresentationSnapshot) -> some View {
         List {
             sourcePickerSection
             filterGroupsSection
-            recentKeywordsSidebarSection
+            recentKeywordsSidebarSection(keywords: snapshot.sidebarRecentKeywords)
             searchInfoSection
         }
         .listStyle(.sidebar)
@@ -188,10 +189,10 @@ struct MacSearchWorkspaceView: View {
     }
 
     @ViewBuilder
-    private var recentKeywordsSidebarSection: some View {
-        if !model.recentKeywords.isEmpty {
+    private func recentKeywordsSidebarSection(keywords: [String]) -> some View {
+        if !keywords.isEmpty {
             Section(AppLocalization.text("search.recent", "Recent")) {
-                ForEach(model.recentKeywords.prefix(8), id: \.self) { keyword in
+                ForEach(keywords, id: \.self) { keyword in
                     Button {
                         model.keyword = keyword
                         Task { await performSearch() }
@@ -476,7 +477,11 @@ struct MacSearchWorkspaceView: View {
             profile: vm.login.searchFeatureProfile,
             append: false
         )
-        let snapshot = SearchPresentationSnapshot(results: model.results, optionGroups: vm.login.searchOptionGroups)
+        let snapshot = SearchPresentationSnapshot(
+            results: model.results,
+            optionGroups: vm.login.searchOptionGroups,
+            recentKeywords: model.recentKeywords
+        )
         reconcileResultSelection(snapshot: snapshot)
         configureSelectionCommands(snapshot: snapshot)
     }
@@ -489,7 +494,11 @@ struct MacSearchWorkspaceView: View {
             profile: vm.login.searchFeatureProfile,
             append: true
         )
-        let snapshot = SearchPresentationSnapshot(results: model.results, optionGroups: vm.login.searchOptionGroups)
+        let snapshot = SearchPresentationSnapshot(
+            results: model.results,
+            optionGroups: vm.login.searchOptionGroups,
+            recentKeywords: model.recentKeywords
+        )
         reconcileResultSelection(snapshot: snapshot)
         configureSelectionCommands(snapshot: snapshot)
     }

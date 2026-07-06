@@ -18,7 +18,8 @@ struct SearchView: View {
     var body: some View {
         let snapshot = SearchPresentationSnapshot(
             results: model.results,
-            optionGroups: vm.login.searchOptionGroups
+            optionGroups: vm.login.searchOptionGroups,
+            recentKeywords: model.recentKeywords
         )
 
         NavigationStack {
@@ -84,8 +85,8 @@ struct SearchView: View {
                     searchContextSection
                 }
 
-                if !model.recentKeywords.isEmpty {
-                    recentKeywordsSection
+                if snapshot.hasRecentKeywords {
+                    recentKeywordsSection(keywords: snapshot.recentKeywords)
                 }
 
                 if snapshot.results.isEmpty {
@@ -272,7 +273,7 @@ struct SearchView: View {
         }
     }
 
-    private var recentKeywordsSection: some View {
+    private func recentKeywordsSection(keywords: [String]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             sectionHeader(
                 title: AppLocalization.text("search.recent_keywords", "Recent Keywords"),
@@ -282,7 +283,7 @@ struct SearchView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: AppSpacing.sm) {
-                    ForEach(model.recentKeywords, id: \.self) { keyword in
+                    ForEach(keywords, id: \.self) { keyword in
                         Button {
                             model.keyword = keyword
                             Task { await performSearch() }

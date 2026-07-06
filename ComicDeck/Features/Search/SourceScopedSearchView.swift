@@ -34,7 +34,8 @@ struct SourceScopedSearchView: View {
     var body: some View {
         let snapshot = SearchPresentationSnapshot(
             results: model.results,
-            optionGroups: vm.login.searchOptionGroups
+            optionGroups: vm.login.searchOptionGroups,
+            recentKeywords: model.recentKeywords
         )
 
         searchWorkspace(snapshot: snapshot)
@@ -105,8 +106,8 @@ struct SourceScopedSearchView: View {
                     searchQuickCardsSection(groups: snapshot.quickFilterGroups)
                 }
 
-                if !model.recentKeywords.isEmpty {
-                    recentKeywordsSection
+                if snapshot.hasRecentKeywords {
+                    recentKeywordsSection(keywords: snapshot.recentKeywords)
                 }
 
                 if snapshot.results.isEmpty {
@@ -374,7 +375,7 @@ struct SourceScopedSearchView: View {
         }
     }
 
-    private var recentKeywordsSection: some View {
+    private func recentKeywordsSection(keywords: [String]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             sectionHeader(
                 title: AppLocalization.text("search.recent_keywords", "Recent Keywords"),
@@ -384,7 +385,7 @@ struct SourceScopedSearchView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: AppSpacing.sm) {
-                    ForEach(model.recentKeywords, id: \.self) { keyword in
+                    ForEach(keywords, id: \.self) { keyword in
                         Button {
                             model.keyword = keyword
                             Task { await search(keyword, sourceKey: sourceKey) }
