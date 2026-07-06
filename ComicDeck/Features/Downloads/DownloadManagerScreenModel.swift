@@ -324,13 +324,11 @@ final class DownloadManagerScreenModel {
     }
 
     func isGroupPartiallySelected(_ group: DownloadComicGroup) -> Bool {
-        let selected = group.chapterIDs.intersection(selectedQueueIDs)
-        return !selected.isEmpty && selected.count < group.chapterIDs.count
+        isPartiallySelected(groupIDs: group.chapterIDs, selectedIDs: selectedQueueIDs)
     }
 
     func isGroupPartiallySelected(_ group: OfflineComicGroup) -> Bool {
-        let selected = group.chapterIDs.intersection(selectedOfflineIDs)
-        return !selected.isEmpty && selected.count < group.chapterIDs.count
+        isPartiallySelected(groupIDs: group.chapterIDs, selectedIDs: selectedOfflineIDs)
     }
 
     var selectedCount: Int {
@@ -392,6 +390,24 @@ final class DownloadManagerScreenModel {
         if selectedCount == 0 {
             isSelecting = false
         }
+    }
+
+    private func isPartiallySelected(groupIDs: Set<Int64>, selectedIDs: Set<Int64>) -> Bool {
+        guard !groupIDs.isEmpty, !selectedIDs.isEmpty else { return false }
+
+        var hasSelected = false
+        var hasUnselected = false
+        for id in groupIDs {
+            if selectedIDs.contains(id) {
+                hasSelected = true
+            } else {
+                hasUnselected = true
+            }
+            if hasSelected && hasUnselected {
+                return true
+            }
+        }
+        return false
     }
 
     private func selectedQueueItems() -> [DownloadChapterItem] {
