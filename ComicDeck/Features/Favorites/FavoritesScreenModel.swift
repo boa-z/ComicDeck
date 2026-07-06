@@ -33,6 +33,8 @@ final class FavoritesScreenModel {
     var batchProgressText = ""
     var showBatchRemoveConfirm = false
 
+    @ObservationIgnored private var visibleFavoriteKeys: Set<String> = []
+
     var hasFolders: Bool { !sourceFolders.isEmpty }
     var selectedCount: Int { selectedComicKeys.count }
     var selectableFolders: [FavoriteFolder] {
@@ -63,7 +65,7 @@ final class FavoritesScreenModel {
     }
 
     func selectionKey(for item: ComicSummary) -> String {
-        "\(item.sourceKey)::\(item.id)"
+        Self.selectionKey(for: item)
     }
 
     func isSelected(_ item: ComicSummary) -> Bool {
@@ -95,7 +97,7 @@ final class FavoritesScreenModel {
     }
 
     func selectAllVisible() {
-        selectedComicKeys = Set(sourceFavorites.map(selectionKey(for:)))
+        selectedComicKeys = visibleFavoriteKeys
     }
 
     func clearSelection() {
@@ -104,7 +106,9 @@ final class FavoritesScreenModel {
 
     private func removeFromVisibleFavorites(_ item: ComicSummary) {
         sourceFavorites.removeAll { $0.id == item.id && $0.sourceKey == item.sourceKey }
-        selectedComicKeys.remove(selectionKey(for: item))
+        let key = selectionKey(for: item)
+        visibleFavoriteKeys.remove(key)
+        selectedComicKeys.remove(key)
         let scopeKey = cacheScopeKey(sourceKey: selectedSourceKey, folderID: selectedFolderID, page: currentPage)
         if var cached: [ComicSummary] = favoritesCache.value(forKey: scopeKey) {
             cached.removeAll { $0.id == item.id && $0.sourceKey == item.sourceKey }
@@ -159,8 +163,7 @@ final class FavoritesScreenModel {
         await refreshNow(vm: vm)
         if sourceFavorites.isEmpty, sourceError.isEmpty {
             currentPage = previousPage
-            sourceFavorites = previousFavorites
-            reconcileSelectionWithVisibleFavorites()
+            applyVisibleFavorites(previousFavorites)
             sourceError = AppLocalization.text("favorites.error.no_more_pages", "No more favorites pages")
         }
     }
@@ -179,8 +182,7 @@ final class FavoritesScreenModel {
                 sourceFolders = cachedListing.folders
             }
             if let cachedFavorites: [ComicSummary] = favoritesCache.value(forKey: scopeKey) {
-                sourceFavorites = cachedFavorites
-                reconcileSelectionWithVisibleFavorites()
+                applyVisibleFavorites(cachedFavorites)
                 sourceError = ""
                 return
             }
@@ -216,8 +218,7 @@ final class FavoritesScreenModel {
             }()
             let cursorMode: Bool = cursorModeCache.value(forKey: effectiveCursorScope) ?? false
             if cursorMode && page > 1 && previousPageToken == nil {
-                sourceFavorites = []
-                reconcileSelectionWithVisibleFavorites()
+                applyVisibleFavorites([])
                 sourceError = AppLocalization.text("favorites.error.cursor_pagination", "This source uses cursor pagination. Please load pages sequentially.")
                 return
             }
@@ -238,8 +239,7 @@ final class FavoritesScreenModel {
                     currentPage = 1
                 }
             }
-            sourceFavorites = pageResult.comics
-            reconcileSelectionWithVisibleFavorites()
+            applyVisibleFavorites(pageResult.comics)
             let updatedScopeKey = cacheScopeKey(sourceKey: sourceKey, folderID: effectiveFolderID, page: page)
             favoritesCache.setValue(pageResult.comics, forKey: updatedScopeKey)
             if let next = pageResult.nextToken, !next.isEmpty {
@@ -253,15 +253,14 @@ final class FavoritesScreenModel {
             }
         } catch {
             guard !Task.isCancelled, refreshGeneration == generation else { return }
-            sourceFavorites = []
-            reconcileSelectionWithVisibleFavorites()
+            applyVisibleFavorites([])
             sourceError = AppLocalization.format("favorites.error.load_failed_format", "Load source favorites failed: %@", error.localizedDescription)
         }
     }
 
     func removeSelected(using vm: ReaderViewModel) async {
         guard !batchWorking else { return }
-        let selectedItems = sourceFavorites.filter(isSelected)
+        let selectedItems = selectedVisibleFavorites()
         guard !selectedItems.isEmpty else { return }
 
         batchWorking = true
@@ -319,6 +318,35 @@ final class FavoritesScreenModel {
 
     private func reconcileSelectionWithVisibleFavorites() {
         guard !selectedComicKeys.isEmpty else { return }
-        selectedComicKeys.formIntersection(Set(sourceFavorites.map(selectionKey(for:))))
+        selectedComicKeys.formIntersection(visibleFavoriteKeys)
+    }
+
+    private func applyVisibleFavorites(_ favorites: [ComicSummary]) {
+        sourceFavorites = favorites
+        visibleFavoriteKeys = Self.selectionKeySet(from: favorites)
+        reconcileSelectionWithVisibleFavorites()
+    }
+
+    private func selectedVisibleFavorites() -> [ComicSummary] {
+        guard !selectedComicKeys.isEmpty else { return [] }
+        var output: [ComicSummary] = []
+        output.reserveCapacity(selectedComicKeys.count)
+        for item in sourceFavorites where selectedComicKeys.contains(selectionKey(for: item)) {
+            output.append(item)
+        }
+        return output
+    }
+
+    private static func selectionKey(for item: ComicSummary) -> String {
+        "\(item.sourceKey)::\(item.id)"
+    }
+
+    private static func selectionKeySet(from favorites: [ComicSummary]) -> Set<String> {
+        var keys = Set<String>()
+        keys.reserveCapacity(favorites.count)
+        for item in favorites {
+            keys.insert(selectionKey(for: item))
+        }
+        return keys
     }
 }

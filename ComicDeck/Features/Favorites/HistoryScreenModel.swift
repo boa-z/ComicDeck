@@ -14,12 +14,13 @@ final class HistoryScreenModel {
     var batchProgressText = ""
     var showBatchDeleteConfirm = false
 
+    @ObservationIgnored private var visibleItemIDs: Set<Int64> = []
+
     var selectedCount: Int { selectedItemIDs.count }
 
     func sync(from library: LibraryViewModel) {
         refreshGeneration += 1
-        items = library.history
-        reconcileSelectionWithVisibleItems()
+        applyVisibleItems(library.history)
     }
 
     func isSelected(_ item: ReadingHistoryItem) -> Bool {
@@ -50,7 +51,7 @@ final class HistoryScreenModel {
     }
 
     func selectAllVisible() {
-        selectedItemIDs = Set(items.map(\.id))
+        selectedItemIDs = visibleItemIDs
     }
 
     func clearSelection() {
@@ -70,7 +71,7 @@ final class HistoryScreenModel {
 
     func deleteSelected(using library: LibraryViewModel) async {
         guard !batchWorking else { return }
-        let targets = items.filter(isSelected)
+        let targets = selectedVisibleItems()
         guard !targets.isEmpty else { return }
 
         batchWorking = true
@@ -92,6 +93,31 @@ final class HistoryScreenModel {
 
     private func reconcileSelectionWithVisibleItems() {
         guard !selectedItemIDs.isEmpty else { return }
-        selectedItemIDs.formIntersection(Set(items.map(\.id)))
+        selectedItemIDs.formIntersection(visibleItemIDs)
+    }
+
+    private func applyVisibleItems(_ nextItems: [ReadingHistoryItem]) {
+        items = nextItems
+        visibleItemIDs = Self.itemIDSet(from: nextItems)
+        reconcileSelectionWithVisibleItems()
+    }
+
+    private func selectedVisibleItems() -> [ReadingHistoryItem] {
+        guard !selectedItemIDs.isEmpty else { return [] }
+        var output: [ReadingHistoryItem] = []
+        output.reserveCapacity(selectedItemIDs.count)
+        for item in items where selectedItemIDs.contains(item.id) {
+            output.append(item)
+        }
+        return output
+    }
+
+    private static func itemIDSet(from items: [ReadingHistoryItem]) -> Set<Int64> {
+        var ids = Set<Int64>()
+        ids.reserveCapacity(items.count)
+        for item in items {
+            ids.insert(item.id)
+        }
+        return ids
     }
 }
