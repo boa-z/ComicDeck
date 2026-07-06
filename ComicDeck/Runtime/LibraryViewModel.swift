@@ -67,8 +67,8 @@ final class LibraryViewModel {
         favoriteCategories = try await core.database.listFavoriteCategories()
         favoriteCategoryMemberships = try await core.database.listFavoriteCategoryMemberships()
         history = try await core.database.listHistory(limit: Limits.history)
-        downloadChapters = try await core.database.listDownloadChapters(limit: Limits.downloads)
-            .filter { $0.status != .completed }
+        let loadedDownloadChapters = try await core.database.listDownloadChapters(limit: Limits.downloads)
+        downloadChapters = Self.activeDownloadChapters(from: loadedDownloadChapters)
         offlineChapters = try await core.database.listOfflineChapters(limit: Limits.downloads)
     }
 
@@ -196,8 +196,8 @@ final class LibraryViewModel {
     func refreshDownloadList() async {
         guard let core else { return }
         do {
-            downloadChapters = try await core.database.listDownloadChapters(limit: Limits.downloads)
-                .filter { $0.status != .completed }
+            let loadedDownloadChapters = try await core.database.listDownloadChapters(limit: Limits.downloads)
+            downloadChapters = Self.activeDownloadChapters(from: loadedDownloadChapters)
             offlineChapters = try await core.database.listOfflineChapters(limit: Limits.downloads)
         } catch {
             libDebugLog("refreshDownloadList failed: \(error.localizedDescription)", level: .warn)
@@ -296,16 +296,15 @@ final class LibraryViewModel {
 
     func deleteDownloads(_ items: [DownloadChapterItem]) async {
         guard let core else { return }
-        let ids = Array(Set(items.map(\.id)))
-        guard !ids.isEmpty else { return }
+        let ids = Self.downloadIDSnapshot(from: items)
+        guard !ids.values.isEmpty else { return }
         do {
-            let paths = try await core.database.deleteDownloadChapters(ids: ids)
+            let paths = try await core.database.deleteDownloadChapters(ids: ids.values)
             for path in Set(paths) {
                 try? FileManager.default.removeItem(atPath: path)
             }
-            let idSet = Set(ids)
-            downloadChapters.removeAll { idSet.contains($0.id) }
-            status = "Deleted \(ids.count) downloads"
+            downloadChapters.removeAll { ids.set.contains($0.id) }
+            status = "Deleted \(ids.values.count) downloads"
         } catch {
             status = "Delete downloads failed: \(error.localizedDescription)"
         }
@@ -313,16 +312,15 @@ final class LibraryViewModel {
 
     func deleteOfflineChapters(_ items: [OfflineChapterAsset]) async {
         guard let core else { return }
-        let ids = Array(Set(items.map(\.id)))
-        guard !ids.isEmpty else { return }
+        let ids = Self.offlineIDSnapshot(from: items)
+        guard !ids.values.isEmpty else { return }
         do {
-            let paths = try await core.database.deleteOfflineChapters(ids: ids)
+            let paths = try await core.database.deleteOfflineChapters(ids: ids.values)
             for path in Set(paths) {
                 try? FileManager.default.removeItem(atPath: path)
             }
-            let idSet = Set(ids)
-            offlineChapters.removeAll { idSet.contains($0.id) }
-            status = "Deleted \(ids.count) offline chapters"
+            offlineChapters.removeAll { ids.set.contains($0.id) }
+            status = "Deleted \(ids.values.count) offline chapters"
         } catch {
             status = "Delete offline chapters failed: \(error.localizedDescription)"
         }
@@ -527,6 +525,37 @@ final class LibraryViewModel {
 
     func bookmarkCount(in shelf: LibraryCategory) -> Int {
         favoriteCategoryMemberships[shelf.id]?.count ?? 0
+    }
+
+    private static func activeDownloadChapters(from items: [DownloadChapterItem]) -> [DownloadChapterItem] {
+        var activeItems: [DownloadChapterItem] = []
+        activeItems.reserveCapacity(items.count)
+        for item in items where item.status != .completed {
+            activeItems.append(item)
+        }
+        return activeItems
+    }
+
+    private static func downloadIDSnapshot(
+        from items: [DownloadChapterItem]
+    ) -> (values: [Int64], set: Set<Int64>) {
+        var idSet = Set<Int64>()
+        idSet.reserveCapacity(items.count)
+        for item in items {
+            idSet.insert(item.id)
+        }
+        return (Array(idSet), idSet)
+    }
+
+    private static func offlineIDSnapshot(
+        from items: [OfflineChapterAsset]
+    ) -> (values: [Int64], set: Set<Int64>) {
+        var idSet = Set<Int64>()
+        idSet.reserveCapacity(items.count)
+        for item in items {
+            idSet.insert(item.id)
+        }
+        return (Array(idSet), idSet)
     }
 
     // MARK: - Cache
