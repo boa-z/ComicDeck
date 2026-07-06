@@ -21,6 +21,12 @@ struct ComicBrowseModePicker: View {
 
 struct SearchResultCard: View {
     let item: ComicSummary
+    private let tagSummary: String?
+
+    init(item: ComicSummary) {
+        self.item = item
+        self.tagSummary = comicTagSummary(from: item.tags, limit: 3, trimsEmptyValues: false)
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.md) {
@@ -43,8 +49,8 @@ struct SearchResultCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                if !item.tags.isEmpty {
-                    Text(item.tags.prefix(3).joined(separator: " · "))
+                if let tagSummary {
+                    Text(tagSummary)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -59,6 +65,12 @@ struct SearchResultCard: View {
 
 struct SearchResultGridCard: View {
     let item: ComicSummary
+    private let tagSummary: String?
+
+    init(item: ComicSummary) {
+        self.item = item
+        self.tagSummary = comicTagSummary(from: item.tags, limit: 2, trimsEmptyValues: false)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -81,8 +93,8 @@ struct SearchResultGridCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
-            if !item.tags.isEmpty {
-                Text(item.tags.prefix(2).joined(separator: " · "))
+            if let tagSummary {
+                Text(tagSummary)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -103,10 +115,27 @@ struct ComicPreviewCard: View {
     let tags: [String]
     let subtitle: String?
     var coverReloadToken: Int = 0
+    private let tagSummary: String?
 
-    private var normalizedTags: [String] {
-        tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+    init(
+        title: String,
+        coverURL: String?,
+        sourceKey: String,
+        entityID: String,
+        author: String?,
+        tags: [String],
+        subtitle: String?,
+        coverReloadToken: Int = 0
+    ) {
+        self.title = title
+        self.coverURL = coverURL
+        self.sourceKey = sourceKey
+        self.entityID = entityID
+        self.author = author
+        self.tags = tags
+        self.subtitle = subtitle
+        self.coverReloadToken = coverReloadToken
+        self.tagSummary = comicTagSummary(from: tags, limit: 3, trimsEmptyValues: true)
     }
 
     var body: some View {
@@ -136,8 +165,8 @@ struct ComicPreviewCard: View {
                         .lineLimit(1)
                 }
 
-                if !normalizedTags.isEmpty {
-                    Text(normalizedTags.prefix(3).joined(separator: " · "))
+                if let tagSummary {
+                    Text(tagSummary)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -166,10 +195,27 @@ struct ComicPreviewGridCard: View {
     let tags: [String]
     let subtitle: String?
     var coverReloadToken: Int = 0
+    private let tagSummary: String?
 
-    private var normalizedTags: [String] {
-        tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+    init(
+        title: String,
+        coverURL: String?,
+        sourceKey: String,
+        entityID: String,
+        author: String?,
+        tags: [String],
+        subtitle: String?,
+        coverReloadToken: Int = 0
+    ) {
+        self.title = title
+        self.coverURL = coverURL
+        self.sourceKey = sourceKey
+        self.entityID = entityID
+        self.author = author
+        self.tags = tags
+        self.subtitle = subtitle
+        self.coverReloadToken = coverReloadToken
+        self.tagSummary = comicTagSummary(from: tags, limit: 2, trimsEmptyValues: true)
     }
 
     var body: some View {
@@ -197,8 +243,8 @@ struct ComicPreviewGridCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-            } else if !normalizedTags.isEmpty {
-                Text(normalizedTags.prefix(2).joined(separator: " · "))
+            } else if let tagSummary {
+                Text(tagSummary)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -220,4 +266,20 @@ struct ComicPreviewGridCard: View {
         .appCardStyle()
         .accessibilityElement(children: .combine)
     }
+}
+
+private func comicTagSummary(from tags: [String], limit: Int, trimsEmptyValues: Bool) -> String? {
+    guard limit > 0, !tags.isEmpty else { return nil }
+
+    var visibleTags: [String] = []
+    visibleTags.reserveCapacity(min(limit, tags.count))
+    for tag in tags {
+        let value = trimsEmptyValues ? tag.trimmingCharacters(in: .whitespacesAndNewlines) : tag
+        guard !trimsEmptyValues || !value.isEmpty else { continue }
+        visibleTags.append(value)
+        if visibleTags.count == limit { break }
+    }
+
+    guard !visibleTags.isEmpty else { return nil }
+    return visibleTags.joined(separator: " · ")
 }
