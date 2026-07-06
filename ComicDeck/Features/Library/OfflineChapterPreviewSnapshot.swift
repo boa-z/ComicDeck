@@ -48,22 +48,30 @@ enum OfflineChapterPreviewBuilder {
 
 enum OfflineChapterSequenceBuilder {
     static func sequence(for item: OfflineChapterAsset, in items: [OfflineChapterAsset]) -> [ComicChapter] {
-        items
-            .filter {
-                $0.sourceKey == item.sourceKey &&
-                $0.comicID == item.comicID &&
-                $0.integrityStatus == .complete
-            }
-            .sorted { lhs, rhs in
-                if lhs.downloadedAt != rhs.downloadedAt { return lhs.downloadedAt < rhs.downloadedAt }
-                if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
-                return lhs.chapterTitle.localizedStandardCompare(rhs.chapterTitle) == .orderedAscending
-            }
-            .map {
-                ComicChapter(
-                    id: $0.chapterID,
-                    title: $0.chapterTitle.isEmpty ? $0.chapterID : $0.chapterTitle
-                )
-            }
+        var chapters: [OfflineChapterAsset] = []
+        chapters.reserveCapacity(items.count)
+        for candidate in items where
+            candidate.sourceKey == item.sourceKey &&
+            candidate.comicID == item.comicID &&
+            candidate.integrityStatus == .complete
+        {
+            chapters.append(candidate)
+        }
+
+        chapters.sort { lhs, rhs in
+            if lhs.downloadedAt != rhs.downloadedAt { return lhs.downloadedAt < rhs.downloadedAt }
+            if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
+            return lhs.chapterTitle.localizedStandardCompare(rhs.chapterTitle) == .orderedAscending
+        }
+
+        var sequence: [ComicChapter] = []
+        sequence.reserveCapacity(chapters.count)
+        for chapter in chapters {
+            sequence.append(ComicChapter(
+                id: chapter.chapterID,
+                title: chapter.chapterTitle.isEmpty ? chapter.chapterID : chapter.chapterTitle
+            ))
+        }
+        return sequence
     }
 }
