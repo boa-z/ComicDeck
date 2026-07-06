@@ -16,8 +16,13 @@ struct SearchView: View {
     }
 
     var body: some View {
+        let snapshot = SearchPresentationSnapshot(
+            results: model.results,
+            optionGroups: vm.login.searchOptionGroups
+        )
+
         NavigationStack {
-            searchWorkspace
+            searchWorkspace(snapshot: snapshot)
             .background(AppSurface.grouped.ignoresSafeArea())
             .navigationTitle(AppLocalization.text("search.title", "Search"))
             .searchable(
@@ -67,11 +72,11 @@ struct SearchView: View {
     }
 
     @ViewBuilder
-    private var searchWorkspace: some View {
+    private func searchWorkspace(snapshot: SearchPresentationSnapshot) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
-                if !quickCardGroups.isEmpty {
-                    searchQuickCardsSection
+                if !snapshot.quickFilterGroups.isEmpty {
+                    searchQuickCardsSection(groups: snapshot.quickFilterGroups)
                         .padding(.top, AppSpacing.md)
                 }
 
@@ -83,14 +88,14 @@ struct SearchView: View {
                     recentKeywordsSection
                 }
 
-                if model.results.isEmpty {
+                if snapshot.results.isEmpty {
                     emptyState
                         .padding(.horizontal, AppSpacing.md)
                         .padding(.bottom, AppSpacing.xl)
                 } else if browseMode == .list {
-                    listResults
+                    listResults(results: snapshot.results)
                 } else {
-                    gridResults
+                    gridResults(results: snapshot.results)
                 }
 
                 if model.searchHasMore {
@@ -102,11 +107,11 @@ struct SearchView: View {
         }
     }
 
-    private var gridResults: some View {
+    private func gridResults(results: [ComicSummary]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             sectionHeader(
                 title: AppLocalization.text("search.results", "Results"),
-                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(model.results.count))
+                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(results.count))
             )
                 .padding(.horizontal, AppSpacing.md)
 
@@ -114,7 +119,7 @@ struct SearchView: View {
                 GridItem(.flexible(), spacing: AppSpacing.md),
                 GridItem(.flexible(), spacing: AppSpacing.md)
             ], spacing: AppSpacing.md) {
-                ForEach(model.results) { item in
+                ForEach(results) { item in
                     resultNavigationLink(for: item) {
                         SearchResultGridCard(item: item)
                     }
@@ -124,16 +129,16 @@ struct SearchView: View {
         }
     }
 
-    private var listResults: some View {
+    private func listResults(results: [ComicSummary]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             sectionHeader(
                 title: AppLocalization.text("search.results", "Results"),
-                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(model.results.count))
+                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(results.count))
             )
                 .padding(.horizontal, AppSpacing.md)
 
             LazyVStack(spacing: AppSpacing.md) {
-                ForEach(model.results) { item in
+                ForEach(results) { item in
                     resultNavigationLink(for: item) {
                         SearchResultCard(item: item)
                     }
@@ -210,17 +215,9 @@ struct SearchView: View {
         .appCardStyle()
     }
 
-    private var quickCardGroups: [(index: Int, group: SearchOptionGroup)] {
-        Array(vm.login.searchOptionGroups.enumerated())
-            .filter { _, group in
-                group.type != "multi-select" && !group.options.isEmpty
-            }
-            .map { (index: $0.offset, group: $0.element) }
-    }
-
     @ViewBuilder
-    private var searchQuickCardsSection: some View {
-        if !quickCardGroups.isEmpty {
+    private func searchQuickCardsSection(groups: [SearchQuickFilterGroup]) -> some View {
+        if !groups.isEmpty {
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
                 sectionHeader(
                     title: AppLocalization.text("search.quick_filters", "Quick Filters"),
@@ -228,7 +225,7 @@ struct SearchView: View {
                 )
                     .padding(.horizontal, AppSpacing.md)
 
-                ForEach(quickCardGroups, id: \.group.id) { pair in
+                ForEach(groups) { pair in
                     let index = pair.index
                     let group = pair.group
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {
@@ -435,7 +432,9 @@ struct SearchSettingsSheet: View {
 
                 if !vm.login.searchOptionGroups.isEmpty {
                     Section(AppLocalization.text("search.filters", "Filters")) {
-                        ForEach(Array(vm.login.searchOptionGroups.enumerated()), id: \.element.id) { index, group in
+                        let groups = vm.login.searchOptionGroups
+                        ForEach(groups.indices, id: \.self) { index in
+                            let group = groups[index]
                             if group.type == "multi-select" {
                                 MultiSelectOptionGroupView(
                                     group: group,

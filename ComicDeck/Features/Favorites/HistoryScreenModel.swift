@@ -19,6 +19,7 @@ final class HistoryScreenModel {
     func sync(from library: LibraryViewModel) {
         refreshGeneration += 1
         items = library.history
+        reconcileSelectionWithVisibleItems()
     }
 
     func isSelected(_ item: ReadingHistoryItem) -> Bool {
@@ -73,7 +74,7 @@ final class HistoryScreenModel {
         guard !targets.isEmpty else { return }
 
         batchWorking = true
-        batchProgressText = "Preparing..."
+        batchProgressText = AppLocalization.text("source.action.preparing", "Preparing...")
         defer {
             batchWorking = false
             batchProgressText = ""
@@ -87,5 +88,10 @@ final class HistoryScreenModel {
         sync(from: library)
         clearSelection()
         setSelecting(false)
+    }
+
+    private func reconcileSelectionWithVisibleItems() {
+        guard !selectedItemIDs.isEmpty else { return }
+        selectedItemIDs.formIntersection(Set(items.map(\.id)))
     }
 }

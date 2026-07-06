@@ -79,6 +79,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
                         scale: displayScale,
                         allowOriginalSize: true
                     ) else {
+                        await ReaderImagePipeline.shared.removeCachedData(for: request)
                         throw ReaderImagePipelineError.invalidResponse
                     }
                     await MainActor.run { [weak self] in
@@ -469,6 +470,7 @@ struct ZoomableRemoteImage: NSViewRepresentable {
                         scale: displayScale,
                         allowOriginalSize: true
                     ) else {
+                        await ReaderImagePipeline.shared.removeCachedData(for: request)
                         throw ReaderImagePipelineError.invalidResponse
                     }
                     await MainActor.run { [weak self] in

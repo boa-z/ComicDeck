@@ -305,7 +305,12 @@ struct TrackerSubscriptionsView: View {
             .environment(library)
         } label: {
             HStack(alignment: .top, spacing: AppSpacing.md) {
-                CoverArtworkView(urlString: row.entry.coverURL, width: 72, height: 104)
+                CoverArtworkView(
+                    urlString: row.entry.coverURL,
+                    refererURLString: row.entry.siteURL,
+                    width: 72,
+                    height: 104
+                )
                     .frame(width: 72, height: 104)
 
                 VStack(alignment: .leading, spacing: AppSpacing.xs) {
@@ -426,9 +431,7 @@ struct TrackerSubscriptionsView: View {
     }
 
     private func lastLoadedText(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        let text = formatter.localizedString(for: date, relativeTo: Date())
+        let text = RelativeTimeText.short(from: date)
         return AppLocalization.format("tracking.subscriptions.last_loaded", "Loaded %@", text)
     }
 }

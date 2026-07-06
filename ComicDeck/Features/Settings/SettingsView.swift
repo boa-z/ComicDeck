@@ -339,6 +339,33 @@ private struct DebugLogsView: View {
         }
     }
 
+    private struct DebugLogSnapshot: Hashable {
+        let allLineCount: Int
+        let visibleLineCount: Int
+        let visibleText: String
+        let activeLogDescription: String
+        let activeLogFileExists: Bool
+
+        var hasLines: Bool { allLineCount > 0 }
+        var hasVisibleLines: Bool { visibleLineCount > 0 }
+
+        init(console: RuntimeDebugConsole, filter: DebugLogFilter) {
+            let lines = console.lines
+            let visibleLines: [String]
+            if filter == .all {
+                visibleLines = lines
+            } else {
+                visibleLines = lines.filter { filter.includes($0) }
+            }
+
+            self.allLineCount = lines.count
+            self.visibleLineCount = visibleLines.count
+            self.visibleText = visibleLines.joined(separator: "\n")
+            self.activeLogDescription = console.activeLogDescription()
+            self.activeLogFileExists = console.activeLogFileExists()
+        }
+    }
+
     @Bindable var console: RuntimeDebugConsole
     @Bindable var model: SettingsScreenModel
     @Binding var debugEnabled: Bool
@@ -346,11 +373,9 @@ private struct DebugLogsView: View {
     @State private var exportedLogMessage: String?
     @State private var filter: DebugLogFilter = .all
 
-    private var filteredLines: [String] {
-        console.lines.filter { filter.includes($0) }
-    }
-
     var body: some View {
+        let snapshot = DebugLogSnapshot(console: console, filter: filter)
+
         VStack(spacing: AppSpacing.sm) {
             Toggle(AppLocalization.text("settings.debug.enable_logs", "Enable Debug Logs"), isOn: $debugEnabled)
                 .padding(.horizontal, AppSpacing.screen)
@@ -360,18 +385,18 @@ private struct DebugLogsView: View {
                     AppLocalization.format(
                         "settings.debug.visible_count",
                         "%@ visible",
-                        String(filteredLines.count)
+                        String(snapshot.visibleLineCount)
                     ),
                     systemImage: "line.3.horizontal.decrease.circle"
                 )
                 Spacer()
-                Label(console.activeLogDescription(), systemImage: "doc.text")
+                Label(snapshot.activeLogDescription, systemImage: "doc.text")
             }
             .font(.caption.weight(.medium))
             .foregroundStyle(.secondary)
             .padding(.horizontal, AppSpacing.screen)
 
-            if console.lines.isEmpty {
+            if !snapshot.hasLines {
                 ContentUnavailableView(
                     AppLocalization.text("settings.debug.empty.title", "No Debug Logs"),
                     systemImage: "doc.text",
@@ -388,7 +413,7 @@ private struct DebugLogsView: View {
                     .pickerStyle(.segmented)
                     .padding(.horizontal, AppSpacing.screen)
 
-                    if filteredLines.isEmpty {
+                    if !snapshot.hasVisibleLines {
                         ContentUnavailableView(
                             AppLocalization.text("settings.debug.no_matching.title", "No Matching Logs"),
                             systemImage: "line.3.horizontal.decrease.circle",
@@ -398,7 +423,7 @@ private struct DebugLogsView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         ScrollView {
-                            Text(filteredLines.joined(separator: "\n"))
+                            Text(snapshot.visibleText)
                                 .font(.footnote.monospaced())
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -447,16 +472,16 @@ private struct DebugLogsView: View {
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .disabled(!console.activeLogFileExists() || model.sharingLog)
+                    .disabled(!snapshot.activeLogFileExists || model.sharingLog)
 
                     Button {
-                        PlatformPasteboard.copy(filteredLines.joined(separator: "\n"))
+                        PlatformPasteboard.copy(snapshot.visibleText)
                         copiedAlertVisible = true
                     } label: {
                         Label(AppLocalization.text("common.copy", "Copy"), systemImage: "doc.on.doc")
                             .frame(maxWidth: .infinity)
                     }
-                    .disabled(filteredLines.isEmpty)
+                    .disabled(!snapshot.hasVisibleLines)
 
                     Button(role: .destructive) {
                         console.clear()
@@ -464,7 +489,7 @@ private struct DebugLogsView: View {
                         Label(AppLocalization.text("common.clear", "Clear"), systemImage: "trash")
                             .frame(maxWidth: .infinity)
                     }
-                    .disabled(console.lines.isEmpty)
+                    .disabled(!snapshot.hasLines)
                 }
                 .font(.body)
                 .padding(.bottom, AppSpacing.xs)

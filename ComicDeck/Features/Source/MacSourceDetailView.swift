@@ -255,7 +255,8 @@ struct MacSourceDetailView: View {
                 .platformTextInputAutocapitalizationWords()
                 .autocorrectionDisabled()
 
-            ForEach(Array(login.cookieLoginFields.enumerated()), id: \.offset) { index, field in
+            ForEach(login.cookieLoginFields.indices, id: \.self) { index in
+                let field = login.cookieLoginFields[index]
                 TextField(
                     field,
                     text: Binding(

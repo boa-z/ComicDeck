@@ -173,7 +173,7 @@ struct MacDownloadWorkspaceView: View {
                 DownloadedChapterFilesView(
                     vm: vm,
                     offlineItem: item,
-                    chapterSequence: chapterSequence(for: item)
+                    chapterSequence: OfflineChapterSequenceBuilder.sequence(for: item, in: model.offlineItems)
                 )
                 .environment(library)
                 .frame(minWidth: 560, minHeight: 460)
@@ -237,6 +237,7 @@ struct MacDownloadWorkspaceView: View {
                             title: group.comicTitle,
                             subtitle: group.statusSummary,
                             coverURL: group.coverURL,
+                            refererURLString: group.comicID,
                             localCoverFileURL: nil,
                             warningCount: group.failedCount,
                             count: group.chapters.count
@@ -260,7 +261,8 @@ struct MacDownloadWorkspaceView: View {
                             title: group.comicTitle,
                             subtitle: group.statusSummary,
                             coverURL: group.coverURL,
-                            localCoverFileURL: offlineComicCoverURL(from: group.chapters),
+                            refererURLString: group.comicID,
+                            localCoverFileURL: group.localCoverFileURL,
                             warningCount: group.incompleteCount,
                             count: group.chapters.count
                         )
@@ -360,6 +362,7 @@ struct MacDownloadWorkspaceView: View {
                 title: group.comicTitle,
                 subtitle: group.statusSummary,
                 coverURL: group.coverURL,
+                refererURLString: group.comicID,
                 localCoverFileURL: nil,
                 badges: [
                     ("\(group.chapters.count)", AppLocalization.text("downloads.metric.chapters", "Chapters"), AppTint.accent),
@@ -398,7 +401,8 @@ struct MacDownloadWorkspaceView: View {
                 title: group.comicTitle,
                 subtitle: group.statusSummary,
                 coverURL: group.coverURL,
-                localCoverFileURL: offlineComicCoverURL(from: group.chapters),
+                refererURLString: group.comicID,
+                localCoverFileURL: group.localCoverFileURL,
                 badges: [
                     ("\(group.chapters.count)", AppLocalization.text("downloads.metric.chapters", "Chapters"), AppTint.accent),
                     ("\(group.completeCount)", AppLocalization.text("downloads.metric.complete", "Complete"), AppTint.success),
@@ -444,13 +448,20 @@ struct MacDownloadWorkspaceView: View {
         title: String,
         subtitle: String,
         coverURL: String?,
+        refererURLString: String?,
         localCoverFileURL: URL?,
         badges: [(String, String, Color)],
         @ViewBuilder actions: () -> Actions
     ) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 14) {
-                CoverArtworkView(urlString: coverURL, fileURL: localCoverFileURL, width: 72, height: 102)
+                CoverArtworkView(
+                    urlString: coverURL,
+                    refererURLString: refererURLString,
+                    fileURL: localCoverFileURL,
+                    width: 72,
+                    height: 102
+                )
                 VStack(alignment: .leading, spacing: 8) {
                     Text(title)
                         .font(.title3.weight(.semibold))
@@ -459,7 +470,8 @@ struct MacDownloadWorkspaceView: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     HStack(spacing: 8) {
-                        ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
+                        ForEach(badges.indices, id: \.self) { index in
+                            let badge = badges[index]
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(badge.0)
                                     .font(.headline.monospacedDigit())
@@ -729,26 +741,6 @@ struct MacDownloadWorkspaceView: View {
         return provider
     }
 
-    private func chapterSequence(for item: OfflineChapterAsset) -> [ComicChapter] {
-        model.offlineItems
-            .filter {
-                $0.sourceKey == item.sourceKey &&
-                $0.comicID == item.comicID &&
-                $0.integrityStatus == .complete
-            }
-            .sorted { lhs, rhs in
-                if lhs.downloadedAt != rhs.downloadedAt { return lhs.downloadedAt < rhs.downloadedAt }
-                if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
-                return lhs.chapterTitle.localizedStandardCompare(rhs.chapterTitle) == .orderedAscending
-            }
-            .map {
-                ComicChapter(
-                    id: $0.chapterID,
-                    title: $0.chapterTitle.isEmpty ? $0.chapterID : $0.chapterTitle
-                )
-            }
-    }
-
     private func importArchives(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
 
@@ -787,13 +779,20 @@ private struct MacDownloadGroupSidebarRow: View {
     let title: String
     let subtitle: String
     let coverURL: String?
+    let refererURLString: String?
     let localCoverFileURL: URL?
     let warningCount: Int
     let count: Int
 
     var body: some View {
         HStack(spacing: 10) {
-            CoverArtworkView(urlString: coverURL, fileURL: localCoverFileURL, width: 34, height: 48)
+            CoverArtworkView(
+                urlString: coverURL,
+                refererURLString: refererURLString,
+                fileURL: localCoverFileURL,
+                width: 34,
+                height: 48
+            )
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))

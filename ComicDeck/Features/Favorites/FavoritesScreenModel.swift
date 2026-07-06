@@ -104,6 +104,7 @@ final class FavoritesScreenModel {
 
     private func removeFromVisibleFavorites(_ item: ComicSummary) {
         sourceFavorites.removeAll { $0.id == item.id && $0.sourceKey == item.sourceKey }
+        selectedComicKeys.remove(selectionKey(for: item))
         let scopeKey = cacheScopeKey(sourceKey: selectedSourceKey, folderID: selectedFolderID, page: currentPage)
         if var cached: [ComicSummary] = favoritesCache.value(forKey: scopeKey) {
             cached.removeAll { $0.id == item.id && $0.sourceKey == item.sourceKey }
@@ -148,7 +149,7 @@ final class FavoritesScreenModel {
         if usesCursorPagination && targetPage > 1 {
             let targetCacheKey = cacheScopeKey(sourceKey: selectedSourceKey, folderID: selectedFolderID, page: targetPage)
             if !favoritesCache.containsValue(forKey: targetCacheKey) {
-                sourceError = "This source uses cursor pagination. Please load pages sequentially."
+                sourceError = AppLocalization.text("favorites.error.cursor_pagination", "This source uses cursor pagination. Please load pages sequentially.")
                 return
             }
         }
@@ -159,7 +160,8 @@ final class FavoritesScreenModel {
         if sourceFavorites.isEmpty, sourceError.isEmpty {
             currentPage = previousPage
             sourceFavorites = previousFavorites
-            sourceError = "No more favorites pages"
+            reconcileSelectionWithVisibleFavorites()
+            sourceError = AppLocalization.text("favorites.error.no_more_pages", "No more favorites pages")
         }
     }
 
@@ -178,6 +180,7 @@ final class FavoritesScreenModel {
             }
             if let cachedFavorites: [ComicSummary] = favoritesCache.value(forKey: scopeKey) {
                 sourceFavorites = cachedFavorites
+                reconcileSelectionWithVisibleFavorites()
                 sourceError = ""
                 return
             }
@@ -214,7 +217,8 @@ final class FavoritesScreenModel {
             let cursorMode: Bool = cursorModeCache.value(forKey: effectiveCursorScope) ?? false
             if cursorMode && page > 1 && previousPageToken == nil {
                 sourceFavorites = []
-                sourceError = "This source uses cursor pagination. Please load pages sequentially."
+                reconcileSelectionWithVisibleFavorites()
+                sourceError = AppLocalization.text("favorites.error.cursor_pagination", "This source uses cursor pagination. Please load pages sequentially.")
                 return
             }
 
@@ -235,6 +239,7 @@ final class FavoritesScreenModel {
                 }
             }
             sourceFavorites = pageResult.comics
+            reconcileSelectionWithVisibleFavorites()
             let updatedScopeKey = cacheScopeKey(sourceKey: sourceKey, folderID: effectiveFolderID, page: page)
             favoritesCache.setValue(pageResult.comics, forKey: updatedScopeKey)
             if let next = pageResult.nextToken, !next.isEmpty {
@@ -249,7 +254,8 @@ final class FavoritesScreenModel {
         } catch {
             guard !Task.isCancelled, refreshGeneration == generation else { return }
             sourceFavorites = []
-            sourceError = "Load source favorites failed: \(error.localizedDescription)"
+            reconcileSelectionWithVisibleFavorites()
+            sourceError = AppLocalization.format("favorites.error.load_failed_format", "Load source favorites failed: %@", error.localizedDescription)
         }
     }
 
@@ -259,7 +265,7 @@ final class FavoritesScreenModel {
         guard !selectedItems.isEmpty else { return }
 
         batchWorking = true
-        batchProgressText = "Preparing..."
+        batchProgressText = AppLocalization.text("source.action.preparing", "Preparing...")
         defer {
             batchWorking = false
             batchProgressText = ""
@@ -289,7 +295,7 @@ final class FavoritesScreenModel {
         setSelecting(false)
         requestRefresh(vm: vm, forceNetwork: true)
         if failures > 0 {
-            sourceError = "Removed with \(failures) failures"
+            sourceError = AppLocalization.format("favorites.error.remove_failures_format", "Removed with %lld failures", Int64(failures))
         }
     }
 
@@ -307,7 +313,12 @@ final class FavoritesScreenModel {
             nextTokenCache.removeAll { $0.hasPrefix("\(selectedSourceKey)|") }
             cursorModeCache.removeAll { $0.hasPrefix("\(selectedSourceKey)|") }
         } catch {
-            sourceError = "Remove favorite failed: \(error.localizedDescription)"
+            sourceError = AppLocalization.format("favorites.error.remove_failed_format", "Remove favorite failed: %@", error.localizedDescription)
         }
+    }
+
+    private func reconcileSelectionWithVisibleFavorites() {
+        guard !selectedComicKeys.isEmpty else { return }
+        selectedComicKeys.formIntersection(Set(sourceFavorites.map(selectionKey(for:))))
     }
 }

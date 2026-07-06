@@ -125,11 +125,7 @@ struct BangumiTrackerClient {
             }
 
             private static func timestamp(from raw: String) -> Int64? {
-                if let timestamp = Int64(raw) { return timestamp }
-                if let date = ISO8601DateFormatter().date(from: raw) {
-                    return Int64(date.timeIntervalSince1970)
-                }
-                return nil
+                BangumiTimestampParser.timestamp(from: raw)
             }
         }
 
@@ -325,5 +321,23 @@ struct BangumiTrackerClient {
         case 5: return .dropped
         default: return nil
         }
+    }
+}
+
+private enum BangumiTimestampParser {
+    private static let iso8601 = Date.ISO8601FormatStyle()
+    private static let fractionalISO8601 = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+
+    static func timestamp(from raw: String) -> Int64? {
+        if let timestamp = Int64(raw) {
+            return timestamp
+        }
+        if let date = try? iso8601.parse(raw) {
+            return Int64(date.timeIntervalSince1970)
+        }
+        if let date = try? fractionalISO8601.parse(raw) {
+            return Int64(date.timeIntervalSince1970)
+        }
+        return nil
     }
 }

@@ -304,7 +304,7 @@ final class ReaderController {
     private func scheduleHistorySave() {
         historySaveTask?.cancel()
         historySaveTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 700_000_000)
+            try? await Task.sleep(for: .milliseconds(700))
             guard !Task.isCancelled else { return }
             await self?.persistHistoryNow()
         }

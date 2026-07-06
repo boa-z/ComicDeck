@@ -4,6 +4,12 @@ public enum TrackerProvider: String, Codable, Sendable, Hashable, CaseIterable, 
     case aniList = "anilist"
     case bangumi = "bangumi"
 
+    public static let mangaListWorkspaceProviders: [TrackerProvider] = allCases.filter(\.supportsMangaListWorkspace)
+
+    public static var defaultMangaListWorkspaceProvider: TrackerProvider {
+        mangaListWorkspaceProviders.first ?? .aniList
+    }
+
     public var id: String { rawValue }
 
     public nonisolated var title: String {

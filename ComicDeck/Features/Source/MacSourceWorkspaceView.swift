@@ -16,6 +16,105 @@ struct MacSourceWorkspaceView: View {
         case remote(String)
     }
 
+    private struct RemoteSourceRowSnapshot: Identifiable {
+        let id: String
+        let item: SourceConfigIndexItem
+        let key: String
+        let isInstalled: Bool
+        let updateVersion: String?
+    }
+
+    private struct InstalledSourceRowSnapshot: Identifiable {
+        let id: String
+        let source: InstalledSource
+        let isActive: Bool
+        let isBatchSelected: Bool
+        let updateVersion: String?
+    }
+
+    private struct SourceWorkspaceSnapshot {
+        let installedRows: [InstalledSourceRowSnapshot]
+        let remoteRows: [RemoteSourceRowSnapshot]
+        let selectedInstalledSources: [InstalledSource]
+        let selectedUpdatableSources: [InstalledSource]
+        let allUpdatableSources: [InstalledSource]
+
+        init(
+            installedSources: [InstalledSource],
+            remoteSources: [SourceConfigIndexItem],
+            selectedSourceKey: String?,
+            availableUpdates: [String: String],
+            batchSelection: Set<String>,
+            normalizedQuery: String,
+            showInstalledOnly: Bool,
+            resolvedKey: (SourceConfigIndexItem) -> String
+        ) {
+            let installedKeys = Set(installedSources.map(\.key))
+            var installedRows: [InstalledSourceRowSnapshot] = []
+            installedRows.reserveCapacity(installedSources.count)
+            var selectedInstalledSources: [InstalledSource] = []
+            var selectedUpdatableSources: [InstalledSource] = []
+            var allUpdatableSources: [InstalledSource] = []
+
+            for source in installedSources {
+                let updateVersion = availableUpdates[source.key]
+                if updateVersion != nil {
+                    allUpdatableSources.append(source)
+                }
+                if batchSelection.contains(source.key) {
+                    selectedInstalledSources.append(source)
+                    if updateVersion != nil {
+                        selectedUpdatableSources.append(source)
+                    }
+                }
+                guard Self.matches(source.name, normalizedQuery: normalizedQuery) ||
+                    Self.matches(source.key, normalizedQuery: normalizedQuery)
+                else {
+                    continue
+                }
+                installedRows.append(InstalledSourceRowSnapshot(
+                    id: source.key,
+                    source: source,
+                    isActive: source.key == selectedSourceKey,
+                    isBatchSelected: batchSelection.contains(source.key),
+                    updateVersion: updateVersion
+                ))
+            }
+
+            var remoteRows: [RemoteSourceRowSnapshot] = []
+            remoteRows.reserveCapacity(remoteSources.count)
+            for item in remoteSources {
+                let key = resolvedKey(item)
+                let isInstalled = installedKeys.contains(key)
+                guard !showInstalledOnly || isInstalled else { continue }
+                guard Self.matches(key, normalizedQuery: normalizedQuery) ||
+                    Self.matches(item.name, normalizedQuery: normalizedQuery) ||
+                    Self.matches(item.description ?? "", normalizedQuery: normalizedQuery)
+                else {
+                    continue
+                }
+                remoteRows.append(RemoteSourceRowSnapshot(
+                    id: "\(key)|\(item.id)",
+                    item: item,
+                    key: key,
+                    isInstalled: isInstalled,
+                    updateVersion: availableUpdates[key]
+                ))
+            }
+
+            self.installedRows = installedRows
+            self.remoteRows = remoteRows
+            self.selectedInstalledSources = selectedInstalledSources
+            self.selectedUpdatableSources = selectedUpdatableSources
+            self.allUpdatableSources = allUpdatableSources
+        }
+
+        private static func matches(_ candidate: String, normalizedQuery keyword: String) -> Bool {
+            guard !keyword.isEmpty else { return true }
+            return candidate.lowercased().contains(keyword)
+        }
+    }
+
     @Bindable var vm: ReaderViewModel
     @Bindable var sourceManager: SourceManagerViewModel
     @State private var selection: DetailSelection?
@@ -28,22 +127,11 @@ struct MacSourceWorkspaceView: View {
     @State private var searchCommandController = MacSearchCommandController()
     @State private var isSearchPresented = false
 
-    private var filteredInstalledSources: [InstalledSource] {
-        sourceManager.installedSources.filter { source in
-            matchesKeyword(source.name) || matchesKeyword(source.key)
-        }
-    }
-
-    private var filteredRemoteSources: [SourceConfigIndexItem] {
-        sourceManager.remoteSources.filter { item in
-            (!showInstalledOnly || sourceManager.installedSource(for: sourceManager.resolvedKey(for: item)) != nil)
-            && (matchesKeyword(sourceManager.resolvedKey(for: item)) || matchesKeyword(item.name) || matchesKeyword(item.description ?? ""))
-        }
-    }
-
     var body: some View {
+        let snapshot = makeSnapshot()
+
         HStack(spacing: 0) {
-            unifiedList
+            unifiedList(snapshot: snapshot)
                 .frame(width: 300)
 
             Divider()
@@ -74,7 +162,7 @@ struct MacSourceWorkspaceView: View {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     if !batchSelection.isEmpty {
-                        if !selectedUpdatableSources.isEmpty {
+                        if !snapshot.selectedUpdatableSources.isEmpty {
                             Button {
                                 Task { await updateSelectedSources() }
                             } label: {
@@ -125,30 +213,32 @@ struct MacSourceWorkspaceView: View {
         } message: {
             Text(AppLocalization.format("source.alert.batch_delete.message", "Delete %lld selected installed sources? This action cannot be undone.", Int64(batchSelection.count)))
         }
-        .onAppear { ensureSelection() }
+        .onAppear { ensureSelection(snapshot: snapshot) }
         .onAppear {
-            configureSelectionCommands()
+            configureSelectionCommands(snapshot: snapshot)
             configureSearchCommands()
         }
-        .onChange(of: selection) { _, _ in configureSelectionCommands() }
+        .onChange(of: selection) { _, _ in configureSelectionCommands(snapshot: snapshot) }
         .onChange(of: query) { _, _ in
-            ensureSelection()
-            configureSelectionCommands()
+            ensureSelection(snapshot: snapshot)
+            configureSelectionCommands(snapshot: snapshot)
         }
         .onChange(of: showInstalledOnly) { _, _ in
-            ensureSelection()
-            configureSelectionCommands()
+            ensureSelection(snapshot: snapshot)
+            configureSelectionCommands(snapshot: snapshot)
         }
         .onChange(of: sourceManager.installedSources) { _, sources in
             guard case let .installed(key) = selection else { return }
             if !sources.contains(where: { $0.key == key }) {
                 selection = sources.first.map { .installed($0.key) } ?? .index
             }
-            configureSelectionCommands()
+            let updatedSnapshot = makeSnapshot()
+            configureSelectionCommands(snapshot: updatedSnapshot)
         }
         .onChange(of: sourceManager.remoteSources) { _, _ in
-            ensureSelection()
-            configureSelectionCommands()
+            let updatedSnapshot = makeSnapshot()
+            ensureSelection(snapshot: updatedSnapshot)
+            configureSelectionCommands(snapshot: updatedSnapshot)
         }
         .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
         .focusedSceneValue(\.macSearchCommandController, searchCommandController)
@@ -159,9 +249,22 @@ struct MacSourceWorkspaceView: View {
         searchCommandController.canFocusSearch = true
     }
 
+    private func makeSnapshot() -> SourceWorkspaceSnapshot {
+        SourceWorkspaceSnapshot(
+            installedSources: sourceManager.installedSources,
+            remoteSources: sourceManager.remoteSources,
+            selectedSourceKey: sourceManager.selectedSourceKey,
+            availableUpdates: sourceManager.availableSourceUpdates,
+            batchSelection: batchSelection,
+            normalizedQuery: normalizedQuery,
+            showInstalledOnly: showInstalledOnly,
+            resolvedKey: { sourceManager.resolvedKey(for: $0) }
+        )
+    }
+
     // MARK: - Unified list
 
-    private var unifiedList: some View {
+    private func unifiedList(snapshot: SourceWorkspaceSnapshot) -> some View {
         List(selection: $selection) {
             Section {
                 MacSourceIndexStatusRow(sourceManager: sourceManager)
@@ -176,21 +279,23 @@ struct MacSourceWorkspaceView: View {
                 .padding(.horizontal, 4)
 
             Section {
-                if filteredInstalledSources.isEmpty {
-                    Text(AppLocalization.text("source.management.empty", "No installed sources"))
+                if snapshot.installedRows.isEmpty {
+                    Text(sourceManager.installedSources.isEmpty
+                         ? AppLocalization.text("source.management.empty", "No installed sources")
+                         : AppLocalization.text("source.management.no_matches_title", "No matching sources"))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(filteredInstalledSources) { source in
+                    ForEach(snapshot.installedRows) { row in
                         MacInstalledSourceRow(
-                            source: source,
-                            isActive: source.key == sourceManager.selectedSourceKey,
-                            updateVersion: sourceManager.availableSourceUpdates[source.key],
-                            isBatchSelected: batchSelection.contains(source.key)
+                            source: row.source,
+                            isActive: row.isActive,
+                            updateVersion: row.updateVersion,
+                            isBatchSelected: row.isBatchSelected
                         )
-                        .tag(DetailSelection.installed(source.key))
+                        .tag(DetailSelection.installed(row.source.key))
                         .contextMenu {
-                            installedRowContextMenu(for: source)
+                            installedRowContextMenu(for: row.source)
                         }
                     }
                 }
@@ -211,21 +316,21 @@ struct MacSourceWorkspaceView: View {
                     Text(AppLocalization.text("source.repository.empty", "Source index not loaded"))
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                } else if filteredRemoteSources.isEmpty {
+                } else if snapshot.remoteRows.isEmpty {
                     Text(AppLocalization.text("source.repository.no_matches", "No matching sources"))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(filteredRemoteSources) { item in
+                    ForEach(snapshot.remoteRows) { row in
                         MacRemoteSourceRow(
-                            item: item,
-                            key: sourceManager.resolvedKey(for: item),
-                            isInstalled: sourceManager.installedSource(for: sourceManager.resolvedKey(for: item)) != nil,
-                            updateVersion: sourceManager.availableSourceUpdates[sourceManager.resolvedKey(for: item)]
+                            item: row.item,
+                            key: row.key,
+                            isInstalled: row.isInstalled,
+                            updateVersion: row.updateVersion
                         )
-                        .tag(DetailSelection.remote(sourceManager.resolvedKey(for: item)))
+                        .tag(DetailSelection.remote(row.key))
                         .contextMenu {
-                            remoteRowContextMenu(for: item)
+                            remoteRowContextMenu(for: row)
                         }
                     }
                 }
@@ -277,21 +382,20 @@ struct MacSourceWorkspaceView: View {
     }
 
     @ViewBuilder
-    private func remoteRowContextMenu(for item: SourceConfigIndexItem) -> some View {
-        let key = sourceManager.resolvedKey(for: item)
-        Button(sourceManager.installedSource(for: key) == nil ? AppLocalization.text("source.action.install", "Install") : AppLocalization.text("source.action.update", "Update")) {
-            Task { await installRemoteSource(item) }
+    private func remoteRowContextMenu(for row: RemoteSourceRowSnapshot) -> some View {
+        Button(row.isInstalled ? AppLocalization.text("source.action.update", "Update") : AppLocalization.text("source.action.install", "Install")) {
+            Task { await installRemoteSource(row.item) }
         }
-        .disabled(sourceManager.isOperating(on: key))
+        .disabled(sourceManager.isOperating(on: row.key))
 
         Divider()
 
         Button(AppLocalization.text("detail.action.copy_title", "Copy Title"), systemImage: "doc.on.doc") {
-            copyRemoteSourceTitle(item)
+            copyRemoteSourceTitle(row.item)
         }
 
         Button(AppLocalization.text("detail.action.copy_id", "Copy ID"), systemImage: "number") {
-            copyRemoteSourceKey(item)
+            copyRemoteSourceKey(row)
         }
     }
 
@@ -337,36 +441,24 @@ struct MacSourceWorkspaceView: View {
 
     // MARK: - Selection / filtering
 
-    private func ensureSelection() {
+    private func ensureSelection(snapshot: SourceWorkspaceSnapshot) {
         guard selection == nil else { return }
-        selection = filteredInstalledSources.first.map { .installed($0.key) } ?? .index
-    }
-
-    private func matchesKeyword(_ candidate: String) -> Bool {
-        let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !keyword.isEmpty else { return true }
-        return candidate.lowercased().contains(keyword)
+        selection = snapshot.installedRows.first.map { .installed($0.source.key) } ?? .index
     }
 
     // MARK: - Batch operations
+
+    private var normalizedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
 
     private var hasAvailableUpdates: Bool {
         !sourceManager.availableSourceUpdates.isEmpty
     }
 
-    private var selectedInstalledSources: [InstalledSource] {
-        batchSelection.compactMap { key in
-            sourceManager.installedSources.first { $0.key == key }
-        }
-    }
-
-    private var selectedUpdatableSources: [InstalledSource] {
-        selectedInstalledSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }
-    }
-
     private func updateAllInstalledSources() async {
         guard !batchWorking else { return }
-        let targets = sourceManager.installedSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }
+        let targets = makeSnapshot().allUpdatableSources
         guard !targets.isEmpty else { return }
         batchWorking = true
         defer { batchWorking = false }
@@ -377,7 +469,7 @@ struct MacSourceWorkspaceView: View {
 
     private func updateSelectedSources() async {
         guard !batchWorking else { return }
-        let targets = selectedUpdatableSources
+        let targets = makeSnapshot().selectedUpdatableSources
         guard !targets.isEmpty else { return }
         batchWorking = true
         defer { batchWorking = false }
@@ -389,7 +481,7 @@ struct MacSourceWorkspaceView: View {
 
     private func deleteSelectedSources() async {
         guard !batchWorking else { return }
-        let targets = selectedInstalledSources
+        let targets = makeSnapshot().selectedInstalledSources
         guard !targets.isEmpty else { return }
         batchWorking = true
         defer { batchWorking = false }
@@ -399,7 +491,7 @@ struct MacSourceWorkspaceView: View {
         batchSelection.removeAll()
     }
 
-    private func configureSelectionCommands() {
+    private func configureSelectionCommands(snapshot: SourceWorkspaceSnapshot) {
         selectionCommandController.reset()
 
         switch selection {
@@ -418,13 +510,13 @@ struct MacSourceWorkspaceView: View {
             selectionCommandController.canCopyID = true
             selectionCommandController.canExport = sourceManager.availableSourceUpdates[source.key] != nil
         case .remote(let key):
-            guard let item = sourceManager.remoteSources.first(where: { sourceManager.resolvedKey(for: $0) == key }) else { return }
-            selectionCommandController.open = { Task { await installRemoteSource(item) } }
-            selectionCommandController.copyTitle = { copyRemoteSourceTitle(item) }
-            selectionCommandController.copyID = { copyRemoteSourceKey(item) }
-            selectionCommandController.openTitle = sourceManager.installedSource(for: key) == nil
-                ? AppLocalization.text("source.action.install", "Install")
-                : AppLocalization.text("source.action.update", "Update")
+            guard let row = snapshot.remoteRows.first(where: { $0.key == key }) ?? remoteRow(for: key) else { return }
+            selectionCommandController.open = { Task { await installRemoteSource(row.item) } }
+            selectionCommandController.copyTitle = { copyRemoteSourceTitle(row.item) }
+            selectionCommandController.copyID = { copyRemoteSourceKey(row) }
+            selectionCommandController.openTitle = row.isInstalled
+                ? AppLocalization.text("source.action.update", "Update")
+                : AppLocalization.text("source.action.install", "Install")
             selectionCommandController.canOpen = !sourceManager.isOperating(on: key)
             selectionCommandController.canCopyTitle = true
             selectionCommandController.canCopyID = true
@@ -433,25 +525,40 @@ struct MacSourceWorkspaceView: View {
         }
     }
 
+    private func remoteRow(for key: String) -> RemoteSourceRowSnapshot? {
+        let installedKeys = Set(sourceManager.installedSources.map(\.key))
+        guard let item = sourceManager.remoteSources.first(where: { sourceManager.resolvedKey(for: $0) == key }) else {
+            return nil
+        }
+        let isInstalled = installedKeys.contains(key)
+        return RemoteSourceRowSnapshot(
+            id: "\(key)|\(item.id)",
+            item: item,
+            key: key,
+            isInstalled: isInstalled,
+            updateVersion: sourceManager.availableSourceUpdates[key]
+        )
+    }
+
     private func useInstalledSource(_ source: InstalledSource) {
         selection = .installed(source.key)
         sourceManager.selectSource(source)
-        configureSelectionCommands()
+        configureSelectionCommands(snapshot: makeSnapshot())
     }
 
     private func updateInstalledSource(_ source: InstalledSource) async {
         selection = .installed(source.key)
         await sourceManager.updateSource(source)
-        configureSelectionCommands()
+        configureSelectionCommands(snapshot: makeSnapshot())
     }
 
     private func deleteInstalledSource(_ source: InstalledSource) async {
         selection = .installed(source.key)
         await sourceManager.uninstallSource(source)
         if selection == .installed(source.key) {
-            selection = filteredInstalledSources.first.map { .installed($0.key) } ?? .index
+            selection = makeSnapshot().installedRows.first.map { .installed($0.source.key) } ?? .index
         }
-        configureSelectionCommands()
+        configureSelectionCommands(snapshot: makeSnapshot())
     }
 
     private func copyInstalledSourceTitle(_ source: InstalledSource) {
@@ -468,7 +575,7 @@ struct MacSourceWorkspaceView: View {
         let key = sourceManager.resolvedKey(for: item)
         selection = .remote(key)
         await sourceManager.installFromIndex(item)
-        configureSelectionCommands()
+        configureSelectionCommands(snapshot: makeSnapshot())
     }
 
     private func copyRemoteSourceTitle(_ item: SourceConfigIndexItem) {
@@ -476,10 +583,9 @@ struct MacSourceWorkspaceView: View {
         PlatformPasteboard.copy(item.name)
     }
 
-    private func copyRemoteSourceKey(_ item: SourceConfigIndexItem) {
-        let key = sourceManager.resolvedKey(for: item)
-        selection = .remote(key)
-        PlatformPasteboard.copy(key)
+    private func copyRemoteSourceKey(_ row: RemoteSourceRowSnapshot) {
+        selection = .remote(row.key)
+        PlatformPasteboard.copy(row.key)
     }
 }
 

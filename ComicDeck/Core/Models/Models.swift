@@ -339,12 +339,20 @@ struct ComicPreviewImage: Identifiable, Hashable {
     let id: String
     let imageURL: String
     let sourceURL: String?
+    let imageRequest: ImageRequest?
     let page: Int
 
-    nonisolated init(id: String = UUID().uuidString, imageURL: String, sourceURL: String? = nil, page: Int) {
+    nonisolated init(
+        id: String = UUID().uuidString,
+        imageURL: String,
+        sourceURL: String? = nil,
+        imageRequest: ImageRequest? = nil,
+        page: Int
+    ) {
         self.id = id
         self.imageURL = imageURL
         self.sourceURL = sourceURL
+        self.imageRequest = imageRequest
         self.page = page
     }
 }

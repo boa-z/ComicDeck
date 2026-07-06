@@ -29,6 +29,8 @@ struct WebDAVSyncView: View {
     }
 
     var body: some View {
+        let remoteBackupsSnapshot = WebDAVRemoteBackupsSnapshot(model: model)
+
         Form {
             Section {
                 LabeledContent(AppLocalization.text("webdav.last_sync", "Last Sync"), value: lastSyncValue)
@@ -117,11 +119,19 @@ struct WebDAVSyncView: View {
                 }
                 .disabled(model.webDAVActionsDisabled)
 
-                if model.webDAVEntries.isEmpty {
-                    Text(AppLocalization.text("webdav.remote.empty", "No remote backups loaded"))
-                        .foregroundStyle(.secondary)
+                if let emptyState = remoteBackupsSnapshot.emptyState {
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
+                        Text(emptyState.title)
+                            .font(.subheadline.weight(.semibold))
+                        Text(emptyState.message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, AppSpacing.xs)
                 } else {
-                    ForEach(model.webDAVEntries) { entry in
+                    ForEach(remoteBackupsSnapshot.rows) { row in
+                        let entry = row.entry
                         Button {
                             Task {
                                 await model.restoreBackupFromWebDAVEntry(
@@ -137,7 +147,7 @@ struct WebDAVSyncView: View {
                                     Text(entry.name)
                                         .font(.body.weight(.semibold))
                                         .foregroundStyle(.primary)
-                                    Text(entry.subtitle)
+                                    Text(row.subtitle)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }

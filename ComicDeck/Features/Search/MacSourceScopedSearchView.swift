@@ -44,12 +44,17 @@ struct MacSourceScopedSearchView: View {
     }
 
     var body: some View {
+        let snapshot = SearchPresentationSnapshot(
+            results: model.results,
+            optionGroups: vm.login.searchOptionGroups
+        )
+
         NavigationSplitView {
             filterSidebar
                 .navigationTitle(sourceTitle)
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
         } detail: {
-            resultsPane
+            resultsPane(snapshot: snapshot)
         }
         .searchable(
             text: Binding(
@@ -136,7 +141,8 @@ struct MacSourceScopedSearchView: View {
         let groups = vm.login.searchOptionGroups
         if !groups.isEmpty {
             Section(AppLocalization.text("search.filters", "Filters")) {
-                ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                ForEach(groups.indices, id: \.self) { index in
+                    let group = groups[index]
                     if group.type == "multi-select" {
                         ScopedMultiSelectRow(
                             group: group,
@@ -203,24 +209,24 @@ struct MacSourceScopedSearchView: View {
 
     // MARK: - Results Pane
 
-    private var resultsPane: some View {
+    private func resultsPane(snapshot: SearchPresentationSnapshot) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 overviewCard
                     .padding(.horizontal, AppSpacing.lg)
                     .padding(.top, AppSpacing.md)
 
-                if !quickCardGroups.isEmpty {
-                    quickFiltersBar
+                if !snapshot.quickFilterGroups.isEmpty {
+                    quickFiltersBar(groups: snapshot.quickFilterGroups)
                 }
 
-                if model.results.isEmpty {
+                if snapshot.results.isEmpty {
                     emptyState
                         .padding(.horizontal, AppSpacing.lg)
                         .padding(.top, AppSpacing.lg)
                 } else {
-                    resultsHeader
-                    resultsContent
+                    resultsHeader(resultCount: snapshot.results.count)
+                    resultsContent(results: snapshot.results)
                         .padding(.horizontal, AppSpacing.lg)
                 }
 
@@ -283,12 +289,12 @@ struct MacSourceScopedSearchView: View {
         .background(AppSurface.subtle, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
     }
 
-    private var resultsHeader: some View {
+    private func resultsHeader(resultCount: Int) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(AppLocalization.text("search.results", "Results"))
                     .font(.title3.weight(.semibold))
-                Text(AppLocalization.format("search.results_count", "%lld comics", Int64(model.results.count)))
+                Text(AppLocalization.format("search.results_count", "%lld comics", Int64(resultCount)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -304,10 +310,10 @@ struct MacSourceScopedSearchView: View {
     }
 
     @ViewBuilder
-    private var resultsContent: some View {
+    private func resultsContent(results: [ComicSummary]) -> some View {
         if browseMode == .list {
             LazyVStack(spacing: AppSpacing.md) {
-                ForEach(model.results) { item in
+                ForEach(results) { item in
                     resultNavigationLink(for: item) {
                         SearchResultCard(item: item)
                     }
@@ -320,7 +326,7 @@ struct MacSourceScopedSearchView: View {
                 ],
                 spacing: AppSpacing.md
             ) {
-                ForEach(model.results) { item in
+                ForEach(results) { item in
                     resultNavigationLink(for: item) {
                         SearchResultGridCard(item: item)
                     }
@@ -367,18 +373,10 @@ struct MacSourceScopedSearchView: View {
 
     // MARK: - Quick Filters
 
-    private var quickCardGroups: [(index: Int, group: SearchOptionGroup)] {
-        Array(vm.login.searchOptionGroups.enumerated())
-            .filter { _, group in
-                group.type != "multi-select" && !group.options.isEmpty
-            }
-            .map { (index: $0.offset, group: $0.element) }
-    }
-
     @ViewBuilder
-    private var quickFiltersBar: some View {
+    private func quickFiltersBar(groups: [SearchQuickFilterGroup]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            ForEach(quickCardGroups, id: \.group.id) { pair in
+            ForEach(groups) { pair in
                 let index = pair.index
                 let group = pair.group
                 HStack(spacing: AppSpacing.sm) {

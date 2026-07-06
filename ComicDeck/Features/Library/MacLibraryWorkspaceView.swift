@@ -117,7 +117,7 @@ struct MacLibraryWorkspaceView: View {
             }
 
             Section(AppLocalization.text("library.mac.tracker_section", "Tracker Libraries")) {
-                ForEach(TrackerProvider.allCases.filter(\.supportsMangaListWorkspace)) { provider in
+                ForEach(TrackerProvider.mangaListWorkspaceProviders) { provider in
                     let item = SidebarItem.tracking(provider)
                     sidebarRow(item, badge: nil, subtitle: tracker.account(for: provider)?.displayName)
                         .tag(item)
@@ -231,27 +231,16 @@ private struct MacLibraryOverviewView: View {
     }
 
     private var recentOfflineChapters: [OfflineChapterAsset] {
-        Array(
-            library.offlineChapters
-                .filter { $0.integrityStatus == .complete }
-                .sorted { lhs, rhs in
-                    if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
-                    return lhs.downloadedAt > rhs.downloadedAt
-                }
-                .prefix(6)
-        )
-    }
-
-    private var readyOfflineCount: Int {
-        library.offlineChapters.lazy.filter { $0.integrityStatus == .complete }.count
+        OfflineChapterPreviewBuilder.snapshot(from: library.offlineChapters, limit: 6).recentChapters
     }
 
     var body: some View {
+        let offlineSnapshot = OfflineChapterPreviewBuilder.snapshot(from: library.offlineChapters, limit: 6)
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
-                metricsGrid
+                metricsGrid(readyOfflineCount: offlineSnapshot.readyCount)
                 recentReadingSection
-                offlineSection
+                offlineSection(recentOfflineChapters: offlineSnapshot.recentChapters)
             }
             .padding(AppSpacing.screen)
             .frame(maxWidth: 980, alignment: .topLeading)
@@ -326,7 +315,7 @@ private struct MacLibraryOverviewView: View {
         ]
     }
 
-    private var metricsGrid: some View {
+    private func metricsGrid(readyOfflineCount: Int) -> some View {
         LazyVGrid(
             columns: overviewColumns,
             spacing: AppSpacing.md
@@ -373,15 +362,22 @@ private struct MacLibraryOverviewView: View {
             )
             overviewMetric(
                 title: AppLocalization.text("library.mac.tracker_accounts", "Tracker Accounts"),
-                value: String(TrackerProvider.allCases.filter { tracker.account(for: $0) != nil }.count),
+                value: String(connectedTrackerCount),
                 subtitle: AppLocalization.text("library.workspace.tracker.subtitle", "View manga and local progress bindings"),
                 systemImage: "rectangle.stack.badge.person.crop",
                 tint: AppTint.success,
                 action: {
-                    let provider = TrackerProvider.allCases.first { $0.supportsMangaListWorkspace } ?? .aniList
-                    onSelect(.tracking(provider))
+                    onSelect(.tracking(.defaultMangaListWorkspaceProvider))
                 }
             )
+        }
+    }
+
+    private var connectedTrackerCount: Int {
+        TrackerProvider.allCases.reduce(into: 0) { count, provider in
+            if tracker.account(for: provider) != nil {
+                count += 1
+            }
         }
     }
 
@@ -482,7 +478,7 @@ private struct MacLibraryOverviewView: View {
         }
     }
 
-    private var offlineSection: some View {
+    private func offlineSection(recentOfflineChapters: [OfflineChapterAsset]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             sectionHeader(
                 title: AppLocalization.text("library.offline_ready.title", "Offline Ready"),
@@ -552,23 +548,7 @@ private struct MacLibraryOverviewView: View {
 
     private func openOfflineChapter(_ item: OfflineChapterAsset) {
         selection = .offline(item.id)
-        let chapterSequence = library.offlineChapters
-            .filter {
-                $0.sourceKey == item.sourceKey &&
-                $0.comicID == item.comicID &&
-                $0.integrityStatus == .complete
-            }
-            .sorted { lhs, rhs in
-                if lhs.downloadedAt != rhs.downloadedAt { return lhs.downloadedAt < rhs.downloadedAt }
-                if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
-                return lhs.chapterTitle.localizedStandardCompare(rhs.chapterTitle) == .orderedAscending
-            }
-            .map {
-                ComicChapter(
-                    id: $0.chapterID,
-                    title: $0.chapterTitle.isEmpty ? $0.chapterID : $0.chapterTitle
-                )
-            }
+        let chapterSequence = OfflineChapterSequenceBuilder.sequence(for: item, in: library.offlineChapters)
 
         pendingDetailReadRoute = ReaderLaunchContext(
             item: ComicSummary(
@@ -708,7 +688,7 @@ private struct MacLibraryHistoryRow: View {
 
     var body: some View {
         HStack(spacing: AppSpacing.md) {
-            CoverArtworkView(urlString: item.coverURL, width: 42, height: 58)
+            CoverArtworkView(urlString: item.coverURL, refererURLString: item.comicID, width: 42, height: 58)
                 .frame(width: 42, height: 58)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -740,9 +720,7 @@ private struct MacLibraryHistoryRow: View {
     }
 
     private var updatedText: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: Date(timeIntervalSince1970: TimeInterval(item.updatedAt)), relativeTo: Date())
+        RelativeTimeText.short(for: item.updatedAt)
     }
 }
 
@@ -753,7 +731,7 @@ private struct MacLibraryOfflineTile: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: AppSpacing.md) {
-                CoverArtworkView(urlString: item.coverURL, width: 54, height: 76)
+                CoverArtworkView(urlString: item.coverURL, refererURLString: item.comicID, width: 54, height: 76)
                     .frame(width: 54, height: 76)
 
                 VStack(alignment: .leading, spacing: 5) {

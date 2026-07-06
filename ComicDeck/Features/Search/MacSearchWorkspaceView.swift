@@ -30,22 +30,18 @@ struct MacSearchWorkspaceView: View {
             ?? AppLocalization.text("search.no_source_installed", "No source installed")
     }
 
-    private var selectedResult: ComicSummary? {
-        guard let selectedResultID else { return nil }
-        return model.results.first { $0.id == selectedResultID }
-    }
-
-    private var resultIDs: [ComicSummary.ID] {
-        model.results.map(\.id)
-    }
-
     var body: some View {
+        let snapshot = SearchPresentationSnapshot(
+            results: model.results,
+            optionGroups: vm.login.searchOptionGroups
+        )
+
         NavigationSplitView {
             filterSidebar
                 .navigationTitle(AppLocalization.text("search.title", "Search"))
                 .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
         } detail: {
-            resultsPane
+            resultsPane(snapshot: snapshot)
         }
         .searchable(
             text: Binding(
@@ -60,15 +56,15 @@ struct MacSearchWorkspaceView: View {
             Task { await performSearch() }
         }
         .onAppear {
-            configureSelectionCommands()
+            configureSelectionCommands(snapshot: snapshot)
             configureSearchCommands()
         }
         .onChange(of: selectedResultID) { _, _ in
-            configureSelectionCommands()
+            configureSelectionCommands(snapshot: snapshot)
         }
-        .onChange(of: resultIDs) { _, _ in
-            reconcileResultSelection()
-            configureSelectionCommands()
+        .onChange(of: snapshot.resultIDs) { _, _ in
+            reconcileResultSelection(snapshot: snapshot)
+            configureSelectionCommands(snapshot: snapshot)
         }
         .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
         .focusedSceneValue(\.macSearchCommandController, searchCommandController)
@@ -157,7 +153,8 @@ struct MacSearchWorkspaceView: View {
         let groups = vm.login.searchOptionGroups
         if !groups.isEmpty {
             Section(AppLocalization.text("search.filters", "Filters")) {
-                ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                ForEach(groups.indices, id: \.self) { index in
+                    let group = groups[index]
                     if group.type == "multi-select" {
                         MacMultiSelectFilterRow(
                             group: group,
@@ -224,24 +221,24 @@ struct MacSearchWorkspaceView: View {
 
     // MARK: - Results Pane
 
-    private var resultsPane: some View {
+    private func resultsPane(snapshot: SearchPresentationSnapshot) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
-                if !quickCardGroups.isEmpty {
-                    quickFiltersBar
+                if !snapshot.quickFilterGroups.isEmpty {
+                    quickFiltersBar(groups: snapshot.quickFilterGroups)
                 }
 
                 if searchContextVisible {
                     contextBar
                 }
 
-                if model.results.isEmpty {
+                if snapshot.results.isEmpty {
                     emptyState
                         .padding(.horizontal, AppSpacing.lg)
                         .padding(.top, AppSpacing.xl)
                 } else {
-                    resultsHeader
-                    resultsContent
+                    resultsHeader(resultCount: snapshot.results.count)
+                    resultsContent(results: snapshot.results)
                         .padding(.horizontal, AppSpacing.lg)
                 }
 
@@ -256,12 +253,12 @@ struct MacSearchWorkspaceView: View {
         .background(AppSurface.grouped.ignoresSafeArea())
     }
 
-    private var resultsHeader: some View {
+    private func resultsHeader(resultCount: Int) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(AppLocalization.text("search.results", "Results"))
                     .font(.title3.weight(.semibold))
-                Text(AppLocalization.format("search.results_from_source", "%lld comics from %@", Int64(model.results.count), activeSourceTitle))
+                Text(AppLocalization.format("search.results_from_source", "%lld comics from %@", Int64(resultCount), activeSourceTitle))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -278,10 +275,10 @@ struct MacSearchWorkspaceView: View {
     }
 
     @ViewBuilder
-    private var resultsContent: some View {
+    private func resultsContent(results: [ComicSummary]) -> some View {
         if browseMode == .list {
             LazyVStack(spacing: AppSpacing.md) {
-                ForEach(model.results) { item in
+                ForEach(results) { item in
                     resultNavigationLink(for: item) {
                         SearchResultCard(item: item)
                     }
@@ -295,7 +292,7 @@ struct MacSearchWorkspaceView: View {
                 ],
                 spacing: AppSpacing.md
             ) {
-                ForEach(model.results) { item in
+                ForEach(results) { item in
                     resultNavigationLink(for: item) {
                         SearchResultGridCard(item: item)
                     }
@@ -353,18 +350,10 @@ struct MacSearchWorkspaceView: View {
 
     // MARK: - Quick Filters
 
-    private var quickCardGroups: [(index: Int, group: SearchOptionGroup)] {
-        Array(vm.login.searchOptionGroups.enumerated())
-            .filter { _, group in
-                group.type != "multi-select" && !group.options.isEmpty
-            }
-            .map { (index: $0.offset, group: $0.element) }
-    }
-
     @ViewBuilder
-    private var quickFiltersBar: some View {
+    private func quickFiltersBar(groups: [SearchQuickFilterGroup]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            ForEach(quickCardGroups, id: \.group.id) { pair in
+            ForEach(groups) { pair in
                 let index = pair.index
                 let group = pair.group
                 HStack(spacing: AppSpacing.sm) {
@@ -487,8 +476,9 @@ struct MacSearchWorkspaceView: View {
             profile: vm.login.searchFeatureProfile,
             append: false
         )
-        reconcileResultSelection()
-        configureSelectionCommands()
+        let snapshot = SearchPresentationSnapshot(results: model.results, optionGroups: vm.login.searchOptionGroups)
+        reconcileResultSelection(snapshot: snapshot)
+        configureSelectionCommands(snapshot: snapshot)
     }
 
     private func loadMore() async {
@@ -499,8 +489,9 @@ struct MacSearchWorkspaceView: View {
             profile: vm.login.searchFeatureProfile,
             append: true
         )
-        reconcileResultSelection()
-        configureSelectionCommands()
+        let snapshot = SearchPresentationSnapshot(results: model.results, optionGroups: vm.login.searchOptionGroups)
+        reconcileResultSelection(snapshot: snapshot)
+        configureSelectionCommands(snapshot: snapshot)
     }
 
     private func applyQuickOption(index: Int, value: String) async {
@@ -532,17 +523,17 @@ struct MacSearchWorkspaceView: View {
         PlatformPasteboard.copy(item.sourceKey)
     }
 
-    private func reconcileResultSelection() {
+    private func reconcileResultSelection(snapshot: SearchPresentationSnapshot) {
         if selectedResultID == nil {
-            selectedResultID = model.results.first?.id
-        } else if selectedResult == nil {
-            selectedResultID = model.results.first?.id
+            selectedResultID = snapshot.results.first?.id
+        } else if snapshot.result(matching: selectedResultID) == nil {
+            selectedResultID = snapshot.results.first?.id
         }
     }
 
-    private func configureSelectionCommands() {
+    private func configureSelectionCommands(snapshot: SearchPresentationSnapshot) {
         selectionCommandController.reset()
-        guard let item = selectedResult else { return }
+        guard let item = snapshot.result(matching: selectedResultID) else { return }
 
         selectionCommandController.open = { openResult(item) }
         selectionCommandController.copyTitle = { copyResultTitle(item) }

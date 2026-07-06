@@ -531,7 +531,8 @@ struct CategoryComicsPageView: View {
 
     private var categoryFiltersCard: some View {
         VStack(spacing: AppSpacing.sm) {
-            ForEach(Array(model.optionGroups.enumerated()), id: \.element.id) { index, group in
+            ForEach(model.optionGroups.indices, id: \.self) { index in
+                let group = model.optionGroups[index]
                 HStack {
                     Text(group.label)
                         .font(.footnote)

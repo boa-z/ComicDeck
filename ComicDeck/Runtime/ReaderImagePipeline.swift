@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 
 enum ReaderImagePipelineError: LocalizedError {
     case invalidResponse
@@ -44,15 +45,18 @@ actor ReaderImagePipeline {
     private let session: URLSession
     private let cache: HybridDataCache
     private var inFlight: [String: Task<Data, Error>] = [:]
+    private var recentFailures: [String: Date] = [:]
     private var activeCount = 0
-    private var waiters: [(id: UUID, priority: LoadPriority, continuation: CheckedContinuation<Void, Never>)] = []
-    private let maxConcurrent = 6
-    private let maxVisibleSlots = 4
+    private var waiters: [(id: UUID, key: String, priority: LoadPriority, continuation: CheckedContinuation<Bool, Never>)] = []
+    private let maxConcurrent = 8
+    private let maxPrefetchSlots = 2
+    private let prefetchFailureCooldown: TimeInterval = 15
     private var metrics = ReaderImageCacheMetrics()
     private var prefetchGeneration = 0
 
     enum LoadPriority: Int, Comparable {
         case visible
+        case thumbnail
         case prefetch
 
         static func < (lhs: LoadPriority, rhs: LoadPriority) -> Bool {
@@ -91,18 +95,29 @@ actor ReaderImagePipeline {
         }
 
         let key = RequestCacheKeyBuilder.key(for: request)
+        if priority == .prefetch,
+           let retryAfter = recentFailures[key],
+           retryAfter > Date() {
+            throw CancellationError()
+        }
         if let hit = await cache.lookupData(forKey: key) {
-            switch hit.source {
-            case .memory:
-                metrics.memoryHits += 1
-            case .disk:
-                metrics.diskHits += 1
+            do {
+                try Self.validateImageData(hit.data, response: nil)
+                switch hit.source {
+                case .memory:
+                    metrics.memoryHits += 1
+                case .disk:
+                    metrics.diskHits += 1
+                }
+                return hit.data
+            } catch {
+                await cache.removeData(forKey: key)
             }
-            return hit.data
         }
 
         if let existingTask = inFlight[key] {
             metrics.inFlightHits += 1
+            upgradeWaitingRequest(forKey: key, to: priority)
             do {
                 return try await existingTask.value
             } catch {
@@ -113,7 +128,9 @@ actor ReaderImagePipeline {
 
         metrics.misses += 1
         let task = Task<Data, Error> {
-            await self.acquireSlot(priority: priority)
+            guard await self.acquireSlot(forKey: key, priority: priority) else {
+                throw CancellationError()
+            }
             defer { self.releaseSlot() }
             let (data, response) = try await self.session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
@@ -122,6 +139,7 @@ actor ReaderImagePipeline {
             guard (200...399).contains(http.statusCode) else {
                 throw ReaderImagePipelineError.httpStatus(http.statusCode)
             }
+            try Self.validateImageData(data, response: http)
             return data
         }
 
@@ -129,11 +147,13 @@ actor ReaderImagePipeline {
         do {
             let data = try await task.value
             inFlight[key] = nil
+            recentFailures[key] = nil
             metrics.networkLoads += 1
             await cache.store(data, forKey: key)
             return data
         } catch {
             inFlight[key] = nil
+            recordFailure(forKey: key, priority: priority, error: error)
             throw error
         }
     }
@@ -166,9 +186,21 @@ actor ReaderImagePipeline {
         for task in inFlight.values {
             task.cancel()
         }
+        let pendingWaiters = waiters
+        waiters.removeAll(keepingCapacity: true)
+        for waiter in pendingWaiters {
+            waiter.continuation.resume(returning: false)
+        }
         inFlight.removeAll(keepingCapacity: true)
         metrics = ReaderImageCacheMetrics()
+        recentFailures.removeAll(keepingCapacity: true)
         await cache.removeAll()
+    }
+
+    func removeCachedData(for request: URLRequest) async {
+        let key = RequestCacheKeyBuilder.key(for: request)
+        recentFailures[key] = nil
+        await cache.removeData(forKey: key)
     }
 
     func diskCacheSizeBytes() async -> Int64 {
@@ -186,54 +218,176 @@ actor ReaderImagePipeline {
         return snapshot
     }
 
-    private func acquireSlot(priority: LoadPriority = .visible) async {
-        if activeCount < maxConcurrent {
-            if priority == .prefetch && activeCount >= maxVisibleSlots {
-                await waitForVisibleSlot()
-                return
-            }
+    private func acquireSlot(forKey key: String, priority: LoadPriority = .visible) async -> Bool {
+        if hasCapacity(for: priority) {
             activeCount += 1
-            return
+            return true
         }
-        await withCheckedContinuation { continuation in
-            waiters.append((id: UUID(), priority: priority, continuation: continuation))
-            waiters.sort { $0.priority < $1.priority }
+        let waiterID = UUID()
+        let reserved = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                waiters.append((id: waiterID, key: key, priority: priority, continuation: continuation))
+                waiters.sort { $0.priority < $1.priority }
+            }
+        } onCancel: {
+            Task {
+                await self.cancelWaiter(id: waiterID)
+            }
         }
-        guard !Task.isCancelled else { return }
-        activeCount += 1
+        if Task.isCancelled, reserved {
+            releaseSlot()
+            return false
+        }
+        return reserved
     }
 
-    private func waitForVisibleSlot() async {
-        while activeCount >= maxVisibleSlots {
-            await withCheckedContinuation { continuation in
-                waiters.append((id: UUID(), priority: .prefetch, continuation: continuation))
-            }
-            guard !Task.isCancelled else { return }
+    private func hasCapacity(for priority: LoadPriority) -> Bool {
+        guard activeCount < maxConcurrent else { return false }
+        return priority != .prefetch || activeCount < maxPrefetchSlots
+    }
+
+    private func recordFailure(forKey key: String, priority: LoadPriority, error: Error) {
+        guard priority == .prefetch, !(error is CancellationError) else {
+            return
         }
+        recentFailures[key] = Date().addingTimeInterval(prefetchFailureCooldown)
+    }
+
+    private func cancelWaiter(id: UUID) {
+        guard let index = waiters.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+        let waiter = waiters.remove(at: index)
+        waiter.continuation.resume(returning: false)
+    }
+
+    private func upgradeWaitingRequest(forKey key: String, to priority: LoadPriority) {
+        guard let index = waiters.firstIndex(where: { $0.key == key }) else {
+            return
+        }
+        guard priority < waiters[index].priority else {
+            return
+        }
+        waiters[index].priority = priority
+        waiters.sort { $0.priority < $1.priority }
     }
 
     private func releaseSlot() {
         activeCount = max(0, activeCount - 1)
-        while !waiters.isEmpty {
-            let next = waiters.removeFirst()
-            next.continuation.resume()
+        resumeNextWaiterIfPossible()
+    }
+
+    private func resumeNextWaiterIfPossible() {
+        guard let index = waiters.firstIndex(where: { hasCapacity(for: $0.priority) }) else {
             return
         }
+        let next = waiters.remove(at: index)
+        activeCount += 1
+        next.continuation.resume(returning: true)
+    }
+
+    private nonisolated static func validateImageData(_ data: Data, response: HTTPURLResponse?) throws {
+        guard !data.isEmpty else {
+            throw ReaderImagePipelineError.invalidResponse
+        }
+
+        let contentType = response?.value(forHTTPHeaderField: "Content-Type")?
+            .split(separator: ";", maxSplits: 1)
+            .first?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        if likelyTextPayload(data) {
+            throw ReaderImagePipelineError.invalidResponse
+        }
+
+        if imageDataIsDecodable(data) {
+            return
+        }
+
+        guard imageDataHasKnownSignature(data) else {
+            throw ReaderImagePipelineError.invalidResponse
+        }
+
+        if let contentType, contentType.hasPrefix("image/"), !contentType.contains("svg") {
+            return
+        }
+    }
+
+    private nonisolated static func imageDataIsDecodable(_ data: Data) -> Bool {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceGetCount(source) > 0,
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        else {
+            return false
+        }
+        let width = properties[kCGImagePropertyPixelWidth] as? Int ?? 0
+        let height = properties[kCGImagePropertyPixelHeight] as? Int ?? 0
+        return width > 0 && height > 0
+    }
+
+    private nonisolated static func imageDataHasKnownSignature(_ data: Data) -> Bool {
+        if data.starts(with: [0xFF, 0xD8, 0xFF]) { return true }
+        if data.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) { return true }
+        if data.starts(with: [0x47, 0x49, 0x46, 0x38]) { return true }
+        if data.starts(with: [0x42, 0x4D]) { return true }
+        if data.starts(with: [0x00, 0x00, 0x01, 0x00]) { return true }
+        if data.starts(with: [0x00, 0x00, 0x02, 0x00]) { return true }
+        if data.starts(with: [0x49, 0x49, 0x2A, 0x00]) { return true }
+        if data.starts(with: [0x4D, 0x4D, 0x00, 0x2A]) { return true }
+        if data.starts(with: [0x49, 0x49, 0x2B, 0x00]) { return true }
+        if data.starts(with: [0x4D, 0x4D, 0x00, 0x2B]) { return true }
+        if data.starts(with: [0x00, 0x00, 0x00, 0x0C, 0x6A, 0x50, 0x20, 0x20, 0x0D, 0x0A, 0x87, 0x0A]) { return true }
+        if data.starts(with: [0xFF, 0x4F, 0xFF, 0x51]) { return true }
+
+        if data.count >= 12,
+           data.starts(with: [0x52, 0x49, 0x46, 0x46]),
+           Array(data.dropFirst(8).prefix(4)) == [0x57, 0x45, 0x42, 0x50] {
+            return true
+        }
+
+        if data.count >= 12,
+           Array(data.dropFirst(4).prefix(4)) == [0x66, 0x74, 0x79, 0x70] {
+            let brand = Array(data.dropFirst(8).prefix(4))
+            let knownBrands: [[UInt8]] = [
+                [0x61, 0x76, 0x69, 0x66],
+                [0x61, 0x76, 0x69, 0x73],
+                [0x68, 0x65, 0x69, 0x63],
+                [0x68, 0x65, 0x69, 0x78],
+                [0x6D, 0x69, 0x66, 0x31],
+                [0x6D, 0x73, 0x66, 0x31]
+            ]
+            return knownBrands.contains(brand)
+        }
+
+        return false
+    }
+
+    private nonisolated static func likelyTextPayload(_ data: Data) -> Bool {
+        let prefix = String(decoding: data.prefix(64), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return prefix.hasPrefix("<!doctype")
+            || prefix.hasPrefix("<html")
+            || prefix.hasPrefix("<script")
+            || prefix.hasPrefix("<svg")
+            || prefix.hasPrefix("{")
+            || prefix.hasPrefix("[")
     }
 }
 
 func buildURLRequest(from request: ImageRequest) -> URLRequest? {
-    let normalizedURL = request.url.hasPrefix("//") ? "https:\(request.url)" : request.url
+    let normalizedURL = normalizedImageURLString(request.url)
     
     let url: URL?
     if normalizedURL.hasPrefix("file://") || normalizedURL.hasPrefix("/") {
         if normalizedURL.hasPrefix("file://") {
-            url = URL(string: normalizedURL)
+            url = URL(string: normalizedURL) ?? fileURL(fromFileSchemeString: normalizedURL)
         } else {
             url = URL(fileURLWithPath: normalizedURL)
         }
     } else {
-        url = URL(string: normalizedURL)
+        url = URL(string: normalizedURL) ?? percentEncodedURL(from: normalizedURL)
     }
     
     guard let url,
@@ -258,7 +412,7 @@ func buildURLRequest(from request: ImageRequest) -> URLRequest? {
         req.setValue(v, forHTTPHeaderField: k)
     }
     if req.value(forHTTPHeaderField: "Accept") == nil {
-        req.setValue("image/avif,image/webp,image/apng,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
+        req.setValue("image/avif,image/heic,image/heif,image/webp,image/jpeg,image/png,image/gif,image/apng,*/*;q=0.6", forHTTPHeaderField: "Accept")
     }
     if req.value(forHTTPHeaderField: "User-Agent") == nil {
         req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148", forHTTPHeaderField: "User-Agent")
@@ -268,6 +422,39 @@ func buildURLRequest(from request: ImageRequest) -> URLRequest? {
         req.setValue("https://\(host)/", forHTTPHeaderField: "Referer")
     }
     return req
+}
+
+private func normalizedImageURLString(_ value: String) -> String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let decodedEntities = trimmed
+        .replacingOccurrences(of: "&amp;", with: "&")
+        .replacingOccurrences(of: "&lt;", with: "<")
+        .replacingOccurrences(of: "&gt;", with: ">")
+        .replacingOccurrences(of: "&quot;", with: "\"")
+        .replacingOccurrences(of: "&#39;", with: "'")
+    let withoutCropMarker = stripImageCropMarker(from: decodedEntities)
+    return withoutCropMarker.hasPrefix("//") ? "https:\(withoutCropMarker)" : withoutCropMarker
+}
+
+private func stripImageCropMarker(from value: String) -> String {
+    guard let markerRange = value.range(of: "@x=") ?? value.range(of: "@y=") else {
+        return value
+    }
+    return String(value[..<markerRange.lowerBound])
+}
+
+private func percentEncodedURL(from value: String) -> URL? {
+    guard let encoded = value.addingPercentEncoding(withAllowedCharacters: .urlFragmentAllowed) else {
+        return nil
+    }
+    return URL(string: encoded)
+}
+
+private func fileURL(fromFileSchemeString value: String) -> URL? {
+    guard value.hasPrefix("file://") else { return nil }
+    let path = String(value.dropFirst("file://".count)).removingPercentEncoding
+        ?? String(value.dropFirst("file://".count))
+    return URL(fileURLWithPath: path)
 }
 
 func imageRequestKey(_ req: ImageRequest) -> String {

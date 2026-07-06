@@ -32,14 +32,19 @@ struct SourceScopedSearchView: View {
     }
 
     var body: some View {
-        searchWorkspace
+        let snapshot = SearchPresentationSnapshot(
+            results: model.results,
+            optionGroups: vm.login.searchOptionGroups
+        )
+
+        searchWorkspace(snapshot: snapshot)
             .navigationTitle(sourceTitle)
             .searchable(
                 text: Binding(
                     get: { model.keyword },
                     set: { model.keyword = $0 }
                 ),
-                prompt: "Search keyword"
+                prompt: AppLocalization.text("search.placeholder", "Search keyword")
             )
             .onSubmit(of: .search) {
                 Task { await search(model.keyword, sourceKey: sourceKey) }
@@ -89,29 +94,29 @@ struct SourceScopedSearchView: View {
     }
 
     @ViewBuilder
-    private var searchWorkspace: some View {
+    private func searchWorkspace(snapshot: SearchPresentationSnapshot) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 searchOverviewCard
                     .padding(.horizontal, AppSpacing.md)
                     .padding(.top, AppSpacing.md)
 
-                if !quickCardGroups.isEmpty {
-                    searchQuickCardsSection
+                if !snapshot.quickFilterGroups.isEmpty {
+                    searchQuickCardsSection(groups: snapshot.quickFilterGroups)
                 }
 
                 if !model.recentKeywords.isEmpty {
                     recentKeywordsSection
                 }
 
-                if model.results.isEmpty {
+                if snapshot.results.isEmpty {
                     emptyState
                         .padding(.horizontal, AppSpacing.md)
                         .padding(.bottom, AppSpacing.xl)
                 } else if browseMode == .list {
-                    listResults
+                    listResults(results: snapshot.results)
                 } else {
-                    gridResults
+                    gridResults(results: snapshot.results)
                 }
 
                 if model.searchHasMore {
@@ -124,16 +129,16 @@ struct SourceScopedSearchView: View {
         .background(AppSurface.grouped.ignoresSafeArea())
     }
 
-    private var listResults: some View {
+    private func listResults(results: [ComicSummary]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             sectionHeader(
                 title: AppLocalization.text("search.results", "Results"),
-                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(model.results.count))
+                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(results.count))
             )
                 .padding(.horizontal, AppSpacing.md)
 
             LazyVStack(spacing: AppSpacing.md) {
-                ForEach(model.results) { item in
+                ForEach(results) { item in
                     resultNavigationLink(for: item) {
                         SearchResultCard(item: item)
                     }
@@ -143,11 +148,11 @@ struct SourceScopedSearchView: View {
         }
     }
 
-    private var gridResults: some View {
+    private func gridResults(results: [ComicSummary]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             sectionHeader(
                 title: AppLocalization.text("search.results", "Results"),
-                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(model.results.count))
+                subtitle: AppLocalization.format("search.results_count", "%lld comics", Int64(results.count))
             )
                 .padding(.horizontal, AppSpacing.md)
 
@@ -155,7 +160,7 @@ struct SourceScopedSearchView: View {
                 GridItem(.flexible(), spacing: AppSpacing.md),
                 GridItem(.flexible(), spacing: AppSpacing.md)
             ], spacing: AppSpacing.md) {
-                ForEach(model.results) { item in
+                ForEach(results) { item in
                     resultNavigationLink(for: item) {
                         SearchResultGridCard(item: item)
                     }
@@ -312,17 +317,9 @@ struct SourceScopedSearchView: View {
         .background(AppSurface.subtle, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
     }
 
-    private var quickCardGroups: [(index: Int, group: SearchOptionGroup)] {
-        Array(vm.login.searchOptionGroups.enumerated())
-            .filter { _, group in
-                group.type != "multi-select" && !group.options.isEmpty
-            }
-            .map { (index: $0.offset, group: $0.element) }
-    }
-
     @ViewBuilder
-    private var searchQuickCardsSection: some View {
-        if !quickCardGroups.isEmpty {
+    private func searchQuickCardsSection(groups: [SearchQuickFilterGroup]) -> some View {
+        if !groups.isEmpty {
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
                 sectionHeader(
                     title: AppLocalization.text("search.quick_filters", "Quick Filters"),
@@ -330,7 +327,7 @@ struct SourceScopedSearchView: View {
                 )
                     .padding(.horizontal, AppSpacing.md)
 
-                ForEach(quickCardGroups, id: \.group.id) { pair in
+                ForEach(groups) { pair in
                     let index = pair.index
                     let group = pair.group
                     VStack(alignment: .leading, spacing: AppSpacing.sm) {

@@ -108,6 +108,7 @@ struct ComicDetailHeroSection: View {
             HStack(alignment: .top, spacing: AppSpacing.lg) {
                 CoverArtworkView(
                     urlString: detail.cover ?? item.coverURL,
+                    refererURLString: browserURLString ?? item.id,
                     width: 112,
                     height: 156
                 )
@@ -183,7 +184,8 @@ struct ComicDetailHeroSection: View {
             if !item.tags.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(Array(item.tags.enumerated()), id: \.offset) { _, tag in
+                        ForEach(item.tags.indices, id: \.self) { index in
+                            let tag = item.tags[index]
                             Text(tag)
                                 .font(.caption.weight(.medium))
                                 .padding(.horizontal, 10)
@@ -587,6 +589,7 @@ struct ComicDetailChaptersSection: View {
     let chapterDescending: Binding<Bool>
     let continueChapterID: String?
     let downloadStateByChapterID: [String: DownloadStatus]
+    let offlineChapterCount: Int
     let queueingAll: Bool
     let queueAllProgressText: String
     let onQueueAll: () -> Void
@@ -701,14 +704,13 @@ struct ComicDetailChaptersSection: View {
     }
 
     private var downloadSummaryText: String {
-        let offlineCount = downloadStateByChapterID.values.filter { $0 == .completed }.count
-        guard offlineCount > 0 else {
+        guard offlineChapterCount > 0 else {
             return AppLocalization.text("detail.chapters.download_hint", "Save every chapter for offline reading.")
         }
         return AppLocalization.format(
             "detail.chapters.offline_count_format",
             "%lld offline",
-            Int64(offlineCount)
+            Int64(offlineChapterCount)
         )
     }
 
@@ -802,7 +804,8 @@ private struct FlexibleTagLayout<Content: View>: View {
 
     var body: some View {
         FlowTagLayout(spacing: 8, rowSpacing: 8) {
-            ForEach(Array(tags.enumerated()), id: \.offset) { _, tag in
+            ForEach(tags.indices, id: \.self) { index in
+                let tag = tags[index]
                 content(tag)
             }
         }

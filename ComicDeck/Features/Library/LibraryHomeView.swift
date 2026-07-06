@@ -5,16 +5,7 @@ import Observation
 @Observable
 final class LibraryHomeScreenModel {
     func relativeText(for timestamp: Int64) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: Date(timeIntervalSince1970: TimeInterval(timestamp)), relativeTo: Date())
-    }
-
-    func recentOfflineChapters(from items: [OfflineChapterAsset]) -> [OfflineChapterAsset] {
-        items.sorted { lhs, rhs in
-            if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
-            return lhs.downloadedAt > rhs.downloadedAt
-        }
+        RelativeTimeText.short(for: timestamp)
     }
 }
 
@@ -34,47 +25,15 @@ struct LibraryHomeView: View {
         Array(library.history.prefix(6))
     }
 
-    private var recentCompletedDownloads: [OfflineChapterAsset] {
-        Array(
-            model.recentOfflineChapters(
-                from: library.offlineChapters.filter { $0.integrityStatus == .complete }
-            )
-            .prefix(3)
-        )
-    }
-
-    private var readyOfflineCount: Int {
-        library.offlineChapters.lazy.filter { $0.integrityStatus == .complete }.count
-    }
-
-    private func offlineChapterSequence(for item: OfflineChapterAsset) -> [ComicChapter] {
-        library.offlineChapters
-            .filter {
-                $0.sourceKey == item.sourceKey &&
-                $0.comicID == item.comicID &&
-                $0.integrityStatus == .complete
-            }
-            .sorted { lhs, rhs in
-                if lhs.downloadedAt != rhs.downloadedAt { return lhs.downloadedAt < rhs.downloadedAt }
-                if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
-                return lhs.chapterTitle.localizedStandardCompare(rhs.chapterTitle) == .orderedAscending
-            }
-            .map {
-                ComicChapter(
-                    id: $0.chapterID,
-                    title: $0.chapterTitle.isEmpty ? $0.chapterID : $0.chapterTitle
-                )
-            }
-    }
-
     var body: some View {
+        let offlineSnapshot = OfflineChapterPreviewBuilder.snapshot(from: library.offlineChapters, limit: 3)
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    workspacesSection
+                    workspacesSection(readyOfflineCount: offlineSnapshot.readyCount)
                     recentReadingSection
-                    if !recentCompletedDownloads.isEmpty {
-                        downloadsSnapshotSection
+                    if !offlineSnapshot.recentChapters.isEmpty {
+                        downloadsSnapshotSection(recentCompletedDownloads: offlineSnapshot.recentChapters)
                     }
                 }
                 .padding(.horizontal, AppSpacing.screen)
@@ -96,7 +55,7 @@ struct LibraryHomeView: View {
         }
     }
 
-    private var workspacesSection: some View {
+    private func workspacesSection(readyOfflineCount: Int) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text(AppLocalization.text("library.workspaces.title", "Workspaces"))
                 .font(.title3.weight(.semibold))
@@ -115,7 +74,7 @@ struct LibraryHomeView: View {
                 }
                 .buttonStyle(.plain)
 
-                ForEach(TrackerProvider.allCases.filter { $0.supportsMangaListWorkspace }) { provider in
+                ForEach(TrackerProvider.mangaListWorkspaceProviders) { provider in
                     NavigationLink {
                         TrackerSubscriptionsView(vm: vm, sourceManager: sourceManager, provider: provider)
                     } label: {
@@ -209,7 +168,8 @@ struct LibraryHomeView: View {
                                 libraryPreviewCard(
                                     title: item.title,
                                     subtitle: recentReadingSubtitle(item),
-                                    coverURL: item.coverURL
+                                    coverURL: item.coverURL,
+                                    refererURLString: item.comicID
                                 )
                             }
                             .buttonStyle(.plain)
@@ -221,7 +181,7 @@ struct LibraryHomeView: View {
         }
     }
 
-    private var downloadsSnapshotSection: some View {
+    private func downloadsSnapshotSection(recentCompletedDownloads: [OfflineChapterAsset]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack {
                 Text(AppLocalization.text("library.offline_ready.title", "Offline Ready"))
@@ -248,7 +208,7 @@ struct LibraryHomeView: View {
                                 chapterID: item.chapterID,
                                 chapterTitle: item.chapterTitle,
                                 localChapterDirectory: item.directoryPath,
-                                chapterSequence: offlineChapterSequence(for: item)
+                                chapterSequence: OfflineChapterSequenceBuilder.sequence(for: item, in: library.offlineChapters)
                             )
                             .environment(library)
                         } label: {
@@ -260,7 +220,8 @@ struct LibraryHomeView: View {
                                     item.chapterTitle,
                                     String(item.pageCount)
                                 ),
-                                coverURL: item.coverURL
+                                coverURL: item.coverURL,
+                                refererURLString: item.comicID
                             )
                         }
                         .buttonStyle(.plain)
@@ -324,9 +285,14 @@ struct LibraryHomeView: View {
         return "\(chapterText) • \(model.relativeText(for: item.updatedAt))"
     }
 
-    private func libraryPreviewCard(title: String, subtitle: String, coverURL: String?) -> some View {
+    private func libraryPreviewCard(
+        title: String,
+        subtitle: String,
+        coverURL: String?,
+        refererURLString: String?
+    ) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            CoverArtworkView(urlString: coverURL, width: 128, height: 182)
+            CoverArtworkView(urlString: coverURL, refererURLString: refererURLString, width: 128, height: 182)
                 .frame(width: 128, height: 182)
 
             Text(title)

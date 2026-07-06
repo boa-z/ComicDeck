@@ -90,7 +90,8 @@ struct CommentsPageView: View {
                 }
             } else {
                 Section(AppLocalization.text("comments.section.title", "Comments")) {
-                    ForEach(Array(model.comments.enumerated()), id: \.offset) { _, comment in
+                    ForEach(model.comments.indices, id: \.self) { index in
+                        let comment = model.comments[index]
                         CommentItemRow(
                             vm: vm,
                             item: item,
@@ -212,15 +213,14 @@ struct CommentItemRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 8) {
-                if let avatar = comment.avatar, let url = URL(string: avatar) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().scaledToFill()
-                        default:
-                            Circle().fill(.gray.opacity(0.2))
-                        }
-                    }
+                if let avatar = comment.avatar {
+                    CachedRemoteImage(
+                        urlString: avatar,
+                        decodeSize: CGSize(width: 28, height: 28),
+                        contentMode: .fill,
+                        failureSystemImage: "person.crop.circle",
+                        priority: .thumbnail
+                    )
                     .frame(width: 28, height: 28)
                     .clipShape(Circle())
                 }

@@ -207,16 +207,21 @@ struct BookmarkShelvesView: View {
     }
 
     var body: some View {
+        let snapshot = BookmarkShelvesSnapshot(
+            categories: library.favoriteCategories,
+            memberships: library.favoriteCategoryMemberships
+        )
+
         List {
             Section {
-                summarySection
+                summarySection(snapshot: snapshot)
                     .listRowInsets(EdgeInsets(top: AppSpacing.sm, leading: AppSpacing.screen, bottom: AppSpacing.sm, trailing: AppSpacing.screen))
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
 
             Section(AppLocalization.text("library.shelves.your_shelves", "Your Shelves")) {
-                categoriesSection
+                categoriesSection(snapshot: snapshot)
             }
         }
         .scrollContentBackground(.hidden)
@@ -225,9 +230,9 @@ struct BookmarkShelvesView: View {
         .navigationTitle(AppLocalization.text("library.shelves.title", "Shelves"))
         .toolbar {
             ToolbarItemGroup(placement: .platformTopBarTrailing) {
-                if library.favoriteCategories.count > 1 {
+                if snapshot.categories.count > 1 {
                     Button(AppLocalization.text("library.shelves.reorder", "Reorder")) {
-                        model.beginReorder(with: library.favoriteCategories)
+                        model.beginReorder(with: snapshot.categories)
                     }
                 }
                 Button(AppLocalization.text("library.shelves.new", "New")) {
@@ -307,24 +312,24 @@ struct BookmarkShelvesView: View {
 #endif
     }
 
-    private var summarySection: some View {
+    private func summarySection(snapshot: BookmarkShelvesSnapshot) -> some View {
         HStack(spacing: AppSpacing.md) {
-            statCard(title: AppLocalization.text("library.shelves.shelves", "Shelves"), value: "\(library.favoriteCategories.count)", subtitle: AppLocalization.text("library.shelves.groups", "Groups"))
-            statCard(title: AppLocalization.text("library.shelves.assigned", "Assigned"), value: "\(library.favoriteCategoryMemberships.values.reduce(0) { $0 + $1.count })", subtitle: AppLocalization.text("library.bookmarks.title", "Bookmarks"))
+            statCard(title: AppLocalization.text("library.shelves.shelves", "Shelves"), value: "\(snapshot.categories.count)", subtitle: AppLocalization.text("library.shelves.groups", "Groups"))
+            statCard(title: AppLocalization.text("library.shelves.assigned", "Assigned"), value: "\(snapshot.assignedBookmarkCount)", subtitle: AppLocalization.text("library.bookmarks.title", "Bookmarks"))
         }
     }
 
-    private var categoriesSection: some View {
+    private func categoriesSection(snapshot: BookmarkShelvesSnapshot) -> some View {
         Group {
-            if library.favoriteCategories.isEmpty {
+            if snapshot.categories.isEmpty {
                 Text(AppLocalization.text("library.shelves.empty_hint", "Create shelves to group bookmarks by project, mood, or reading priority."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, AppSpacing.sm)
             } else {
-                ForEach(library.favoriteCategories) { category in
-                    categoryRow(category)
+                ForEach(snapshot.categories) { category in
+                    categoryRow(category, bookmarkCount: snapshot.bookmarkCount(in: category))
                         .contentShape(Rectangle())
                         .onTapGesture {
                             selectedCategoryID = category.id
@@ -360,7 +365,7 @@ struct BookmarkShelvesView: View {
         }
     }
 
-    private func categoryRow(_ category: LibraryCategory) -> some View {
+    private func categoryRow(_ category: LibraryCategory, bookmarkCount: Int) -> some View {
         HStack(spacing: AppSpacing.md) {
             Image(systemName: "square.stack.3d.up")
                 .font(.headline)
@@ -372,7 +377,7 @@ struct BookmarkShelvesView: View {
                 Text(category.name)
                     .font(.headline)
                     .foregroundStyle(.primary)
-                Text(AppLocalization.format("library.shelves.bookmark_count_format", "%lld bookmarks", Int64(library.bookmarkCount(in: category))))
+                Text(AppLocalization.format("library.shelves.bookmark_count_format", "%lld bookmarks", Int64(bookmarkCount)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -445,26 +450,30 @@ struct BookmarkShelvesView: View {
 
     @ViewBuilder
     private func addFavoritesSheet(for category: LibraryCategory) -> some View {
-        let assignedKeys = library.favoriteCategoryMemberships[category.id] ?? []
-        let availableFavorites = library.favorites.filter { !assignedKeys.contains(model.favoriteKey(for: $0)) }
+        let snapshot = BookmarkShelfAddFavoritesSnapshot(
+            category: category,
+            favorites: library.favorites,
+            memberships: library.favoriteCategoryMemberships
+        )
 
         List {
-            if availableFavorites.isEmpty {
+            if snapshot.rows.isEmpty {
                 Text(AppLocalization.text("library.shelves.all_assigned_hint", "All bookmarks are already in this shelf."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(availableFavorites) { favorite in
+                ForEach(snapshot.rows) { row in
+                    let favorite = row.favorite
+                    let isSelected = model.selectedFavoriteKeys.contains(row.key)
                     Button {
-                        let key = model.favoriteKey(for: favorite)
-                        if model.selectedFavoriteKeys.contains(key) {
-                            model.selectedFavoriteKeys.remove(key)
+                        if isSelected {
+                            model.selectedFavoriteKeys.remove(row.key)
                         } else {
-                            model.selectedFavoriteKeys.insert(key)
+                            model.selectedFavoriteKeys.insert(row.key)
                         }
                     } label: {
                         HStack(spacing: AppSpacing.md) {
-                            CoverArtworkView(urlString: favorite.coverURL, width: 44, height: 62)
+                            CoverArtworkView(urlString: favorite.coverURL, refererURLString: favorite.id, width: 44, height: 62)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(favorite.title)
                                     .font(.headline)
@@ -475,11 +484,9 @@ struct BookmarkShelvesView: View {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Image(systemName: model.selectedFavoriteKeys.contains(model.favoriteKey(for: favorite)) ? "checkmark.circle.fill" : "circle")
+                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(
-                                    model.selectedFavoriteKeys.contains(model.favoriteKey(for: favorite))
-                                        ? AppTint.accent
-                                        : PlatformColors.tertiaryLabel
+                                    isSelected ? AppTint.accent : PlatformColors.tertiaryLabel
                                 )
                         }
                     }
@@ -496,7 +503,7 @@ struct BookmarkShelvesView: View {
             }
             ToolbarItem(placement: .platformTopBarTrailing) {
                 Button(AppLocalization.text("common.add", "Add")) {
-                    let favorites = availableFavorites.filter { model.selectedFavoriteKeys.contains(model.favoriteKey(for: $0)) }
+                    let favorites = snapshot.selectedFavorites(matching: model.selectedFavoriteKeys)
                     Task { await library.addBookmarks(favorites, to: category) }
                     model.categoryToAddFavorites = nil
                 }
@@ -614,22 +621,28 @@ private struct BookmarkShelfDetailView: View {
         nonmutating set { browseModeRaw = newValue.rawValue }
     }
 
-    private var favorites: [FavoriteComic] {
-        library.bookmarks(in: category)
-    }
-
-    private var favoriteKeys: [String] {
-        favorites.map(favoriteKey(for:))
-    }
-
-    private var selectedFavorite: FavoriteComic? {
-        guard let selectedFavoriteKey else { return nil }
-        return favorites.first { favoriteKey(for: $0) == selectedFavoriteKey }
-    }
-
     var body: some View {
+        let snapshot = BookmarkShelfDetailSnapshot(
+            favorites: library.bookmarks(in: category)
+        )
+
         Group {
-            if browseMode == .grid {
+            if snapshot.favorites.isEmpty {
+                ScrollView {
+                    ContentUnavailableView(
+                        AppLocalization.text("library.shelves.detail_empty_title", "No bookmarks in this shelf"),
+                        systemImage: "square.stack.3d.up.slash",
+                        description: Text(AppLocalization.format(
+                            "library.shelves.detail_empty_message_format",
+                            "Add bookmarks to %@ from Bookmarks or comic detail pages.",
+                            category.name
+                        ))
+                    )
+                    .padding(.horizontal, AppSpacing.screen)
+                    .padding(.top, AppSpacing.xl)
+                }
+                .background(AppSurface.grouped.ignoresSafeArea())
+            } else if browseMode == .grid {
                 ScrollView {
                     LazyVGrid(
                         columns: [
@@ -638,9 +651,9 @@ private struct BookmarkShelfDetailView: View {
                         ],
                         spacing: AppSpacing.md
                     ) {
-                        ForEach(favorites) { favorite in
+                        ForEach(snapshot.favorites) { favorite in
                             Button {
-                                selectedFavoriteKey = favoriteKey(for: favorite)
+                                selectedFavoriteKey = snapshot.key(for: favorite)
                                 openDetail(for: favorite)
                             } label: {
                                 ComicPreviewGridCard(
@@ -666,10 +679,10 @@ private struct BookmarkShelfDetailView: View {
                 .background(AppSurface.grouped.ignoresSafeArea())
             } else {
                 ScrollView {
-                    VStack(spacing: AppSpacing.md) {
-                        ForEach(favorites) { favorite in
+                    LazyVStack(spacing: AppSpacing.md) {
+                        ForEach(snapshot.favorites) { favorite in
                             Button {
-                                selectedFavoriteKey = favoriteKey(for: favorite)
+                                selectedFavoriteKey = snapshot.key(for: favorite)
                                 openDetail(for: favorite)
                             } label: {
                                 ComicPreviewCard(
@@ -715,15 +728,15 @@ private struct BookmarkShelfDetailView: View {
             ComicDetailRoutingView(vm: vm, item: item, onTagSelected: onTagSearchRequested, onNavigateBack: { selectedDetailItem = nil })
         }
         .onAppear {
-            reconcileSelectedFavorite()
-            configureSelectionCommands()
+            reconcileSelectedFavorite(keys: snapshot.favoriteKeys)
+            configureSelectionCommands(snapshot: snapshot)
         }
-        .onChange(of: favoriteKeys) { _, _ in
-            reconcileSelectedFavorite()
-            configureSelectionCommands()
+        .onChange(of: snapshot.favoriteKeys) { _, keys in
+            reconcileSelectedFavorite(keys: keys)
+            configureSelectionCommands(snapshot: snapshot)
         }
         .onChange(of: selectedFavoriteKey) { _, _ in
-            configureSelectionCommands()
+            configureSelectionCommands(snapshot: snapshot)
         }
 #if os(macOS)
         .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
@@ -731,7 +744,7 @@ private struct BookmarkShelfDetailView: View {
     }
 
     private func openDetail(for favorite: FavoriteComic) {
-        selectedFavoriteKey = favoriteKey(for: favorite)
+        selectedFavoriteKey = BookmarkShelfDetailSnapshot.key(for: favorite)
         selectedDetailItem = ComicSummary(
             id: favorite.id,
             sourceKey: favorite.sourceKey,
@@ -760,43 +773,40 @@ private struct BookmarkShelfDetailView: View {
         }
     }
 
-    private func favoriteKey(for favorite: FavoriteComic) -> String {
-        "\(favorite.sourceKey)::\(favorite.id)"
-    }
-
     private func removeFavoriteFromShelf(_ favorite: FavoriteComic) async {
-        selectedFavoriteKey = favoriteKey(for: favorite)
+        selectedFavoriteKey = BookmarkShelfDetailSnapshot.key(for: favorite)
         await library.removeBookmark(favorite, from: category)
-        reconcileSelectedFavorite()
-        configureSelectionCommands()
+        let snapshot = BookmarkShelfDetailSnapshot(favorites: library.bookmarks(in: category))
+        reconcileSelectedFavorite(keys: snapshot.favoriteKeys)
+        configureSelectionCommands(snapshot: snapshot)
     }
 
     private func copyFavoriteTitle(_ favorite: FavoriteComic) {
-        selectedFavoriteKey = favoriteKey(for: favorite)
+        selectedFavoriteKey = BookmarkShelfDetailSnapshot.key(for: favorite)
         PlatformPasteboard.copy(favorite.title)
     }
 
     private func copyFavoriteID(_ favorite: FavoriteComic) {
-        selectedFavoriteKey = favoriteKey(for: favorite)
+        selectedFavoriteKey = BookmarkShelfDetailSnapshot.key(for: favorite)
         PlatformPasteboard.copy(favorite.id)
     }
 
     private func copyFavoriteSource(_ favorite: FavoriteComic) {
-        selectedFavoriteKey = favoriteKey(for: favorite)
+        selectedFavoriteKey = BookmarkShelfDetailSnapshot.key(for: favorite)
         PlatformPasteboard.copy(favorite.sourceKey)
     }
 
-    private func reconcileSelectedFavorite() {
-        if let selectedFavoriteKey, favoriteKeys.contains(selectedFavoriteKey) {
+    private func reconcileSelectedFavorite(keys: [String]) {
+        if let selectedFavoriteKey, keys.contains(selectedFavoriteKey) {
             return
         }
-        selectedFavoriteKey = favoriteKeys.first
+        selectedFavoriteKey = keys.first
     }
 
-    private func configureSelectionCommands() {
+    private func configureSelectionCommands(snapshot: BookmarkShelfDetailSnapshot) {
 #if os(macOS)
         selectionCommandController.reset()
-        guard let favorite = selectedFavorite else { return }
+        guard let favorite = snapshot.selectedFavorite(matching: selectedFavoriteKey) else { return }
 
         selectionCommandController.open = { openDetail(for: favorite) }
         selectionCommandController.delete = { Task { await removeFavoriteFromShelf(favorite) } }

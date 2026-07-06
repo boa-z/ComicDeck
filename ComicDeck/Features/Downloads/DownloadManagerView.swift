@@ -313,7 +313,10 @@ struct DownloadManagerView: View {
             do {
                 let url = try OfflineExportService().exportOfflineSelectionZIP(
                     items: targets,
-                    title: targets.count == 1 ? targets[0].comicTitle : "Offline Export"
+                    title: targets.count == 1 ? targets[0].comicTitle : AppLocalization.text(
+                        "downloads.export.offline_selection_title",
+                        "Offline Export"
+                    )
                 )
                 sharedExportURL = ShareFile(url: url)
             } catch {
@@ -373,6 +376,7 @@ private struct DownloadQueueGroupCard: View {
                 GroupHeader(
                     title: group.comicTitle,
                     coverURL: group.coverURL,
+                    refererURLString: group.comicID,
                     description: group.comicDescription,
                     summary: group.statusSummary,
                     badgeTexts: queueBadges,
@@ -384,7 +388,7 @@ private struct DownloadQueueGroupCard: View {
             .buttonStyle(.plain)
 
             if model.isExpanded(group) {
-                VStack(spacing: AppSpacing.sm) {
+                LazyVStack(spacing: AppSpacing.sm) {
                     ForEach(group.chapters) { item in
                         QueueChapterRow(vm: vm, model: model, item: item)
                     }
@@ -395,10 +399,30 @@ private struct DownloadQueueGroupCard: View {
     }
 
     private var queueBadges: [(String, Color)] {
-        var badges: [(String, Color)] = [("\(group.chapters.count) chapters", AppTint.accent)]
-        if group.downloadingCount > 0 { badges.append(("\(group.downloadingCount) downloading", AppTint.accent)) }
-        if group.pendingCount > 0 { badges.append(("\(group.pendingCount) queued", AppTint.warning)) }
-        if group.failedCount > 0 { badges.append(("\(group.failedCount) failed", .red)) }
+        var badges: [(String, Color)] = [
+            (
+                AppLocalization.format("downloads.metric.chapters_count", "%lld chapters", Int64(group.chapters.count)),
+                AppTint.accent
+            )
+        ]
+        if group.downloadingCount > 0 {
+            badges.append((
+                AppLocalization.format("downloads.metric.downloading_count", "%lld downloading", Int64(group.downloadingCount)),
+                AppTint.accent
+            ))
+        }
+        if group.pendingCount > 0 {
+            badges.append((
+                AppLocalization.format("downloads.metric.queued_count", "%lld queued", Int64(group.pendingCount)),
+                AppTint.warning
+            ))
+        }
+        if group.failedCount > 0 {
+            badges.append((
+                AppLocalization.format("downloads.metric.failed_count", "%lld failed", Int64(group.failedCount)),
+                AppTint.danger
+            ))
+        }
         return badges
     }
 
@@ -424,7 +448,8 @@ private struct OfflineComicGroupCard: View {
                     GroupHeader(
                         title: group.comicTitle,
                         coverURL: group.coverURL,
-                        localCoverFileURL: offlineComicCoverURL(from: group.chapters),
+                        refererURLString: group.comicID,
+                        localCoverFileURL: group.localCoverFileURL,
                         description: group.comicDescription,
                         summary: group.statusSummary,
                         badgeTexts: offlineBadges,
@@ -441,7 +466,8 @@ private struct OfflineComicGroupCard: View {
                     GroupHeader(
                         title: group.comicTitle,
                         coverURL: group.coverURL,
-                        localCoverFileURL: offlineComicCoverURL(from: group.chapters),
+                        refererURLString: group.comicID,
+                        localCoverFileURL: group.localCoverFileURL,
                         description: group.comicDescription,
                         summary: group.statusSummary,
                         badgeTexts: offlineBadges,
@@ -463,12 +489,27 @@ private struct OfflineComicGroupCard: View {
     }
 
     private var offlineBadges: [(String, Color)] {
-        var badges: [(String, Color)] = [("\(group.chapters.count) chapters", AppTint.accent)]
-        if group.completeCount > 0 { badges.append(("\(group.completeCount) complete", AppTint.success)) }
-        if group.chapters.allSatisfy({ $0.sourceKey == OfflineImportService.importedSourceKey }) {
-            badges.append(("imported", AppTint.warning))
+        var badges: [(String, Color)] = [
+            (
+                AppLocalization.format("downloads.metric.chapters_count", "%lld chapters", Int64(group.chapters.count)),
+                AppTint.accent
+            )
+        ]
+        if group.completeCount > 0 {
+            badges.append((
+                AppLocalization.format("downloads.metric.complete_count", "%lld complete", Int64(group.completeCount)),
+                AppTint.success
+            ))
         }
-        if group.incompleteCount > 0 { badges.append(("\(group.incompleteCount) incomplete", AppTint.warning)) }
+        if group.isImportedGroup {
+            badges.append((AppLocalization.text("downloads.badge.imported", "imported"), AppTint.warning))
+        }
+        if group.incompleteCount > 0 {
+            badges.append((
+                AppLocalization.format("downloads.metric.incomplete_count", "%lld incomplete", Int64(group.incompleteCount)),
+                AppTint.warning
+            ))
+        }
         return badges
     }
 }
@@ -482,6 +523,7 @@ private enum GroupSelectionState {
 private struct GroupHeader: View {
     let title: String
     let coverURL: String?
+    let refererURLString: String?
     let localCoverFileURL: URL?
     let description: String?
     let summary: String
@@ -493,6 +535,7 @@ private struct GroupHeader: View {
     init(
         title: String,
         coverURL: String?,
+        refererURLString: String?,
         localCoverFileURL: URL? = nil,
         description: String?,
         summary: String,
@@ -503,6 +546,7 @@ private struct GroupHeader: View {
     ) {
         self.title = title
         self.coverURL = coverURL
+        self.refererURLString = refererURLString
         self.localCoverFileURL = localCoverFileURL
         self.description = description
         self.summary = summary
@@ -521,7 +565,13 @@ private struct GroupHeader: View {
                     .padding(.top, 2)
             }
 
-            CoverArtworkView(urlString: coverURL, fileURL: localCoverFileURL, width: 72, height: 102)
+            CoverArtworkView(
+                urlString: coverURL,
+                refererURLString: refererURLString,
+                fileURL: localCoverFileURL,
+                width: 72,
+                height: 102
+            )
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .top, spacing: 8) {
@@ -544,7 +594,8 @@ private struct GroupHeader: View {
                 }
 
                 HStack(spacing: 8) {
-                    ForEach(Array(badgeTexts.enumerated()), id: \.offset) { _, badge in
+                    ForEach(badgeTexts.indices, id: \.self) { index in
+                        let badge = badgeTexts[index]
                         Text(badge.0)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(badge.1)

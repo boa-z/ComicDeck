@@ -43,6 +43,7 @@ final class SettingsScreenModel {
     var loadingWebDAVEntries = false
     var webDAVStatus = "Not configured"
     var webDAVEntries: [WebDAVRemoteBackup] = []
+    var webDAVEntriesLoaded = false
     var webDAVLastSyncAt: Date?
     var webDAVLastSyncSummary = "Never synced"
     var webDAVError: String?
@@ -143,6 +144,7 @@ final class SettingsScreenModel {
         }
         if webDAVDirectoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             webDAVEntries = []
+            webDAVEntriesLoaded = false
             webDAVLastSyncAt = nil
             webDAVLastSyncSummary = AppLocalization.text("webdav.status.not_configured", "Not configured")
         }
@@ -248,6 +250,7 @@ final class SettingsScreenModel {
         do {
             saveWebDAVConfiguration()
             webDAVEntries = try await webDAVService.listBackups(configuration: currentWebDAVConfiguration())
+            webDAVEntriesLoaded = true
             webDAVStatus = webDAVEntries.isEmpty
                 ? AppLocalization.text("webdav.status.no_remote_backups", "No remote backups found")
                 : AppLocalization.format("webdav.status.loaded_remote_backups_format", "Loaded %d remote backups", webDAVEntries.count)

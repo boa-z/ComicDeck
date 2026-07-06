@@ -66,9 +66,13 @@ private struct ComicDetailPreviewTile: View {
     var body: some View {
         Button(action: onTap) {
             ZStack(alignment: .bottomTrailing) {
-                ComicPreviewThumbnailImage(
+                CachedRemoteImage(
                     urlString: image.imageURL,
-                    refererURLString: image.sourceURL
+                    imageRequest: image.imageRequest,
+                    refererURLString: image.sourceURL,
+                    decodeSize: CGSize(width: 180, height: 250),
+                    contentMode: .fill,
+                    priority: .thumbnail
                 )
                 .frame(maxWidth: .infinity)
                 .aspectRatio(0.72, contentMode: .fit)

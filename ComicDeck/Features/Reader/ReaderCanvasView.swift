@@ -39,9 +39,9 @@ struct ReaderCanvasView: View {
     private var horizontalReader: some View {
         #if os(iOS)
         TabView(selection: $currentPage) {
-            ForEach(Array(imageRequests.enumerated()), id: \.offset) { idx, request in
-                horizontalPage(at: idx, request: shouldLoadPage(at: idx) ? request : nil)
-                    .tag(idx)
+            ForEach(imageRequests.indices, id: \.self) { index in
+                horizontalPage(at: index, request: shouldLoadPage(at: index) ? request(at: index) : nil)
+                    .tag(index)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -49,7 +49,7 @@ struct ReaderCanvasView: View {
         .tabViewStyle(.page(indexDisplayMode: .never))
         .environment(\.layoutDirection, readerMode == .rtl ? .rightToLeft : .leftToRight)
         #elseif os(macOS)
-        horizontalPage(at: currentPage, request: imageRequests.indices.contains(currentPage) ? imageRequests[currentPage] : nil)
+        horizontalPage(at: currentPage, request: request(at: currentPage))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black)
         #endif
@@ -80,10 +80,10 @@ struct ReaderCanvasView: View {
         ScrollViewReader { proxy in
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(imageRequests.enumerated()), id: \.offset) { idx, request in
+                    ForEach(imageRequests.indices, id: \.self) { idx in
                         ReaderPageView(
                             pageIndex: idx,
-                            request: request,
+                            request: request(at: idx),
                             nonce: reloadNonce,
                             supportsZoom: false,
                             translationEnabled: translationEnabled,
@@ -159,6 +159,11 @@ struct ReaderCanvasView: View {
             return abs(index - centerPage) <= verticalLoadRadius
         }
         return abs(index - currentPage) <= horizontalLoadRadius
+    }
+
+    private func request(at index: Int) -> ImageRequest? {
+        guard imageRequests.indices.contains(index) else { return nil }
+        return imageRequests[index]
     }
 
     private func syncCurrentPageFromVerticalLayout(now: Date = Date()) {

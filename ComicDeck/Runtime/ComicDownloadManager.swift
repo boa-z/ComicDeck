@@ -120,7 +120,7 @@ actor ComicDownloadManager {
             if pending.isEmpty && runningKeys.isEmpty {
                 break
             }
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(for: .milliseconds(200))
         }
     }
 
@@ -167,9 +167,11 @@ actor ComicDownloadManager {
 
             let maxPageConcurrency = 4
             var downloaded = 0
-            let pages = Array(payload.requests.enumerated())
-            for batch in pages.chunked(size: maxPageConcurrency) {
-                let pendingDownloads: [(ImageRequest, URL)] = batch.compactMap { index, imageRequest in
+            for batchStart in stride(from: 0, to: payload.requests.count, by: maxPageConcurrency) {
+                let batchEnd = min(batchStart + maxPageConcurrency, payload.requests.count)
+                let batchRange = batchStart..<batchEnd
+                let pendingDownloads: [(ImageRequest, URL)] = batchRange.compactMap { index in
+                    let imageRequest = payload.requests[index]
                     let pageFileURL = chapterDir.appendingPathComponent(fileName(for: imageRequest, index: index))
                     return fileManager.fileExists(atPath: pageFileURL.path) ? nil : (imageRequest, pageFileURL)
                 }
@@ -183,7 +185,7 @@ actor ComicDownloadManager {
                         try await group.waitForAll()
                     }
                 }
-                downloaded += batch.count
+                downloaded += batchRange.count
 
                 let isLastPage = downloaded >= payload.requests.count
                 if downloaded % progressFlushInterval == 0 || isLastPage {
@@ -299,8 +301,8 @@ actor ComicDownloadManager {
             } catch {
                 lastError = error
                 if attempt < maxRetries - 1 {
-                    let delayNs = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000
-                    try? await Task.sleep(nanoseconds: delayNs)
+                    let delaySeconds = Int(pow(2.0, Double(attempt)))
+                    try? await Task.sleep(for: .seconds(delaySeconds))
                 }
             }
         }
@@ -472,14 +474,6 @@ actor ComicDownloadManager {
         runtimeQueueItems.values.sorted { lhs, rhs in
             if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
             return lhs.id > rhs.id
-        }
-    }
-}
-
-private extension Array {
-    nonisolated func chunked(size: Int) -> [[Element]] {
-        stride(from: 0, to: count, by: size).map {
-            Array(self[$0 ..< Swift.min($0 + size, count)])
         }
     }
 }

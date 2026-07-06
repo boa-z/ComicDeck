@@ -184,7 +184,7 @@ final class CommentsPageScreenModel {
         loadingStatusTask?.cancel()
         loadingStatusTask = Task { [weak self] in
             do {
-                try await Task.sleep(nanoseconds: 1_500_000_000)
+                try await Task.sleep(for: .milliseconds(1_500))
             } catch {
                 return
             }

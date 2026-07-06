@@ -1580,7 +1580,7 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
               }
               return Promise.resolve(
                 comic.loadInfo.apply(this.__source_temp, arguments)
-              ).then((info) => {
+              ).then(async (info) => {
                 const chaptersRaw = info && info.chapters;
                 const tagsRaw = info && info.tags;
                 let chapters = [];
@@ -1666,26 +1666,66 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
                 const commentsCount = Number.isFinite(Number(commentsCountRaw))
                   ? Math.floor(Number(commentsCountRaw))
                   : comments.length;
-                const normalizePreviewURL = (value) => {
+                const normalizePreviewDisplayURL = (value) => {
                   if (typeof value !== 'string') return '';
                   const text = value.trim();
                   if (!text) return '';
-                  const marker = text.search(/@(?:x|y)=/);
-                  const withoutPart = marker >= 0 ? text.slice(0, marker) : text;
-                  if (withoutPart.startsWith('//')) return `https:${withoutPart}`;
-                  return withoutPart;
+                  if (text.startsWith('//')) return `https:${text}`;
+                  return text;
                 };
+                const normalizePreviewRequestURL = (value) => {
+                  const text = normalizePreviewDisplayURL(value);
+                  const marker = text.search(/@(?:x|y)=/);
+                  return marker >= 0 ? text.slice(0, marker) : text;
+                };
+                const normalizeThumbnailRequest = async (raw, fallbackReferer) => {
+                  const displayURL = normalizePreviewDisplayURL(raw);
+                  const fallbackURL = normalizePreviewRequestURL(displayURL);
+                  if (!fallbackURL) return null;
+                  let cfg = null;
+                  if (typeof comic.onThumbnailLoad === 'function') {
+                    try {
+                      cfg = await Promise.resolve(comic.onThumbnailLoad.call(this.__source_temp, fallbackURL));
+                    } catch (_) {
+                      cfg = null;
+                    }
+                  }
+                  const hasConfig = cfg && typeof cfg === 'object';
+                  const outURL = hasConfig
+                    ? (normalizePreviewRequestURL(typeof cfg.url === 'string' ? cfg.url : '') || fallbackURL)
+                    : fallbackURL;
+                  const method = hasConfig && typeof cfg.method === 'string' && cfg.method.trim().length > 0
+                    ? cfg.method.trim().toUpperCase()
+                    : 'GET';
+                  const headers = hasConfig && cfg.headers && typeof cfg.headers === 'object'
+                    ? { ...cfg.headers }
+                    : {};
+                  if (!headers.Referer && !headers.referer && fallbackReferer) {
+                    headers.Referer = fallbackReferer;
+                  }
+                  let data = hasConfig ? (cfg.data ?? null) : null;
+                  if (typeof data === 'string') data = Convert.encodeUtf8(data);
+                  if (!Array.isArray(data)) data = null;
+                  return { url: outURL, displayURL, method, headers, data };
+                };
+                const sourceCandidate = (info?.url != null)
+                  ? String(info.url)
+                  : ((info?.link != null) ? String(info.link) : String(arguments[0] ?? ''));
+                const sourceURL = sourceCandidate.startsWith('http://') || sourceCandidate.startsWith('https://')
+                  ? sourceCandidate
+                  : '';
                 const thumbnailsRaw = Array.isArray(info?.thumbnails) ? info.thumbnails : [];
-                const previewImages = thumbnailsRaw.map((raw, idx) => {
-                  const imageURL = normalizePreviewURL(raw);
-                  if (!imageURL) return null;
+                const previewImages = await Promise.all(thumbnailsRaw.map(async (raw, idx) => {
+                  const request = await normalizeThumbnailRequest(raw, sourceURL);
+                  if (!request) return null;
                   return {
                     id: `detail_${idx}`,
-                    imageURL,
-                    sourceURL: null,
+                    imageURL: request.displayURL,
+                    sourceURL: sourceURL.length > 0 ? sourceURL : null,
+                    request,
                     page: idx + 1
                   };
-                }).filter((x) => x != null);
+                })).then((rows) => rows.filter((x) => x != null));
 
                 return {
                   title: info?.title ? String(info.title) : "",
@@ -1786,37 +1826,71 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
               if (!comic || typeof comic.loadThumbnails !== 'function') {
                 throw new Error("comic.loadThumbnails is not supported by this source");
               }
-              const normalizePreviewURL = (value) => {
+              const normalizePreviewDisplayURL = (value) => {
                 if (typeof value !== 'string') return '';
                 const text = value.trim();
                 if (!text) return '';
+                if (text.startsWith('//')) return `https:${text}`;
+                return text;
+              };
+              const normalizePreviewRequestURL = (value) => {
+                const text = normalizePreviewDisplayURL(value);
                 const marker = text.search(/@(?:x|y)=/);
-                const withoutPart = marker >= 0 ? text.slice(0, marker) : text;
-                if (withoutPart.startsWith('//')) return `https:${withoutPart}`;
-                return withoutPart;
+                return marker >= 0 ? text.slice(0, marker) : text;
+              };
+              const normalizeThumbnailRequest = async (raw, fallbackReferer) => {
+                const displayURL = normalizePreviewDisplayURL(raw);
+                const fallbackURL = normalizePreviewRequestURL(displayURL);
+                if (!fallbackURL) return null;
+                let cfg = null;
+                if (typeof comic.onThumbnailLoad === 'function') {
+                  try {
+                    cfg = await Promise.resolve(comic.onThumbnailLoad.call(this.__source_temp, fallbackURL));
+                  } catch (_) {
+                    cfg = null;
+                  }
+                }
+                const hasConfig = cfg && typeof cfg === 'object';
+                const outURL = hasConfig
+                  ? (normalizePreviewRequestURL(typeof cfg.url === 'string' ? cfg.url : '') || fallbackURL)
+                  : fallbackURL;
+                const method = hasConfig && typeof cfg.method === 'string' && cfg.method.trim().length > 0
+                  ? cfg.method.trim().toUpperCase()
+                  : 'GET';
+                const headers = hasConfig && cfg.headers && typeof cfg.headers === 'object'
+                  ? { ...cfg.headers }
+                  : {};
+                if (!headers.Referer && !headers.referer && fallbackReferer) {
+                  headers.Referer = fallbackReferer;
+                }
+                let data = hasConfig ? (cfg.data ?? null) : null;
+                if (typeof data === 'string') data = Convert.encodeUtf8(data);
+                if (!Array.isArray(data)) data = null;
+                return { url: outURL, displayURL, method, headers, data };
               };
               return Promise.resolve(
                 comic.loadThumbnails.call(this.__source_temp, arguments[0], arguments[1])
-              ).then((payload) => {
+              ).then(async (payload) => {
                 const root = (payload && typeof payload === 'object') ? payload : {};
                 const thumbnails = Array.isArray(root.thumbnails) ? root.thumbnails : [];
                 const urls = Array.isArray(root.urls) ? root.urls : [];
                 const startPage = Math.max(1, Math.floor(Number(arguments[2] ?? 1)));
-                const images = thumbnails.map((raw, idx) => {
-                  const imageURL = normalizePreviewURL(raw);
-                  if (!imageURL) return null;
+                const images = await Promise.all(thumbnails.map(async (raw, idx) => {
                   const sourceRaw = urls[idx];
                   const sourceURL = typeof sourceRaw === 'string' && sourceRaw.trim().length > 0
                     ? sourceRaw.trim()
                     : null;
+                  const request = await normalizeThumbnailRequest(raw, sourceURL);
+                  if (!request) return null;
                   const page = startPage + idx;
                   return {
                     id: `thumb_${page}_${idx}`,
-                    imageURL,
+                    imageURL: request.displayURL,
                     sourceURL,
+                    request,
                     page
                   };
-                }).filter((x) => x != null);
+                })).then((rows) => rows.filter((x) => x != null));
                 const next = root.next ?? root.nextToken ?? root.token ?? null;
                 return {
                   images,
@@ -2995,6 +3069,10 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
     }
 
     private func parseImageRequest(_ object: [String: Any]) -> ImageRequest? {
+        Self.parseImageRequestObject(object)
+    }
+
+    private nonisolated static func parseImageRequestObject(_ object: [String: Any]) -> ImageRequest? {
         guard let rawURL = object["url"] as? String else { return nil }
         let url = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !url.isEmpty else { return nil }
@@ -3165,10 +3243,12 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
             let page = (pageValue as? Int) ?? (pageValue as? NSNumber)?.intValue ?? (startPage + idx)
             let rawSourceURL = object["sourceURL"] as? String
             let sourceURL = rawSourceURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let imageRequest = (object["request"] as? [String: Any]).flatMap(Self.parseImageRequestObject)
             return ComicPreviewImage(
                 id: object["id"] as? String ?? "preview_\(page)_\(idx)",
                 imageURL: imageURL,
                 sourceURL: (sourceURL?.isEmpty == false) ? sourceURL : nil,
+                imageRequest: imageRequest,
                 page: max(1, page)
             )
         }
@@ -3179,14 +3259,15 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let markerRange = trimmed.range(of: #"@(?:x|y)="#, options: .regularExpression)
-        let withoutPart = markerRange.map { String(trimmed[..<$0.lowerBound]) } ?? trimmed
-        let normalized = withoutPart.hasPrefix("//") ? "https:\(withoutPart)" : withoutPart
-        guard let url = URL(string: normalized),
+        let requestPart = markerRange.map { String(trimmed[..<$0.lowerBound]) } ?? trimmed
+        let normalizedRequest = requestPart.hasPrefix("//") ? "https:\(requestPart)" : requestPart
+        let normalizedDisplay = trimmed.hasPrefix("//") ? "https:\(trimmed)" : trimmed
+        guard let url = URL(string: normalizedRequest),
               let scheme = url.scheme?.lowercased(),
               scheme == "http" || scheme == "https" else {
             return nil
         }
-        return normalized
+        return normalizedDisplay
     }
 
     private static func fixSourceKeyIfNeeded(_ item: ComicSummary, defaultSourceKey: String) -> ComicSummary {

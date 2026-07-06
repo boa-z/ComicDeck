@@ -14,62 +14,29 @@ struct OfflineComicView: View {
     @State private var showingRenamePrompt = false
     @State private var renameTitle = ""
 
-    private var sortedReaderChapters: [OfflineChapterAsset] {
-        group.chapters
-            .filter { $0.integrityStatus == .complete }
-            .sorted { lhs, rhs in
-                if lhs.downloadedAt != rhs.downloadedAt { return lhs.downloadedAt < rhs.downloadedAt }
-                if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
-                return lhs.chapterTitle.localizedStandardCompare(rhs.chapterTitle) == .orderedAscending
-            }
-    }
-
-    private var incompleteChapters: [OfflineChapterAsset] {
-        group.chapters
-            .filter { $0.integrityStatus != .complete }
-            .sorted { lhs, rhs in
-                if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
-                return lhs.chapterTitle.localizedStandardCompare(rhs.chapterTitle) == .orderedAscending
-            }
-    }
-
-    private var chapterSequence: [ComicChapter] {
-        sortedReaderChapters.map {
-            ComicChapter(
-                id: $0.chapterID,
-                title: $0.chapterTitle.isEmpty ? $0.chapterID : $0.chapterTitle
-            )
-        }
-    }
-
-    private var latestReadableChapter: OfflineChapterAsset? {
-        sortedReaderChapters.last
-    }
-
-    private var localCoverFileURL: URL? {
-        offlineComicCoverURL(from: group.chapters)
-    }
-
-    private var completeCount: Int {
-        group.chapters.lazy.filter { $0.integrityStatus == .complete }.count
-    }
-
-    private var incompleteCount: Int {
-        group.chapters.lazy.filter { $0.integrityStatus == .incomplete }.count
-    }
-
-    private var isImportedGroup: Bool {
-        group.chapters.allSatisfy { $0.sourceKey == OfflineImportService.importedSourceKey }
-    }
-
     var body: some View {
+        let readerChapters = group.readableChapters
+        let incompleteChapterItems = group.incompleteChapters
+        let chapterSequence = group.readerChapterSequence
+        let latestReadableChapter = readerChapters.last
+
         ScrollView {
             LazyVStack(alignment: .leading, spacing: AppSpacing.section) {
-                heroSection
-                readingSummaryCard
-                completeChaptersSection
-                if !incompleteChapters.isEmpty {
-                    incompleteChaptersSection
+                heroSection(
+                    latestReadableChapter: latestReadableChapter,
+                    chapterSequence: chapterSequence,
+                    completeCount: group.completeCount,
+                    incompleteCount: group.incompleteCount,
+                    isImportedGroup: group.isImportedGroup
+                )
+                readingSummaryCard(incompleteCount: group.incompleteCount)
+                completeChaptersSection(
+                    readerChapters: readerChapters,
+                    chapterSequence: chapterSequence,
+                    latestReadableChapter: latestReadableChapter
+                )
+                if !incompleteChapterItems.isEmpty {
+                    incompleteChaptersSection(chapters: incompleteChapterItems)
                 }
             }
             .padding(.horizontal, AppSpacing.screen)
@@ -110,10 +77,22 @@ struct OfflineComicView: View {
         }
     }
 
-    private var heroSection: some View {
+    private func heroSection(
+        latestReadableChapter: OfflineChapterAsset?,
+        chapterSequence: [ComicChapter],
+        completeCount: Int,
+        incompleteCount: Int,
+        isImportedGroup: Bool
+    ) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(alignment: .top, spacing: AppSpacing.md) {
-                CoverArtworkView(urlString: group.coverURL, fileURL: localCoverFileURL, width: 92, height: 132)
+                CoverArtworkView(
+                    urlString: group.coverURL,
+                    refererURLString: group.comicID,
+                    fileURL: group.localCoverFileURL,
+                    width: 92,
+                    height: 132
+                )
 
                 VStack(alignment: .leading, spacing: AppSpacing.sm) {
                     Text(group.comicTitle)
@@ -128,7 +107,11 @@ struct OfflineComicView: View {
                             .lineLimit(4)
                     }
 
-                    flexibleBadges
+                    flexibleBadges(
+                        completeCount: completeCount,
+                        incompleteCount: incompleteCount,
+                        isImportedGroup: isImportedGroup
+                    )
                 }
             }
 
@@ -202,7 +185,7 @@ struct OfflineComicView: View {
         .appCardStyle()
     }
 
-    private var readingSummaryCard: some View {
+    private func readingSummaryCard(incompleteCount: Int) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
             Text(AppLocalization.text("downloads.offline.reading.title", "Offline Reading"))
                 .font(.headline)
@@ -217,13 +200,17 @@ struct OfflineComicView: View {
         .appCardStyle()
     }
 
-    private var completeChaptersSection: some View {
+    private func completeChaptersSection(
+        readerChapters: [OfflineChapterAsset],
+        chapterSequence: [ComicChapter],
+        latestReadableChapter: OfflineChapterAsset?
+    ) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text(AppLocalization.text("downloads.offline.ready_to_read", "Ready to Read"))
                 .font(.headline)
 
-            VStack(spacing: AppSpacing.sm) {
-                ForEach(sortedReaderChapters) { item in
+            LazyVStack(spacing: AppSpacing.sm) {
+                ForEach(readerChapters) { item in
                     NavigationLink {
                         ReaderRoutingView(
                             vm: vm,
@@ -257,13 +244,13 @@ struct OfflineComicView: View {
         }
     }
 
-    private var incompleteChaptersSection: some View {
+    private func incompleteChaptersSection(chapters: [OfflineChapterAsset]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text(AppLocalization.text("downloads.needs_review", "Needs Review"))
                 .font(.headline)
 
-            VStack(spacing: AppSpacing.sm) {
-                ForEach(incompleteChapters) { item in
+            LazyVStack(spacing: AppSpacing.sm) {
+                ForEach(chapters) { item in
                     OfflineRepairChapterRow(item: item) {
                         selectedFilesItem = item
                     }
@@ -272,7 +259,11 @@ struct OfflineComicView: View {
         }
     }
 
-    private var flexibleBadges: some View {
+    private func flexibleBadges(
+        completeCount: Int,
+        incompleteCount: Int,
+        isImportedGroup: Bool
+    ) -> some View {
         HStack(spacing: 8) {
             badge(text: AppLocalization.format("downloads.metric.chapters_count", "%lld chapters", Int64(group.chapters.count)), tint: AppTint.accent)
             badge(text: AppLocalization.format("downloads.metric.ready_count", "%lld ready", Int64(completeCount)), tint: AppTint.success)

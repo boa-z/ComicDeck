@@ -19,9 +19,7 @@ final class HomeScreenModel {
     }
 
     func relativeText(for timestamp: Int64) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: Date(timeIntervalSince1970: TimeInterval(timestamp)), relativeTo: Date())
+        RelativeTimeText.short(for: timestamp)
     }
 
     func activeSourceSubtitle(using sourceManager: SourceManagerViewModel) -> String {
@@ -49,28 +47,15 @@ struct HomeView: View {
         library.history.first
     }
 
-    private var completedDownloadsCount: Int {
-        library.offlineChapters.lazy.filter { $0.integrityStatus == .complete }.count
-    }
-
-    private var latestOfflineItem: OfflineChapterAsset? {
-        library.offlineChapters
-            .filter { $0.integrityStatus == .complete }
-            .sorted {
-                if $0.updatedAt != $1.updatedAt { return $0.updatedAt > $1.updatedAt }
-                return $0.downloadedAt > $1.downloadedAt
-            }
-            .first
-    }
-
     var body: some View {
+        let offlineSnapshot = OfflineChapterPreviewBuilder.snapshot(from: library.offlineChapters, limit: 1)
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
                     searchEntryCard
                     continueReadingSection
-                    homeStatusSection
-                    if let latestOfflineItem {
+                    homeStatusSection(readyOfflineCount: offlineSnapshot.readyCount)
+                    if let latestOfflineItem = offlineSnapshot.recentChapters.first {
                         offlineSpotlightSection(latestOfflineItem)
                     }
                 }
@@ -154,7 +139,12 @@ struct HomeView: View {
             if let latestHistory {
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
                     HStack(alignment: .top, spacing: AppSpacing.md) {
-                        CoverArtworkView(urlString: latestHistory.coverURL, width: 92, height: 132)
+                        CoverArtworkView(
+                            urlString: latestHistory.coverURL,
+                            refererURLString: latestHistory.comicID,
+                            width: 92,
+                            height: 132
+                        )
 
                         VStack(alignment: .leading, spacing: 8) {
                             Text(latestHistory.title)
@@ -262,7 +252,7 @@ struct HomeView: View {
         }
     }
 
-    private var homeStatusSection: some View {
+    private func homeStatusSection(readyOfflineCount: Int) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             Text(AppLocalization.text("home.glance.title", "At a Glance"))
                 .font(.title3.weight(.semibold))
@@ -276,7 +266,7 @@ struct HomeView: View {
                 )
                 compactMetricCard(
                     title: AppLocalization.text("home.metric.offline", "Offline"),
-                    value: "\(completedDownloadsCount)",
+                    value: "\(readyOfflineCount)",
                     subtitle: AppLocalization.text("home.metric.ready", "Ready"),
                     tint: AppTint.success
                 )
@@ -374,15 +364,12 @@ struct HomeView: View {
                     chapterID: item.chapterID,
                     chapterTitle: item.chapterTitle,
                     localChapterDirectory: item.directoryPath,
-                    chapterSequence: library.offlineChapters
-                        .filter { $0.sourceKey == item.sourceKey && $0.comicID == item.comicID && $0.integrityStatus == .complete }
-                        .sorted { $0.downloadedAt < $1.downloadedAt }
-                        .map { ComicChapter(id: $0.chapterID, title: $0.chapterTitle) }
+                    chapterSequence: OfflineChapterSequenceBuilder.sequence(for: item, in: library.offlineChapters)
                 )
                 .environment(library)
             } label: {
                 HStack(spacing: AppSpacing.md) {
-                    CoverArtworkView(urlString: item.coverURL, width: 72, height: 102)
+                    CoverArtworkView(urlString: item.coverURL, refererURLString: item.comicID, width: 72, height: 102)
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text(item.comicTitle)

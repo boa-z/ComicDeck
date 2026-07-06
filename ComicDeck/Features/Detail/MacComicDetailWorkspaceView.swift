@@ -193,6 +193,7 @@ struct MacComicDetailWorkspaceView: View {
             VStack(alignment: .leading, spacing: 14) {
                 CoverArtworkView(
                     urlString: detail.cover ?? item.coverURL,
+                    refererURLString: detail.comicURL ?? item.id,
                     width: 190,
                     height: 266
                 )
@@ -217,9 +218,10 @@ struct MacComicDetailWorkspaceView: View {
                 metricsGrid(detail: detail)
 
                 VStack(spacing: 8) {
-                    if continueTarget(from: detail) != nil {
+                    let chapterSnapshot = chapterSnapshot(from: detail)
+                    if chapterSnapshot.continueTarget != nil {
                         Button {
-                            openContinue(detail: detail)
+                            openContinue(detail: detail, chapterSnapshot: chapterSnapshot)
                         } label: {
                             Label(AppLocalization.text("detail.hero.action.continue", "Continue"), systemImage: "play.fill")
                                 .frame(maxWidth: .infinity)
@@ -227,9 +229,9 @@ struct MacComicDetailWorkspaceView: View {
                         .buttonStyle(.borderedProminent)
                     }
 
-                    if continueTarget(from: detail) == nil {
+                    if chapterSnapshot.continueTarget == nil {
                         Button {
-                            openFirstChapter(detail: detail)
+                            openFirstChapter(detail: detail, chapterSnapshot: chapterSnapshot)
                         } label: {
                             Label(AppLocalization.text("detail.hero.action.start", "Start"), systemImage: "book.fill")
                                 .frame(maxWidth: .infinity)
@@ -237,7 +239,7 @@ struct MacComicDetailWorkspaceView: View {
                         .buttonStyle(.borderedProminent)
                     } else {
                         Button {
-                            openFirstChapter(detail: detail)
+                            openFirstChapter(detail: detail, chapterSnapshot: chapterSnapshot)
                         } label: {
                             Label(AppLocalization.text("detail.hero.action.start", "Start"), systemImage: "book.fill")
                                 .frame(maxWidth: .infinity)
@@ -261,7 +263,7 @@ struct MacComicDetailWorkspaceView: View {
 
                     Button {
                         if detail.chapters.isEmpty {
-                            let target = readTarget(from: detail)
+                            let target = chapterSnapshot.readTarget
                             Task {
                                 await model.enqueueDownload(
                                     using: vm,
@@ -482,16 +484,18 @@ struct MacComicDetailWorkspaceView: View {
     }
 
     private func chaptersTab(detail: ComicDetail) -> some View {
-        VStack(spacing: 0) {
+        let chapterSnapshot = chapterSnapshot(from: detail)
+
+        return VStack(spacing: 0) {
             chapterFilterControls
             .padding(14)
             .background(AppSurface.card)
 
-            List(displayedChapters(from: detail)) { chapter in
+            List(chapterSnapshot.displayedChapters) { chapter in
                 MacChapterRow(
                     chapter: chapter,
-                    status: downloadStateByChapterID(for: detail)[chapter.id],
-                    isContinueTarget: continueTarget(from: detail)?.chapterID == chapter.id,
+                    status: chapterSnapshot.downloadStateByChapterID[chapter.id],
+                    isContinueTarget: chapterSnapshot.continueTarget?.chapterID == chapter.id,
                     onRead: {
                         openWindow(id: "reader", value: ReaderLaunchContext.fromChapter(
                             item: item,
@@ -715,8 +719,9 @@ struct MacComicDetailWorkspaceView: View {
         }
     }
 
-    private func openContinue(detail: ComicDetail) {
-        guard let target = continueTarget(from: detail) else { return }
+    private func openContinue(detail: ComicDetail, chapterSnapshot: ComicDetailChapterSnapshot? = nil) {
+        let snapshot = chapterSnapshot ?? self.chapterSnapshot(from: detail)
+        guard let target = snapshot.continueTarget else { return }
         openWindow(id: "reader", value: ReaderLaunchContext(
             item: item,
             chapterID: target.chapterID,
@@ -728,7 +733,7 @@ struct MacComicDetailWorkspaceView: View {
     }
 
     private func openPreview(_ preview: ComicPreviewImage, detail: ComicDetail) {
-        let target = readTarget(from: detail)
+        let target = chapterSnapshot(from: detail).readTarget
         openWindow(id: "reader", value: ReaderLaunchContext(
             item: item,
             chapterID: target.chapterID,
@@ -739,113 +744,28 @@ struct MacComicDetailWorkspaceView: View {
         ))
     }
 
-    private func openFirstChapter(detail: ComicDetail) {
-        let first = firstChapter(from: detail)
+    private func openFirstChapter(detail: ComicDetail, chapterSnapshot: ComicDetailChapterSnapshot? = nil) {
+        let first = (chapterSnapshot ?? self.chapterSnapshot(from: detail)).firstChapter
         openWindow(id: "reader", value: ReaderLaunchContext.fromChapter(
             item: item,
-            chapterID: first.id,
-            chapterTitle: first.title,
+            chapterID: first.chapterID,
+            chapterTitle: first.chapterTitle,
             chapterSequence: detail.chapters,
             using: library
         ))
     }
 
-    private func firstChapter(from detail: ComicDetail) -> (id: String, title: String) {
-        if let first = detail.chapters.first {
-            return (first.id, first.title.isEmpty ? first.id : first.title)
-        }
-        return ("1", "Chapter 1")
-    }
-
-    private func readTarget(from detail: ComicDetail) -> (chapterID: String, chapterTitle: String, localDirectory: String?) {
-        let chapterOrder = Dictionary(uniqueKeysWithValues: detail.chapters.enumerated().map { ($1.id, $0) })
-        let completed = library.offlineChapters
-            .filter {
-                $0.sourceKey == item.sourceKey &&
-                $0.comicID == item.id &&
-                $0.integrityStatus == .complete
-            }
-            .sorted { lhs, rhs in
-                let li = chapterOrder[lhs.chapterID] ?? Int.max
-                let ri = chapterOrder[rhs.chapterID] ?? Int.max
-                if li != ri { return li < ri }
-                if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
-                return lhs.chapterID.localizedCompare(rhs.chapterID) == .orderedAscending
-            }
-
-        if let preferred = completed.first {
-            let title = preferred.chapterTitle.isEmpty ? preferred.chapterID : preferred.chapterTitle
-            return (preferred.chapterID, title, preferred.directoryPath)
-        }
-
-        let first = firstChapter(from: detail)
-        return (first.id, first.title, nil)
-    }
-
-    private func continueTarget(from detail: ComicDetail) -> (chapterID: String, chapterTitle: String, page: Int, localDirectory: String?)? {
-        guard let history = library.latestHistoryForComic(sourceKey: item.sourceKey, comicID: item.id) else {
-            return nil
-        }
-        let chapter = resolveChapter(from: detail, historyChapter: history.chapter)
-        let offline = library.offlineChapter(
+    private func chapterSnapshot(from detail: ComicDetail) -> ComicDetailChapterSnapshot {
+        ComicDetailChapterSnapshot(
             sourceKey: item.sourceKey,
             comicID: item.id,
-            chapterID: chapter.id
+            detail: detail,
+            chapterQuery: model.chapterQuery,
+            chapterDescending: model.chapterDescending,
+            downloads: library.downloadChapters,
+            offlineChapters: library.offlineChapters,
+            latestHistory: library.latestHistoryForComic(sourceKey: item.sourceKey, comicID: item.id)
         )
-        return (chapter.id, chapter.title, max(1, history.page), offline?.directoryPath)
-    }
-
-    private func resolveChapter(from detail: ComicDetail, historyChapter: String?) -> (id: String, title: String) {
-        let fallback = firstChapter(from: detail)
-        guard let historyChapter = historyChapter?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !historyChapter.isEmpty
-        else {
-            return fallback
-        }
-        if let matched = detail.chapters.first(where: { $0.id == historyChapter || $0.title == historyChapter }) {
-            return (matched.id, matched.title.isEmpty ? matched.id : matched.title)
-        }
-        if let matched = detail.chapters.first(where: {
-            $0.id.localizedCaseInsensitiveCompare(historyChapter) == .orderedSame ||
-                $0.title.localizedCaseInsensitiveCompare(historyChapter) == .orderedSame
-        }) {
-            return (matched.id, matched.title.isEmpty ? matched.id : matched.title)
-        }
-        return fallback
-    }
-
-    private func displayedChapters(from detail: ComicDetail) -> [ComicChapter] {
-        let normalized = model.chapterQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        var items = detail.chapters.filter { chapter in
-            guard !normalized.isEmpty else { return true }
-            return chapter.id.lowercased().contains(normalized) ||
-                chapter.title.lowercased().contains(normalized)
-        }
-        if model.chapterDescending {
-            items.reverse()
-        }
-        return items
-    }
-
-    private func downloadStateByChapterID(for detail: ComicDetail) -> [String: DownloadStatus] {
-        let downloads = library.downloadChapters.filter {
-            $0.sourceKey == item.sourceKey &&
-                $0.comicID == item.id
-        }
-        let offline = library.offlineChapters.filter {
-            $0.sourceKey == item.sourceKey &&
-                $0.comicID == item.id
-        }
-
-        var state: [String: DownloadStatus] = Dictionary(
-            uniqueKeysWithValues: downloads.map { chapter in
-                (chapter.chapterID, chapter.status)
-            }
-        )
-        for chapter in offline {
-            state[chapter.chapterID] = chapter.integrityStatus == .complete ? .completed : .failed
-        }
-        return state
     }
 
     private func onTagTap(namespace: String, tag: String) async {
@@ -930,9 +850,13 @@ private struct MacComicPreviewTile: View {
     var body: some View {
         Button(action: onOpen) {
             ZStack(alignment: .bottomTrailing) {
-                ComicPreviewThumbnailImage(
+                CachedRemoteImage(
                     urlString: image.imageURL,
-                    refererURLString: image.sourceURL
+                    imageRequest: image.imageRequest,
+                    refererURLString: image.sourceURL,
+                    decodeSize: CGSize(width: 180, height: 250),
+                    contentMode: .fill,
+                    priority: .thumbnail
                 )
                 .frame(maxWidth: .infinity)
                 .aspectRatio(0.72, contentMode: .fit)

@@ -10,8 +10,10 @@ enum DownloadWorkspace: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .queue: return "Queue"
-        case .offline: return "Offline"
+        case .queue:
+            return AppLocalization.text("downloads.workspace.queue", "Queue")
+        case .offline:
+            return AppLocalization.text("downloads.workspace.offline", "Offline")
         }
     }
 }
@@ -23,31 +25,26 @@ struct DownloadComicGroup: Identifiable, Hashable {
     let coverURL: String?
     let comicDescription: String?
     let chapters: [DownloadChapterItem]
+    let chapterIDs: Set<Int64>
+    let updatedAt: Int64
+    let pendingCount: Int
+    let downloadingCount: Int
+    let failedCount: Int
 
     var id: String { "\(sourceKey)::\(comicID)" }
 
-    var updatedAt: Int64 {
-        chapters.map(\.updatedAt).max() ?? 0
-    }
-
-    var pendingCount: Int {
-        chapters.lazy.filter { $0.status == .pending }.count
-    }
-
-    var downloadingCount: Int {
-        chapters.lazy.filter { $0.status == .downloading }.count
-    }
-
-    var failedCount: Int {
-        chapters.lazy.filter { $0.status == .failed }.count
-    }
-
     var statusSummary: String {
         var segments: [String] = []
-        if downloadingCount > 0 { segments.append("\(downloadingCount) downloading") }
-        if pendingCount > 0 { segments.append("\(pendingCount) queued") }
-        if failedCount > 0 { segments.append("\(failedCount) failed") }
-        return segments.isEmpty ? "No active chapters" : segments.joined(separator: " · ")
+        if downloadingCount > 0 {
+            segments.append(AppLocalization.format("downloads.metric.downloading_count", "%lld downloading", Int64(downloadingCount)))
+        }
+        if pendingCount > 0 {
+            segments.append(AppLocalization.format("downloads.metric.queued_count", "%lld queued", Int64(pendingCount)))
+        }
+        if failedCount > 0 {
+            segments.append(AppLocalization.format("downloads.metric.failed_count", "%lld failed", Int64(failedCount)))
+        }
+        return segments.isEmpty ? AppLocalization.text("downloads.queue.no_active_chapters", "No active chapters") : segments.joined(separator: " · ")
     }
 }
 
@@ -56,30 +53,27 @@ struct OfflineComicGroup: Identifiable, Hashable {
     let comicID: String
     let comicTitle: String
     let coverURL: String?
+    let localCoverFileURL: URL?
     let comicDescription: String?
     let chapters: [OfflineChapterAsset]
+    let readableChapters: [OfflineChapterAsset]
+    let incompleteChapters: [OfflineChapterAsset]
+    let readerChapterSequence: [ComicChapter]
+    let chapterIDs: Set<Int64>
+    let updatedAt: Int64
+    let completeCount: Int
+    let incompleteCount: Int
+    let isImportedGroup: Bool
 
     var id: String { "\(sourceKey)::\(comicID)" }
 
-    var updatedAt: Int64 {
-        chapters.map(\.updatedAt).max() ?? 0
-    }
-
-    var completeCount: Int {
-        chapters.lazy.filter { $0.integrityStatus == .complete }.count
-    }
-
-    var incompleteCount: Int {
-        chapters.lazy.filter { $0.integrityStatus == .incomplete }.count
-    }
-
     var statusSummary: String {
-        var segments = ["\(chapters.count) chapters"]
+        var segments = [AppLocalization.format("downloads.metric.chapters_count", "%lld chapters", Int64(chapters.count))]
         if completeCount > 0 {
-            segments.append("\(completeCount) complete")
+            segments.append(AppLocalization.format("downloads.metric.complete_count", "%lld complete", Int64(completeCount)))
         }
         if incompleteCount > 0 {
-            segments.append("\(incompleteCount) incomplete")
+            segments.append(AppLocalization.format("downloads.metric.incomplete_count", "%lld incomplete", Int64(incompleteCount)))
         }
         return segments.joined(separator: " · ")
     }
@@ -93,10 +87,15 @@ final class DownloadManagerScreenModel {
     var queueItems: [DownloadChapterItem] = []
     var queueGroups: [DownloadComicGroup] = []
     var expandedQueueGroupIDs: Set<String> = []
+    var queuePendingCount = 0
+    var queueDownloadingCount = 0
+    var queueFailedCount = 0
 
     var offlineItems: [OfflineChapterAsset] = []
     var offlineGroups: [OfflineComicGroup] = []
     var expandedOfflineGroupIDs: Set<String> = []
+    var offlineCompleteCount = 0
+    var offlineIncompleteCount = 0
 
     var selectedQueueIDs: Set<Int64> = []
     var selectedOfflineIDs: Set<Int64> = []
@@ -125,6 +124,7 @@ final class DownloadManagerScreenModel {
             return lhs.id > rhs.id
         }
 
+        refreshQueueCounts()
         queueGroups = Self.makeQueueGroups(from: queueItems)
         let validQueueGroupIDs = Set(queueGroups.map(\.id))
         expandedQueueGroupIDs = expandedQueueGroupIDs.intersection(validQueueGroupIDs)
@@ -157,6 +157,7 @@ final class DownloadManagerScreenModel {
 
         guard nextQueueItems != queueItems else { return }
         queueItems = nextQueueItems
+        refreshQueueCounts()
         let nextQueueGroups = Self.makeQueueGroups(from: nextQueueItems)
         queueGroups = nextQueueGroups
         let validQueueGroupIDs = Set(nextQueueGroups.map(\.id))
@@ -174,6 +175,7 @@ final class DownloadManagerScreenModel {
         let nextQueueItems = library.downloadChapters.filter { $0.status != .completed }
         if nextQueueItems != queueItems {
             queueItems = nextQueueItems
+            refreshQueueCounts()
             let nextQueueGroups = Self.makeQueueGroups(from: nextQueueItems)
             queueGroups = nextQueueGroups
             let validQueueGroupIDs = Set(nextQueueGroups.map(\.id))
@@ -187,6 +189,7 @@ final class DownloadManagerScreenModel {
         let nextOfflineItems = library.offlineChapters
         if nextOfflineItems != offlineItems {
             offlineItems = nextOfflineItems
+            refreshOfflineCounts()
             let nextOfflineGroups = Self.makeOfflineGroups(from: nextOfflineItems)
             offlineGroups = nextOfflineGroups
             let validOfflineGroupIDs = Set(nextOfflineGroups.map(\.id))
@@ -327,20 +330,18 @@ final class DownloadManagerScreenModel {
     }
 
     func toggleGroupSelection(_ group: DownloadComicGroup) {
-        let ids = Set(group.chapters.map(\.id))
-        if ids.isSubset(of: selectedQueueIDs) {
-            selectedQueueIDs.subtract(ids)
+        if group.chapterIDs.isSubset(of: selectedQueueIDs) {
+            selectedQueueIDs.subtract(group.chapterIDs)
         } else {
-            selectedQueueIDs.formUnion(ids)
+            selectedQueueIDs.formUnion(group.chapterIDs)
         }
     }
 
     func toggleGroupSelection(_ group: OfflineComicGroup) {
-        let ids = Set(group.chapters.map(\.id))
-        if ids.isSubset(of: selectedOfflineIDs) {
-            selectedOfflineIDs.subtract(ids)
+        if group.chapterIDs.isSubset(of: selectedOfflineIDs) {
+            selectedOfflineIDs.subtract(group.chapterIDs)
         } else {
-            selectedOfflineIDs.formUnion(ids)
+            selectedOfflineIDs.formUnion(group.chapterIDs)
         }
     }
 
@@ -353,25 +354,21 @@ final class DownloadManagerScreenModel {
     }
 
     func isGroupFullySelected(_ group: DownloadComicGroup) -> Bool {
-        let ids = Set(group.chapters.map(\.id))
-        return !ids.isEmpty && ids.isSubset(of: selectedQueueIDs)
+        !group.chapterIDs.isEmpty && group.chapterIDs.isSubset(of: selectedQueueIDs)
     }
 
     func isGroupFullySelected(_ group: OfflineComicGroup) -> Bool {
-        let ids = Set(group.chapters.map(\.id))
-        return !ids.isEmpty && ids.isSubset(of: selectedOfflineIDs)
+        !group.chapterIDs.isEmpty && group.chapterIDs.isSubset(of: selectedOfflineIDs)
     }
 
     func isGroupPartiallySelected(_ group: DownloadComicGroup) -> Bool {
-        let ids = Set(group.chapters.map(\.id))
-        let selected = ids.intersection(selectedQueueIDs)
-        return !selected.isEmpty && selected.count < ids.count
+        let selected = group.chapterIDs.intersection(selectedQueueIDs)
+        return !selected.isEmpty && selected.count < group.chapterIDs.count
     }
 
     func isGroupPartiallySelected(_ group: OfflineComicGroup) -> Bool {
-        let ids = Set(group.chapters.map(\.id))
-        let selected = ids.intersection(selectedOfflineIDs)
-        return !selected.isEmpty && selected.count < ids.count
+        let selected = group.chapterIDs.intersection(selectedOfflineIDs)
+        return !selected.isEmpty && selected.count < group.chapterIDs.count
     }
 
     var selectedCount: Int {
@@ -395,28 +392,40 @@ final class DownloadManagerScreenModel {
         }
     }
 
-    var queuePendingCount: Int {
-        queueItems.lazy.filter { $0.status == .pending }.count
+    private func refreshQueueCounts() {
+        var pending = 0
+        var downloading = 0
+        var failed = 0
+        for item in queueItems {
+            switch item.status {
+            case .pending:
+                pending += 1
+            case .downloading:
+                downloading += 1
+            case .failed:
+                failed += 1
+            case .completed:
+                break
+            }
+        }
+        queuePendingCount = pending
+        queueDownloadingCount = downloading
+        queueFailedCount = failed
     }
 
-    var queueDownloadingCount: Int {
-        queueItems.lazy.filter { $0.status == .downloading }.count
-    }
-
-    var queueFailedCount: Int {
-        queueItems.lazy.filter { $0.status == .failed }.count
-    }
-
-    var offlineCompleteCount: Int {
-        offlineItems.lazy.filter { $0.integrityStatus == .complete }.count
-    }
-
-    var offlineIncompleteCount: Int {
-        offlineItems.lazy.filter { $0.integrityStatus == .incomplete }.count
-    }
-
-    var offlineReadyCount: Int {
-        offlineItems.count
+    private func refreshOfflineCounts() {
+        var complete = 0
+        var incomplete = 0
+        for item in offlineItems {
+            switch item.integrityStatus {
+            case .complete:
+                complete += 1
+            case .incomplete:
+                incomplete += 1
+            }
+        }
+        offlineCompleteCount = complete
+        offlineIncompleteCount = incomplete
     }
 
     private static func makeQueueGroups(from items: [DownloadChapterItem]) -> [DownloadComicGroup] {
@@ -426,6 +435,7 @@ final class DownloadManagerScreenModel {
 
         return grouped.values.compactMap { bucket in
             guard let first = bucket.first else { return nil }
+            let snapshot = queueGroupSnapshot(for: bucket)
             let chapters = bucket.sorted { lhs, rhs in
                 if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
                 if lhs.createdAt != rhs.createdAt { return lhs.createdAt > rhs.createdAt }
@@ -437,7 +447,12 @@ final class DownloadManagerScreenModel {
                 comicTitle: first.comicTitle,
                 coverURL: first.coverURL,
                 comicDescription: bucket.lazy.compactMap(\.comicDescription).first,
-                chapters: chapters
+                chapters: chapters,
+                chapterIDs: snapshot.chapterIDs,
+                updatedAt: snapshot.updatedAt,
+                pendingCount: snapshot.pendingCount,
+                downloadingCount: snapshot.downloadingCount,
+                failedCount: snapshot.failedCount
             )
         }
         .sorted { lhs, rhs in
@@ -453,6 +468,7 @@ final class DownloadManagerScreenModel {
 
         return grouped.values.compactMap { bucket in
             guard let first = bucket.first else { return nil }
+            let snapshot = offlineGroupSnapshot(for: bucket)
             let chapters = bucket.sorted { lhs, rhs in
                 if lhs.integrityStatus != rhs.integrityStatus {
                     return lhs.integrityStatus == .incomplete
@@ -466,8 +482,17 @@ final class DownloadManagerScreenModel {
                 comicID: first.comicID,
                 comicTitle: first.comicTitle,
                 coverURL: first.coverURL,
+                localCoverFileURL: offlineComicCoverURL(from: bucket),
                 comicDescription: bucket.lazy.compactMap(\.comicDescription).first,
-                chapters: chapters
+                chapters: chapters,
+                readableChapters: snapshot.readableChapters,
+                incompleteChapters: snapshot.incompleteChapters,
+                readerChapterSequence: snapshot.readerChapterSequence,
+                chapterIDs: snapshot.chapterIDs,
+                updatedAt: snapshot.updatedAt,
+                completeCount: snapshot.completeCount,
+                incompleteCount: snapshot.incompleteCount,
+                isImportedGroup: snapshot.isImportedGroup
             )
         }
         .sorted { lhs, rhs in
@@ -475,6 +500,97 @@ final class DownloadManagerScreenModel {
             if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
             return lhs.comicTitle.localizedCaseInsensitiveCompare(rhs.comicTitle) == .orderedAscending
         }
+    }
+
+    private static func queueGroupSnapshot(
+        for bucket: [DownloadChapterItem]
+    ) -> (chapterIDs: Set<Int64>, updatedAt: Int64, pendingCount: Int, downloadingCount: Int, failedCount: Int) {
+        var chapterIDs = Set<Int64>()
+        chapterIDs.reserveCapacity(bucket.count)
+        var updatedAt: Int64 = 0
+        var pendingCount = 0
+        var downloadingCount = 0
+        var failedCount = 0
+
+        for item in bucket {
+            chapterIDs.insert(item.id)
+            updatedAt = max(updatedAt, item.updatedAt)
+            switch item.status {
+            case .pending:
+                pendingCount += 1
+            case .downloading:
+                downloadingCount += 1
+            case .failed:
+                failedCount += 1
+            case .completed:
+                break
+            }
+        }
+
+        return (chapterIDs, updatedAt, pendingCount, downloadingCount, failedCount)
+    }
+
+    private static func offlineGroupSnapshot(
+        for bucket: [OfflineChapterAsset]
+    ) -> (
+        chapterIDs: Set<Int64>,
+        updatedAt: Int64,
+        completeCount: Int,
+        incompleteCount: Int,
+        readableChapters: [OfflineChapterAsset],
+        incompleteChapters: [OfflineChapterAsset],
+        readerChapterSequence: [ComicChapter],
+        isImportedGroup: Bool
+    ) {
+        var chapterIDs = Set<Int64>()
+        chapterIDs.reserveCapacity(bucket.count)
+        var updatedAt: Int64 = 0
+        var completeCount = 0
+        var incompleteCount = 0
+        var readableChapters: [OfflineChapterAsset] = []
+        var incompleteChapters: [OfflineChapterAsset] = []
+        var isImportedGroup = !bucket.isEmpty
+
+        for item in bucket {
+            chapterIDs.insert(item.id)
+            updatedAt = max(updatedAt, item.updatedAt)
+            isImportedGroup = isImportedGroup && item.sourceKey == OfflineImportService.importedSourceKey
+            switch item.integrityStatus {
+            case .complete:
+                completeCount += 1
+                readableChapters.append(item)
+            case .incomplete:
+                incompleteCount += 1
+                incompleteChapters.append(item)
+            }
+        }
+
+        readableChapters.sort { lhs, rhs in
+            if lhs.downloadedAt != rhs.downloadedAt { return lhs.downloadedAt < rhs.downloadedAt }
+            if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
+            return lhs.chapterTitle.localizedStandardCompare(rhs.chapterTitle) == .orderedAscending
+        }
+        incompleteChapters.sort { lhs, rhs in
+            if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+            return lhs.chapterTitle.localizedStandardCompare(rhs.chapterTitle) == .orderedAscending
+        }
+        let readerChapterSequence = readableChapters.map {
+            ComicChapter(
+                id: $0.chapterID,
+                title: $0.chapterTitle.isEmpty ? $0.chapterID : $0.chapterTitle
+            )
+        }
+
+        return (
+            chapterIDs: chapterIDs,
+            updatedAt: updatedAt,
+            completeCount: completeCount,
+            incompleteCount: incompleteCount,
+            readableChapters: readableChapters,
+            incompleteChapters: incompleteChapters,
+            readerChapterSequence: readerChapterSequence,
+            isImportedGroup: isImportedGroup
+        )
     }
 }
 

@@ -201,7 +201,8 @@ struct SourceDetailView: View {
                             .padding(.vertical, 10)
                             .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
 
-                        ForEach(Array(login.cookieLoginFields.enumerated()), id: \.offset) { index, field in
+                        ForEach(login.cookieLoginFields.indices, id: \.self) { index in
+                            let field = login.cookieLoginFields[index]
                             TextField(
                                 field,
                                 text: Binding(

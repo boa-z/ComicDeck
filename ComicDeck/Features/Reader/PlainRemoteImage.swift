@@ -108,6 +108,7 @@ struct PlainRemoteImage: View {
                 scale: displayScale,
                 allowOriginalSize: false
             ) else {
+                await ReaderImagePipeline.shared.removeCachedData(for: request)
                 readerDebugLog("plain image decode failed: dataBytes=\(data.count)", level: .error)
                 throw ReaderImagePipelineError.invalidResponse
             }

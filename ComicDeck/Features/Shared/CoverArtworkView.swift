@@ -2,48 +2,24 @@ import SwiftUI
 
 struct CoverArtworkView: View {
     let urlString: String?
+    var refererURLString: String? = nil
     var fileURL: URL? = nil
     let width: CGFloat
     let height: CGFloat
     var reloadToken: Int = 0
 
     var body: some View {
-        Group {
-            if let fileURL,
-               let image = PlatformImage(contentsOfFile: fileURL.path) {
-                Image(platformImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: width, height: height)
-                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
-            } else {
-                AsyncImage(url: URL(string: urlString ?? "")) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .frame(width: width, height: height)
-                            .background(AppSurface.subtle)
-                            .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
-                    case let .success(image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: width, height: height)
-                            .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
-                    case .failure:
-                        Image(systemName: "photo")
-                            .font(.title3)
-                            .frame(width: width, height: height)
-                            .foregroundStyle(.secondary)
-                            .background(AppSurface.subtle)
-                            .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
-            }
-        }
-        .id("\(fileURL?.absoluteString ?? urlString ?? "__empty__")#\(reloadToken)")
+        CachedRemoteImage(
+            urlString: fileURL?.absoluteString ?? urlString,
+            refererURLString: refererURLString,
+            decodeSize: CGSize(width: width, height: height),
+            contentMode: .fill,
+            reloadToken: reloadToken,
+            priority: .thumbnail
+        )
+        .frame(width: width, height: height)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous))
         .accessibilityHidden(true)
     }
 }

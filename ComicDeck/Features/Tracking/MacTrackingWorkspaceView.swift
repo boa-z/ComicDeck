@@ -70,7 +70,7 @@ struct MacTrackingWorkspaceView: View {
     private var sidebar: some View {
         List(selection: $selectedSidebarItem) {
             Section(AppLocalization.text("tracking.workspace.providers", "Providers")) {
-                ForEach(TrackerProvider.allCases.filter(\.supportsMangaListWorkspace)) { provider in
+                ForEach(TrackerProvider.mangaListWorkspaceProviders) { provider in
                     MacTrackingProviderRow(provider: provider, account: tracker.account(for: provider))
                         .tag(SidebarItem.provider(provider))
                 }
@@ -168,21 +168,8 @@ private struct MacTrackerSubscriptionListView: View {
     @State private var searchCommandController = MacSearchCommandController()
     @State private var isSearchPresented = false
 
-    private var filteredRows: [TrackerSubscriptionRow] {
-        let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !keyword.isEmpty else { return model.rows }
-        return model.rows.filter { row in
-            row.entry.title.lowercased().contains(keyword) ||
-            (row.entry.subtitle?.lowercased().contains(keyword) ?? false) ||
-            row.localGroups.contains { $0.title.lowercased().contains(keyword) }
-        }
-    }
-
-    private var filteredRowIDs: [TrackerSubscriptionRow.ID] {
-        filteredRows.map(\.id)
-    }
-
     var body: some View {
+        let snapshot = MacTrackerSubscriptionListSnapshot(rows: model.rows, query: query)
         List(selection: rowSelection) {
             Section {
                 MacTrackingStatusHeader(provider: provider, model: model, account: tracker.account(for: provider))
@@ -203,15 +190,19 @@ private struct MacTrackerSubscriptionListView: View {
                     systemImage: "exclamationmark.triangle",
                     description: Text(errorMessage)
                 )
-            } else if filteredRows.isEmpty {
+            } else if snapshot.visibleRows.isEmpty {
                 ContentUnavailableView(
-                    AppLocalization.format("tracking.subscriptions.empty_format", "No %@ manga found", provider.title),
-                    systemImage: "tray",
-                    description: Text(AppLocalization.text("tracking.subscriptions.empty_hint", "Your tracker library will appear here after it has entries."))
+                    snapshot.isFiltering
+                        ? AppLocalization.text("tracking.subscriptions.no_matches_title", "No matching entries")
+                        : AppLocalization.format("tracking.subscriptions.empty_format", "No %@ manga found", provider.title),
+                    systemImage: snapshot.isFiltering ? "magnifyingglass" : "tray",
+                    description: Text(snapshot.isFiltering
+                        ? AppLocalization.text("tracking.subscriptions.no_matches_subtitle", "Try a different keyword or clear the search field.")
+                        : AppLocalization.format("tracking.subscriptions.empty.message_format", "Your %@ manga list will appear here after it has entries.", provider.title))
                 )
             } else {
                 Section(AppLocalization.text("tracking.subscriptions.entries", "Entries")) {
-                    ForEach(filteredRows) { row in
+                    ForEach(snapshot.visibleRows) { row in
                         MacTrackerSubscriptionRowView(row: row)
                             .tag(row.id)
                             .contextMenu {
@@ -252,19 +243,14 @@ private struct MacTrackerSubscriptionListView: View {
             reconcileSelection()
             configureSelectionCommands()
         }
-        .onChange(of: model.rows) { _, rows in
-            guard let current = selection else {
-                selection = rows.first
-                configureSelectionCommands()
-                return
-            }
-            selection = rows.first(where: { $0.id == current.id }) ?? rows.first
+        .onChange(of: model.rows) { _, _ in
+            reconcileSelection()
             configureSelectionCommands()
         }
         .onChange(of: selection) { _, _ in
             configureSelectionCommands()
         }
-        .onChange(of: filteredRowIDs) { _, _ in
+        .onChange(of: query) { _, _ in
             reconcileSelection()
             configureSelectionCommands()
         }
@@ -310,10 +296,11 @@ private struct MacTrackerSubscriptionListView: View {
     }
 
     private func reconcileSelection() {
-        if let selection, filteredRows.contains(where: { $0.id == selection.id }) {
+        let snapshot = MacTrackerSubscriptionListSnapshot(rows: model.rows, query: query)
+        if let selection, snapshot.visibleRows.contains(where: { $0.id == selection.id }) {
             return
         }
-        selection = filteredRows.first
+        selection = snapshot.visibleRows.first
     }
 
     private func configureSelectionCommands() {
@@ -378,9 +365,7 @@ private struct MacTrackingStatusHeader: View {
     }
 
     private func lastLoadedText(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: Date())
+        RelativeTimeText.short(from: date)
     }
 }
 
@@ -389,7 +374,7 @@ private struct MacTrackerSubscriptionRowView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            CoverArtworkView(urlString: row.entry.coverURL, width: 42, height: 58)
+            CoverArtworkView(urlString: row.entry.coverURL, refererURLString: row.entry.siteURL, width: 42, height: 58)
                 .frame(width: 42, height: 58)
 
             VStack(alignment: .leading, spacing: 4) {

@@ -33,6 +33,14 @@ private extension View {
 
 @MainActor
 struct SourceManagementView: View {
+    private struct InstalledSourceRowSnapshot: Identifiable {
+        let id: String
+        let source: InstalledSource
+        let isCurrentSource: Bool
+        let isBatchSelected: Bool
+        let updateVersion: String?
+    }
+
     @Bindable var vm: ReaderViewModel
     @Bindable var sourceManager: SourceManagerViewModel
     @State private var query = ""
@@ -43,25 +51,37 @@ struct SourceManagementView: View {
     @State private var showBatchUpdateConfirm = false
     @State private var showBatchDeleteConfirm = false
 
-    private var installedSources: [InstalledSource] {
-        let base = sourceManager.installedSources
-        guard !query.isEmpty else { return base }
-        return base.filter { matches(query: query, name: $0.name, key: $0.key) }
+    private var installedSourceRows: [InstalledSourceRowSnapshot] {
+        let keyword = normalizedQuery
+        return sourceManager.installedSources.compactMap { source in
+            guard matchesKeyword(source.name, normalizedQuery: keyword) ||
+                matchesKeyword(source.key, normalizedQuery: keyword)
+            else {
+                return nil
+            }
+            return InstalledSourceRowSnapshot(
+                id: source.key,
+                source: source,
+                isCurrentSource: sourceManager.selectedSourceKey == source.key,
+                isBatchSelected: selectedSourceKeys.contains(source.key),
+                updateVersion: sourceManager.availableSourceUpdates[source.key]
+            )
+        }
     }
 
     private var updateCount: Int {
         sourceManager.availableSourceUpdates.count
     }
 
-    private var selectedInstalledSources: [InstalledSource] {
-        installedSources.filter { selectedSourceKeys.contains($0.key) }
-    }
-
     var body: some View {
+        let rows = installedSourceRows
+        let selectedRows = selectedInstalledRows(from: rows)
+        let selectedUpdatableCount = selectedRows.lazy.filter { $0.updateVersion != nil }.count
+
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
                 repositorySection
-                installedSection
+                installedSection(rows: rows)
             }
             .padding(.horizontal, AppSpacing.screen)
             .padding(.top, AppSpacing.md)
@@ -71,7 +91,7 @@ struct SourceManagementView: View {
         .navigationTitle(AppLocalization.text("source.management.installed", "Sources"))
         .searchable(text: $query, prompt: AppLocalization.text("source.management.search_placeholder", "Search installed sources"))
         .toolbar {
-            if !installedSources.isEmpty {
+            if !rows.isEmpty {
                 ToolbarItem(placement: .platformTopBarTrailing) {
                     Button(isSelecting ? AppLocalization.text("common.done", "Done") : AppLocalization.text("source.action.select", "Select")) {
                         toggleSelecting()
@@ -88,7 +108,7 @@ struct SourceManagementView: View {
             Text(AppLocalization.format(
                 "source.alert.batch_update.message",
                 "Update %lld selected sources with available updates?",
-                Int64(selectedInstalledSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }.count)
+                Int64(selectedUpdatableCount)
             ))
         }
         .alert(AppLocalization.text("source.alert.batch_delete.title", "Delete selected sources?"), isPresented: $showBatchDeleteConfirm) {
@@ -100,12 +120,12 @@ struct SourceManagementView: View {
             Text(AppLocalization.format(
                 "source.alert.batch_delete.message",
                 "Delete %lld selected installed sources? This action cannot be undone.",
-                Int64(selectedInstalledSources.count)
+                Int64(selectedRows.count)
             ))
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if isSelecting {
-                selectionBar
+                selectionBar(rows: rows, selectedRows: selectedRows, selectedUpdatableCount: selectedUpdatableCount)
                     .padding(.horizontal, 12)
                     .padding(.top, 6)
                     .padding(.bottom, 8)
@@ -121,7 +141,11 @@ struct SourceManagementView: View {
                 title: AppLocalization.text("source.management.repository", "Source Index"),
                 subtitle: sourceManager.remoteSources.isEmpty
                     ? AppLocalization.text("source.management.repository_hint", "Provide your own source index, then install and update sources from it")
-                    : "\(sourceManager.remoteSources.count) remote sources cached"
+                    : AppLocalization.format(
+                        "source.management.repository_cached_format",
+                        "%lld remote sources cached",
+                        Int64(sourceManager.remoteSources.count)
+                    )
             ) {
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
                     HStack(spacing: 10) {
@@ -163,7 +187,7 @@ struct SourceManagementView: View {
         .buttonStyle(.plain)
     }
 
-    private var installedSection: some View {
+    private func installedSection(rows: [InstalledSourceRowSnapshot]) -> some View {
         ComicDetailSectionCard(
             title: AppLocalization.text("source.management.installed", "Installed Sources"),
             subtitle: sourceManager.installedSources.isEmpty
@@ -176,18 +200,29 @@ struct SourceManagementView: View {
                         title: AppLocalization.text("source.management.empty", "No installed sources"),
                         subtitle: AppLocalization.text("source.management.empty_hint", "Add your own source index and install a source to start browsing.")
                     )
+                } else if rows.isEmpty {
+                    emptyState(
+                        title: AppLocalization.text("source.management.no_matches_title", "No matching sources"),
+                        subtitle: AppLocalization.text("source.management.no_matches_subtitle", "Try a different keyword or clear the search field.")
+                    )
                 } else {
-                    ForEach(installedSources) { source in
-                        installedSourceEntry(source)
+                    LazyVStack(alignment: .leading, spacing: AppSpacing.md) {
+                        ForEach(rows) { row in
+                            installedSourceEntry(row)
+                        }
                     }
                 }
             }
         }
     }
 
-    private var selectionBar: some View {
+    private func selectionBar(
+        rows: [InstalledSourceRowSnapshot],
+        selectedRows: [InstalledSourceRowSnapshot],
+        selectedUpdatableCount: Int
+    ) -> some View {
         HStack(spacing: 10) {
-            Text(AppLocalization.format("source.management.selected", "%lld selected", Int64(selectedSourceKeys.count)))
+            Text(AppLocalization.format("source.management.selected", "%lld selected", Int64(selectedRows.count)))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .padding(.horizontal, 10)
@@ -196,11 +231,11 @@ struct SourceManagementView: View {
 
             Spacer(minLength: 0)
 
-            Button(selectedSourceKeys.count == installedSources.count ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("source.management.select_all", "Select All")) {
-                if selectedSourceKeys.count == installedSources.count {
+            Button(selectedRows.count == rows.count ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("source.management.select_all", "Select All")) {
+                if selectedRows.count == rows.count {
                     selectedSourceKeys.removeAll()
                 } else {
-                    selectedSourceKeys = Set(installedSources.map(\.key))
+                    selectedSourceKeys = Set(rows.map(\.source.key))
                 }
             }
             .font(.subheadline.weight(.semibold))
@@ -225,7 +260,7 @@ struct SourceManagementView: View {
             }
             .controlSize(.small)
             .buttonStyle(.bordered)
-            .disabled(selectedInstalledSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }.isEmpty || batchWorking)
+            .disabled(selectedUpdatableCount == 0 || batchWorking)
 
             Button(role: .destructive) {
                 showBatchDeleteConfirm = true
@@ -245,7 +280,7 @@ struct SourceManagementView: View {
             }
             .controlSize(.small)
             .buttonStyle(.borderedProminent)
-            .disabled(selectedSourceKeys.isEmpty || batchWorking)
+            .disabled(selectedRows.isEmpty || batchWorking)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -257,14 +292,14 @@ struct SourceManagementView: View {
         .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    private func installedSourceEntry(_ source: InstalledSource) -> some View {
+    private func installedSourceEntry(_ row: InstalledSourceRowSnapshot) -> some View {
         Group {
             if isSelecting {
                 Button {
-                    toggleSelection(for: source)
+                    toggleSelection(for: row.source.key)
                 } label: {
-                    selectableCard(isSelected: selectedSourceKeys.contains(source.key)) {
-                        installedSourceCard(source)
+                    selectableCard(isSelected: row.isBatchSelected) {
+                        installedSourceCard(row)
                     }
                 }
                 .buttonStyle(.plain)
@@ -274,37 +309,34 @@ struct SourceManagementView: View {
                         vm: vm,
                         sourceManager: sourceManager,
                         login: vm.login,
-                        source: source
+                        source: row.source
                     )
                 } label: {
-                    installedSourceCard(source)
+                    installedSourceCard(row)
                 }
                 .buttonStyle(.plain)
             }
         }
     }
 
-    private func installedSourceCard(_ source: InstalledSource) -> some View {
-        let updateVersion = sourceManager.availableSourceUpdates[source.key]
-        let isSelected = sourceManager.selectedSourceKey == source.key
-
-        return VStack(alignment: .leading, spacing: 12) {
+    private func installedSourceCard(_ row: InstalledSourceRowSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(source.name)
+                    Text(row.source.name)
                         .font(.headline)
 
-                    Text("\(source.key) · v\(source.version)")
+                    Text("\(row.source.key) · v\(row.source.version)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
                 Spacer(minLength: 0)
 
-                if isSelected {
-                    statusBadge("Selected", tint: AppTint.accent)
+                if row.isCurrentSource {
+                    statusBadge(AppLocalization.text("source.management.status.selected", "Selected"), tint: AppTint.accent)
                 }
-                if let updateVersion {
+                if let updateVersion = row.updateVersion {
                     statusBadge("v\(updateVersion)", tint: AppTint.warning)
                 }
                 Image(systemName: "chevron.right")
@@ -313,10 +345,15 @@ struct SourceManagementView: View {
             }
 
             HStack(spacing: 8) {
-                Label(isSelected ? "Current source" : "Tap for details", systemImage: isSelected ? "checkmark.circle.fill" : "slider.horizontal.3")
+                Label(
+                    row.isCurrentSource
+                        ? AppLocalization.text("source.management.current_source", "Current source")
+                        : AppLocalization.text("source.management.tap_for_details", "Tap for details"),
+                    systemImage: row.isCurrentSource ? "checkmark.circle.fill" : "slider.horizontal.3"
+                )
                     .font(.caption)
-                    .foregroundStyle(isSelected ? AppTint.accent : .secondary)
-                if let updateVersion {
+                    .foregroundStyle(row.isCurrentSource ? AppTint.accent : .secondary)
+                if let updateVersion = row.updateVersion {
                     Text(AppLocalization.format("source.management.update_available", "Update available: %@", updateVersion))
                         .font(.caption)
                         .foregroundStyle(AppTint.warning)
@@ -351,17 +388,19 @@ struct SourceManagementView: View {
         }
     }
 
-    private func toggleSelection(for source: InstalledSource) {
-        if selectedSourceKeys.contains(source.key) {
-            selectedSourceKeys.remove(source.key)
+    private func toggleSelection(for key: String) {
+        if selectedSourceKeys.contains(key) {
+            selectedSourceKeys.remove(key)
         } else {
-            selectedSourceKeys.insert(source.key)
+            selectedSourceKeys.insert(key)
         }
     }
 
     private func updateSelectedSources() async {
         guard !batchWorking else { return }
-        let targets = selectedInstalledSources.filter { sourceManager.availableSourceUpdates[$0.key] != nil }
+        let targets = selectedInstalledRows(from: installedSourceRows)
+            .filter { $0.updateVersion != nil }
+            .map(\.source)
         guard !targets.isEmpty else { return }
         batchWorking = true
         batchProgressText = AppLocalization.text("source.action.preparing", "Preparing...")
@@ -379,7 +418,7 @@ struct SourceManagementView: View {
 
     private func deleteSelectedSources() async {
         guard !batchWorking else { return }
-        let targets = selectedInstalledSources
+        let targets = selectedInstalledRows(from: installedSourceRows).map(\.source)
         guard !targets.isEmpty else { return }
         batchWorking = true
         batchProgressText = AppLocalization.text("source.action.preparing", "Preparing...")
@@ -432,13 +471,17 @@ struct SourceManagementView: View {
         .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
     }
 
-    private func matches(query: String, name: String, key: String, description: String? = nil) -> Bool {
-        let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    private var normalizedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func matchesKeyword(_ candidate: String, normalizedQuery keyword: String) -> Bool {
         guard !keyword.isEmpty else { return true }
-        if name.lowercased().contains(keyword) { return true }
-        if key.lowercased().contains(keyword) { return true }
-        if let description, description.lowercased().contains(keyword) { return true }
-        return false
+        return candidate.lowercased().contains(keyword)
+    }
+
+    private func selectedInstalledRows(from rows: [InstalledSourceRowSnapshot]) -> [InstalledSourceRowSnapshot] {
+        rows.filter(\.isBatchSelected)
     }
 }
 

@@ -143,6 +143,7 @@ struct TrackerSubscriptionDetailView: View {
     @State private var sourceSearchRoute: TrackerSourceSearchRoute?
 
     var body: some View {
+        let snapshot = makeDetailSnapshot()
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 remoteEntryCard
@@ -152,10 +153,10 @@ struct TrackerSubscriptionDetailView: View {
                     errorBanner(errorMessage)
                 }
 
-                if localGroups.isEmpty {
+                if snapshot.localGroups.isEmpty {
                     unboundCard
                 } else {
-                    bindingsSection
+                    bindingsSection(snapshot)
                 }
             }
             .padding(.horizontal, AppSpacing.screen)
@@ -178,45 +179,23 @@ struct TrackerSubscriptionDetailView: View {
         }
     }
 
-    private var localGroups: [TrackerSubscriptionLocalGroup] {
-        let groups = tracker.bindingGroups(provider: provider, remoteMediaID: row.entry.mediaID).compactMap { bindings -> TrackerSubscriptionLocalGroup? in
-            guard let providerBinding = bindings[provider] else { return nil }
-            let localComic = localComic(for: providerBinding)
-            return TrackerSubscriptionLocalGroup(
-                sourceKey: providerBinding.sourceKey,
-                comicID: providerBinding.comicID,
-                title: localComic?.title ?? providerBinding.sourceTitle ?? providerBinding.remoteTitle,
-                coverURL: localComic?.coverURL ?? providerBinding.sourceCoverURL ?? providerBinding.remoteCoverURL,
-                bindings: bindings
-            )
-        }
-        return groups
-    }
-
-    private func localComic(for binding: TrackerBinding) -> ComicSummary? {
-        if let favorite = library.favorites.first(where: { $0.sourceKey == binding.sourceKey && $0.id == binding.comicID }) {
-            return ComicSummary(id: favorite.id, sourceKey: favorite.sourceKey, title: favorite.title, coverURL: favorite.coverURL)
-        }
-        if let history = library.history.first(where: { $0.sourceKey == binding.sourceKey && $0.comicID == binding.comicID }) {
-            return ComicSummary(
-                id: history.comicID,
-                sourceKey: history.sourceKey,
-                title: history.title,
-                coverURL: history.coverURL,
-                author: history.author,
-                tags: history.tags
-            )
-        }
-        if let offline = library.offlineChapters.first(where: { $0.sourceKey == binding.sourceKey && $0.comicID == binding.comicID }) {
-            return ComicSummary(id: offline.comicID, sourceKey: offline.sourceKey, title: offline.comicTitle, coverURL: offline.coverURL)
-        }
-        return nil
+    private func makeDetailSnapshot() -> TrackerSubscriptionDetailSnapshot {
+        TrackerSubscriptionDetailSnapshot.make(
+            provider: provider,
+            bindingGroups: tracker.bindingGroups(provider: provider, remoteMediaID: row.entry.mediaID),
+            library: library
+        )
     }
 
     private var remoteEntryCard: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(alignment: .top, spacing: AppSpacing.md) {
-                CoverArtworkView(urlString: row.entry.coverURL, width: 104, height: 148)
+                CoverArtworkView(
+                    urlString: row.entry.coverURL,
+                    refererURLString: row.entry.siteURL,
+                    width: 104,
+                    height: 148
+                )
                     .frame(width: 104, height: 148)
 
                 VStack(alignment: .leading, spacing: AppSpacing.xs) {
@@ -274,7 +253,7 @@ struct TrackerSubscriptionDetailView: View {
         .appCardStyle()
     }
 
-    private var bindingsSection: some View {
+    private func bindingsSection(_ snapshot: TrackerSubscriptionDetailSnapshot) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(alignment: .center, spacing: AppSpacing.sm) {
                 Text(AppLocalization.text("tracking.subscription_detail.bindings", "Confirmed bindings"))
@@ -283,8 +262,8 @@ struct TrackerSubscriptionDetailView: View {
                 addSourceBindingButton(prominent: false)
             }
 
-            ForEach(localGroups) { group in
-                bindingGroupCard(group)
+            ForEach(snapshot.localGroups) { groupSnapshot in
+                bindingGroupCard(groupSnapshot)
             }
         }
     }
@@ -330,10 +309,11 @@ struct TrackerSubscriptionDetailView: View {
         )
     }
 
-    private func bindingGroupCard(_ group: TrackerSubscriptionLocalGroup) -> some View {
-        VStack(alignment: .leading, spacing: AppSpacing.md) {
+    private func bindingGroupCard(_ groupSnapshot: TrackerSubscriptionLocalGroupSnapshot) -> some View {
+        let group = groupSnapshot.group
+        return VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack(alignment: .top, spacing: AppSpacing.sm) {
-                CoverArtworkView(urlString: group.coverURL, width: 64, height: 92)
+                CoverArtworkView(urlString: group.coverURL, refererURLString: group.comicID, width: 64, height: 92)
                     .frame(width: 64, height: 92)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(group.title)
@@ -343,7 +323,7 @@ struct TrackerSubscriptionDetailView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
-                    if let history = library.latestHistoryForComic(sourceKey: group.sourceKey, comicID: group.comicID) {
+                    if let history = groupSnapshot.localHistory {
                         Text(localHistoryText(history))
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -354,7 +334,7 @@ struct TrackerSubscriptionDetailView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: AppSpacing.sm) {
-                    ForEach(group.bindings.values.sorted { $0.provider.title < $1.provider.title }) { binding in
+                    ForEach(groupSnapshot.sortedBindings) { binding in
                         bindingColumn(binding)
                     }
                 }
@@ -547,9 +527,7 @@ struct TrackerSubscriptionDetailView: View {
     }
 
     private func updatedText(_ timestamp: Int64) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        let text = formatter.localizedString(for: Date(timeIntervalSince1970: TimeInterval(timestamp)), relativeTo: Date())
+        let text = RelativeTimeText.short(for: timestamp)
         return AppLocalization.format("tracking.subscription_detail.updated_format", "Updated %@", text)
     }
 

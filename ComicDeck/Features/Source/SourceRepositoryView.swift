@@ -9,39 +9,26 @@ struct SourceRepositoryView: View {
     @State private var query = ""
     @State private var showInstalledOnly = false
 
-    private var discoveredSources: [SourceConfigIndexItem] {
-        let base = sourceManager.remoteSources.filter { item in
-            !showInstalledOnly || sourceManager.installedSource(for: sourceManager.resolvedKey(for: item)) != nil
-        }
-        guard !query.isEmpty else { return base }
-        return base.filter {
-            matches(
-                query: query,
-                name: $0.name,
-                key: sourceManager.resolvedKey(for: $0),
-                description: $0.description
-            )
-        }
-    }
-
     private var updateCount: Int {
         sourceManager.availableSourceUpdates.count
     }
 
     var body: some View {
+        let snapshot = makeSnapshot()
+
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
                 configurationCard
-                sourceListCard
+                sourceListCard(snapshot)
             }
             .padding(.horizontal, AppSpacing.screen)
             .padding(.top, AppSpacing.md)
             .padding(.bottom, AppSpacing.xl)
         }
         .background(AppSurface.grouped.ignoresSafeArea())
-        .navigationTitle("Source Index")
+        .navigationTitle(AppLocalization.text("source.repository.title", "Source Index"))
         .platformNavigationBarTitleDisplayModeInline()
-        .searchable(text: $query, prompt: "Search source index")
+        .searchable(text: $query, prompt: AppLocalization.text("source.repository.search_placeholder", "Search source index"))
         .toolbar {
             ToolbarItem(placement: .platformTopBarTrailing) {
                 Button {
@@ -54,7 +41,7 @@ struct SourceRepositoryView: View {
                     }
                 }
                 .disabled(sourceManager.refreshingIndex)
-                .accessibilityLabel("Refresh source index")
+                .accessibilityLabel(AppLocalization.text("source.repository.refresh_accessibility", "Refresh source index"))
             }
         }
         .refreshable {
@@ -62,10 +49,25 @@ struct SourceRepositoryView: View {
         }
     }
 
+    private func makeSnapshot() -> SourceRepositorySnapshot {
+        SourceRepositorySnapshot(
+            remoteSources: sourceManager.remoteSources,
+            installedSources: sourceManager.installedSources,
+            availableUpdates: sourceManager.availableSourceUpdates,
+            normalizedQuery: normalizedQuery,
+            showInstalledOnly: showInstalledOnly,
+            resolvedKey: { sourceManager.resolvedKey(for: $0) },
+            isOperating: { sourceManager.isOperating(on: $0) }
+        )
+    }
+
     private var configurationCard: some View {
-        ComicDetailSectionCard(title: "Source Index", subtitle: "Provide your own source index URL and manage update checks") {
+        ComicDetailSectionCard(
+            title: AppLocalization.text("source.repository.title", "Source Index"),
+            subtitle: AppLocalization.text("source.repository.configuration_subtitle", "Provide your own source index URL and manage update checks")
+        ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
-                TextField("index.json URL", text: $sourceManager.indexURL)
+                TextField(AppLocalization.text("source.repository.index_url_placeholder", "index.json URL"), text: $sourceManager.indexURL)
                     .platformTextInputAutocapitalizationNever()
                     .autocorrectionDisabled(true)
                     .padding(.horizontal, 12)
@@ -77,23 +79,23 @@ struct SourceRepositoryView: View {
                         Task { await sourceManager.refreshRemoteSources(forceRefresh: true) }
                     } label: {
                         if sourceManager.refreshingIndex {
-                            Label("Refreshing...", systemImage: "arrow.clockwise")
+                            Label(AppLocalization.text("source.repository.refreshing", "Refreshing..."), systemImage: "arrow.clockwise")
                         } else if sourceManager.remoteSources.isEmpty {
-                            Label("Load Sources", systemImage: "tray.and.arrow.down")
+                            Label(AppLocalization.text("source.repository.load_sources", "Load Sources"), systemImage: "tray.and.arrow.down")
                         } else {
-                            Label("Refresh", systemImage: "arrow.clockwise")
+                            Label(AppLocalization.text("common.refresh", "Refresh"), systemImage: "arrow.clockwise")
                         }
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(sourceManager.refreshingIndex)
                 }
 
-                Toggle("Auto-load source index on open", isOn: $sourceManager.autoLoadRemoteSources)
+                Toggle(AppLocalization.text("source.repository.auto_load_toggle", "Auto-load source index on open"), isOn: $sourceManager.autoLoadRemoteSources)
                     .toggleStyle(.switch)
 
                 Text(sourceManager.autoLoadRemoteSources
-                     ? "The configured source index refreshes automatically when you open Sources."
-                     : "Remote sources stay idle until you explicitly load your source index.")
+                     ? AppLocalization.text("source.repository.auto_load_enabled_help", "The configured source index refreshes automatically when you open Sources.")
+                     : AppLocalization.text("source.repository.auto_load_disabled_help", "Remote sources stay idle until you explicitly load your source index."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -102,13 +104,13 @@ struct SourceRepositoryView: View {
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 10) {
-                    metricPill(title: "Installed", value: "\(sourceManager.installedSources.count)", tint: AppTint.accent)
-                    metricPill(title: "Updates", value: "\(updateCount)", tint: updateCount == 0 ? .secondary : AppTint.warning)
-                    metricPill(title: "Remote", value: sourceManager.remoteSources.isEmpty ? "-" : "\(sourceManager.remoteSources.count)", tint: AppTint.success)
+                    metricPill(title: AppLocalization.text("source.repository.metric.installed", "Installed"), value: "\(sourceManager.installedSources.count)", tint: AppTint.accent)
+                    metricPill(title: AppLocalization.text("source.management.metric.updates", "Updates"), value: "\(updateCount)", tint: updateCount == 0 ? .secondary : AppTint.warning)
+                    metricPill(title: AppLocalization.text("source.management.metric.remote", "Remote"), value: sourceManager.remoteSources.isEmpty ? "-" : "\(sourceManager.remoteSources.count)", tint: AppTint.success)
                 }
 
                 HStack(spacing: 10) {
-                    Button("Check Updates") {
+                    Button(AppLocalization.text("source.repository.check_updates", "Check Updates")) {
                         sourceManager.checkSourceUpdates()
                     }
                     .buttonStyle(.bordered)
@@ -118,9 +120,9 @@ struct SourceRepositoryView: View {
                             Task { await sourceManager.updateAllSources() }
                         } label: {
                             if sourceManager.updatingAll {
-                                Label("Updating...", systemImage: "square.and.arrow.down")
+                                Label(AppLocalization.text("source.management.status.updating", "Updating..."), systemImage: "square.and.arrow.down")
                             } else {
-                                Label("Update All", systemImage: "square.and.arrow.down")
+                                Label(AppLocalization.text("source.repository.update_all", "Update All"), systemImage: "square.and.arrow.down")
                             }
                         }
                         .buttonStyle(.bordered)
@@ -137,55 +139,63 @@ struct SourceRepositoryView: View {
         }
     }
 
-    private var sourceListCard: some View {
+    private func sourceListCard(_ snapshot: SourceRepositorySnapshot) -> some View {
         ComicDetailSectionCard(
-            title: "Indexed Sources",
+            title: AppLocalization.text("source.repository.indexed_sources", "Indexed Sources"),
             subtitle: sourceManager.remoteSources.isEmpty
-                ? "Load your source index to browse available sources."
-                : "\(discoveredSources.count) sources in the current filter"
+                ? AppLocalization.text("source.repository.indexed_sources_empty_subtitle", "Load your source index to browse available sources.")
+                : AppLocalization.format("source.repository.filtered_count_format", "%lld sources in the current filter", Int64(snapshot.totalRowCount))
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
-                Toggle("Show installed only", isOn: $showInstalledOnly)
+                Toggle(AppLocalization.text("source.repository.show_installed_only", "Show installed only"), isOn: $showInstalledOnly)
                     .toggleStyle(.switch)
 
                 if sourceManager.remoteSources.isEmpty {
                     emptyState(
-                        title: "Source index not loaded",
+                        title: AppLocalization.text("source.repository.empty_title", "Source index not loaded"),
                         subtitle: sourceManager.autoLoadRemoteSources
-                            ? "Pull to refresh if your source index did not load."
-                            : "Enter your source index URL, then tap Load Sources."
+                            ? AppLocalization.text("source.repository.empty_auto_subtitle", "Pull to refresh if your source index did not load.")
+                            : AppLocalization.text("source.repository.empty_manual_subtitle", "Enter your source index URL, then tap Load Sources.")
                     )
-                } else if discoveredSources.isEmpty {
+                } else if snapshot.rows.isEmpty {
                     emptyState(
-                        title: "No matching sources",
-                        subtitle: "Try a different keyword or clear the installed-only filter."
+                        title: AppLocalization.text("source.repository.no_matches_title", "No matching sources"),
+                        subtitle: AppLocalization.text("source.repository.no_matches_subtitle", "Try a different keyword or clear the installed-only filter.")
                     )
                 } else {
-                    ForEach(discoveredSources.prefix(120)) { item in
-                        remoteSourceCard(item)
+                    LazyVStack(alignment: .leading, spacing: AppSpacing.md) {
+                        ForEach(snapshot.visibleRows) { row in
+                            remoteSourceCard(row)
+                        }
+                    }
+
+                    if snapshot.hasHiddenRows {
+                        Text(AppLocalization.format(
+                            "source.repository.visible_limit_format",
+                            "Showing first %lld of %lld matching sources. Narrow the search to see more.",
+                            Int64(snapshot.visibleRows.count),
+                            Int64(snapshot.totalRowCount)
+                        ))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     }
                 }
             }
         }
     }
 
-    private func remoteSourceCard(_ item: SourceConfigIndexItem) -> some View {
-        let key = sourceManager.resolvedKey(for: item)
-        let installed = sourceManager.installedSource(for: key)
-        let hasUpdate = sourceManager.availableSourceUpdates[key] != nil
-        let isOperating = sourceManager.isOperating(on: key)
-
-        return VStack(alignment: .leading, spacing: 12) {
+    private func remoteSourceCard(_ row: SourceRepositoryRowSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(item.name)
+                    Text(row.item.name)
                         .font(.headline)
 
-                    Text("\(key) · v\(item.version ?? "?")")
+                    Text("\(row.key) · v\(row.item.version ?? "?")")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    if let description = item.description, !description.isEmpty {
+                    if let description = row.item.description, !description.isEmpty {
                         Text(description)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -195,16 +205,16 @@ struct SourceRepositoryView: View {
 
                 Spacer(minLength: 0)
 
-                if installed != nil {
-                    statusBadge("Installed", tint: AppTint.success)
+                if row.installedSource != nil {
+                    statusBadge(AppLocalization.text("source.repository.status.installed", "Installed"), tint: AppTint.success)
                 }
-                if hasUpdate {
-                    statusBadge("Update", tint: AppTint.warning)
+                if row.hasUpdate {
+                    statusBadge(AppLocalization.text("source.action.update", "Update"), tint: AppTint.warning)
                 }
             }
 
             HStack(spacing: 10) {
-                if let installed {
+                if let installed = row.installedSource {
                     NavigationLink {
                         SourceDetailView(
                             vm: vm,
@@ -213,26 +223,26 @@ struct SourceRepositoryView: View {
                             source: installed
                         )
                     } label: {
-                        Label("Details", systemImage: "slider.horizontal.3")
+                        Label(AppLocalization.text("common.details", "Details"), systemImage: "slider.horizontal.3")
                     }
                     .buttonStyle(.borderedProminent)
                 }
 
                 Button {
-                    Task { await sourceManager.installFromIndex(item) }
+                    Task { await sourceManager.installFromIndex(row.item) }
                 } label: {
-                    if isOperating {
-                        Label("Working...", systemImage: "arrow.down.circle")
-                    } else if hasUpdate {
-                        Label("Update", systemImage: "square.and.arrow.down")
-                    } else if installed != nil {
-                        Label("Reinstall", systemImage: "arrow.clockwise")
+                    if row.isOperating {
+                        Label(AppLocalization.text("source.repository.working", "Working..."), systemImage: "arrow.down.circle")
+                    } else if row.hasUpdate {
+                        Label(AppLocalization.text("source.action.update", "Update"), systemImage: "square.and.arrow.down")
+                    } else if row.installedSource != nil {
+                        Label(AppLocalization.text("source.repository.reinstall", "Reinstall"), systemImage: "arrow.clockwise")
                     } else {
-                        Label("Install", systemImage: "arrow.down.circle")
+                        Label(AppLocalization.text("source.repository.install", "Install"), systemImage: "arrow.down.circle")
                     }
                 }
                 .buttonStyle(.bordered)
-                .disabled(isOperating)
+                .disabled(row.isOperating)
             }
         }
         .padding(AppSpacing.md)
@@ -276,12 +286,7 @@ struct SourceRepositoryView: View {
         .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
     }
 
-    private func matches(query: String, name: String, key: String, description: String? = nil) -> Bool {
-        let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !keyword.isEmpty else { return true }
-        if name.lowercased().contains(keyword) { return true }
-        if key.lowercased().contains(keyword) { return true }
-        if let description, description.lowercased().contains(keyword) { return true }
-        return false
+    private var normalizedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 }

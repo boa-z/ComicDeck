@@ -24,7 +24,7 @@ struct SearchResultCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.md) {
-            CoverArtworkView(urlString: item.coverURL, width: 68, height: 96)
+            CoverArtworkView(urlString: item.coverURL, refererURLString: item.id, width: 68, height: 96)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.title)
@@ -62,7 +62,7 @@ struct SearchResultGridCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            CoverArtworkView(urlString: item.coverURL, width: 140, height: 196)
+            CoverArtworkView(urlString: item.coverURL, refererURLString: item.id, width: 140, height: 196)
                 .frame(maxWidth: .infinity)
 
             Text(item.title)
@@ -111,7 +111,13 @@ struct ComicPreviewCard: View {
 
     var body: some View {
         HStack(spacing: AppSpacing.md) {
-            CoverArtworkView(urlString: coverURL, width: 56, height: 80, reloadToken: coverReloadToken)
+            CoverArtworkView(
+                urlString: coverURL,
+                refererURLString: entityID,
+                width: 56,
+                height: 80,
+                reloadToken: coverReloadToken
+            )
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(title)
@@ -168,7 +174,13 @@ struct ComicPreviewGridCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            CoverArtworkView(urlString: coverURL, width: 140, height: 196, reloadToken: coverReloadToken)
+            CoverArtworkView(
+                urlString: coverURL,
+                refererURLString: entityID,
+                width: 140,
+                height: 196,
+                reloadToken: coverReloadToken
+            )
                 .frame(maxWidth: .infinity)
 
             Text(title)

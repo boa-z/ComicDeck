@@ -179,7 +179,12 @@ struct TrackerSearchSheet: View {
                                 Task { await bind(result) }
                             } label: {
                                 HStack(spacing: 12) {
-                                    CoverArtworkView(urlString: result.coverURL, width: 48, height: 64)
+                                    CoverArtworkView(
+                                        urlString: result.coverURL,
+                                        refererURLString: result.siteURL,
+                                        width: 48,
+                                        height: 64
+                                    )
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(result.title)
                                             .font(.body.weight(.semibold))

@@ -64,10 +64,14 @@ final class SourceManagerViewModel {
     }
 
     var lastRemoteRefreshDescription: String {
-        guard let lastRemoteRefreshAt else { return "Never refreshed" }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return "Last refreshed \(formatter.localizedString(for: lastRemoteRefreshAt, relativeTo: Date()))"
+        guard let lastRemoteRefreshAt else {
+            return AppLocalization.text("source.repository.never_refreshed", "Never refreshed")
+        }
+        return AppLocalization.format(
+            "source.repository.last_refreshed_format",
+            "Last refreshed %@",
+            RelativeTimeText.full(from: lastRemoteRefreshAt)
+        )
     }
 
     var selectedSource: InstalledSource? {

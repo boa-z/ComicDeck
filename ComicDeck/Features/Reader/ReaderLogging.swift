@@ -8,7 +8,8 @@ enum ReaderLogLevel: String {
 }
 
 @inline(__always)
-nonisolated func readerDebugLog(_ message: String, level: ReaderLogLevel = .debug) {
-    let line = "[SourceRuntime][\(level.rawValue)][Reader] \(message)"
+nonisolated func readerDebugLog(_ message: @autoclosure () -> String, level: ReaderLogLevel = .debug) {
+    guard RuntimeDebugConsole.isEnabled else { return }
+    let line = "[SourceRuntime][\(level.rawValue)][Reader] \(message())"
     RuntimeDebugConsole.appendRuntimeLine(line)
 }
