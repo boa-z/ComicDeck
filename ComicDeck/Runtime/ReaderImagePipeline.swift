@@ -101,6 +101,7 @@ actor ReaderImagePipeline {
 
         let key = RequestCacheKeyBuilder.key(for: request)
         let sharedResourceKey = RequestCacheKeyBuilder.sharedImageResourceKey(for: request)
+        let queueKey = sharedResourceKey ?? key
         let lookupKeys = cacheLookupKeys(primary: key, shared: sharedResourceKey)
         if priority == .prefetch,
            let retryAfter = retryAfter(forKeys: lookupKeys),
@@ -117,13 +118,13 @@ actor ReaderImagePipeline {
             return hit.data
         }
 
-        if let existingLoad = inFlightLoad(forKeys: lookupKeys) {
+        if let existingLoad = inFlightLoad(forKey: key) {
             metrics.inFlightHits += 1
-            upgradeWaitingRequest(forKeys: lookupKeys, to: priority)
+            upgradeWaitingRequest(forKey: queueKey, to: priority)
             do {
                 return try await existingLoad.task.value
             } catch {
-                removeInFlightLoad(forKeys: lookupKeys, id: existingLoad.id)
+                removeInFlightLoad(forKey: key, id: existingLoad.id)
                 throw error
             }
         }
@@ -131,7 +132,7 @@ actor ReaderImagePipeline {
         metrics.misses += 1
         let loadID = UUID()
         let task = Task<Data, Error> {
-            guard await self.acquireSlot(forKey: sharedResourceKey ?? key, priority: priority) else {
+            guard await self.acquireSlot(forKey: queueKey, priority: priority) else {
                 throw CancellationError()
             }
             defer { self.releaseSlot() }
@@ -147,10 +148,10 @@ actor ReaderImagePipeline {
         }
         let load = InFlightImageLoad(id: loadID, task: task)
 
-        storeInFlightLoad(load, forKeys: lookupKeys)
+        storeInFlightLoad(load, forKey: key)
         do {
             let data = try await task.value
-            removeInFlightLoad(forKeys: lookupKeys, id: loadID)
+            removeInFlightLoad(forKey: key, id: loadID)
             clearFailures(forKeys: lookupKeys)
             metrics.networkLoads += 1
             await cache.store(data, forKey: key)
@@ -159,7 +160,7 @@ actor ReaderImagePipeline {
             }
             return data
         } catch {
-            removeInFlightLoad(forKeys: lookupKeys, id: loadID)
+            removeInFlightLoad(forKey: key, id: loadID)
             recordFailure(forKeys: lookupKeys, priority: priority, error: error)
             throw error
         }
@@ -266,23 +267,16 @@ actor ReaderImagePipeline {
         return [primary, shared]
     }
 
-    private func inFlightLoad(forKeys keys: [String]) -> InFlightImageLoad? {
-        for key in keys {
-            if let load = inFlight[key] {
-                return load
-            }
-        }
-        return nil
+    private func inFlightLoad(forKey key: String) -> InFlightImageLoad? {
+        inFlight[key]
     }
 
-    private func storeInFlightLoad(_ load: InFlightImageLoad, forKeys keys: [String]) {
-        for key in keys {
-            inFlight[key] = load
-        }
+    private func storeInFlightLoad(_ load: InFlightImageLoad, forKey key: String) {
+        inFlight[key] = load
     }
 
-    private func removeInFlightLoad(forKeys keys: [String], id: UUID) {
-        for key in keys where inFlight[key]?.id == id {
+    private func removeInFlightLoad(forKey key: String, id: UUID) {
+        if inFlight[key]?.id == id {
             inFlight[key] = nil
         }
     }
@@ -346,12 +340,6 @@ actor ReaderImagePipeline {
         }
         waiters[index].priority = priority
         waiters.sort { $0.priority < $1.priority }
-    }
-
-    private func upgradeWaitingRequest(forKeys keys: [String], to priority: LoadPriority) {
-        for key in keys {
-            upgradeWaitingRequest(forKey: key, to: priority)
-        }
     }
 
     private func releaseSlot() {

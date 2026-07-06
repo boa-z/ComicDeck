@@ -16,6 +16,7 @@ struct CachedRemoteImage: View {
     @State private var loadedIdentity = ""
     @State private var activeResourceIdentity = ""
     @State private var failed = false
+    @State private var cancelledWhileLoading = false
     @State private var retryToken = 0
     @State private var automaticRetryCount = 0
     @State private var preferredRequestKey: String?
@@ -183,6 +184,7 @@ struct CachedRemoteImage: View {
             activeResourceIdentity = currentResourceIdentity
             automaticRetryCount = 0
             preferredRequestKey = nil
+            cancelledWhileLoading = false
             image = nil
             failed = false
         } else if loadedIdentity != identity, image == nil {
@@ -195,6 +197,7 @@ struct CachedRemoteImage: View {
             return
         }
 
+        cancelledWhileLoading = false
         for attempt in 0..<4 {
             var lastError: Error?
             for request in requests {
@@ -240,8 +243,16 @@ struct CachedRemoteImage: View {
                     image = decoded
                     loadedIdentity = identity
                     failed = false
+                    cancelledWhileLoading = false
                     return
-                } catch is CancellationError {
+                } catch let error as CancellationError {
+                    if !Task.isCancelled {
+                        lastError = error
+                        continue
+                    }
+                    if resourceIdentity == currentResourceIdentity, image == nil {
+                        cancelledWhileLoading = true
+                    }
                     return
                 } catch {
                     if Task.isCancelled {
@@ -266,6 +277,7 @@ struct CachedRemoteImage: View {
                 }
                 loadedIdentity = identity
                 failed = true
+                cancelledWhileLoading = false
                 await scheduleAutomaticRetry(forResourceIdentity: currentResourceIdentity)
                 return
             }
@@ -290,7 +302,8 @@ struct CachedRemoteImage: View {
     }
 
     private func retryIfNeeded() {
-        guard failed else { return }
+        guard failed || cancelledWhileLoading else { return }
+        cancelledWhileLoading = false
         retryToken += 1
     }
 }
