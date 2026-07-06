@@ -134,12 +134,9 @@ final class DownloadManagerScreenModel {
     }
 
     func replaceRuntimeQueueItems(_ runtimeItems: [DownloadChapterItem], persistedFallback: [DownloadChapterItem]) {
-        let fallbackItems = persistedFallback.filter { item in
-            item.status == .failed || item.status == .pending
-        }
-
         var mergedByKey: [String: DownloadChapterItem] = [:]
-        for item in fallbackItems {
+        mergedByKey.reserveCapacity(persistedFallback.count + runtimeItems.count)
+        for item in persistedFallback where item.status == .failed || item.status == .pending {
             mergedByKey[item.queueIdentity] = item
         }
         for item in runtimeItems {
@@ -156,7 +153,7 @@ final class DownloadManagerScreenModel {
     }
 
     func sync(from library: LibraryViewModel) {
-        let nextQueueItems = library.downloadChapters.filter { $0.status != .completed }
+        let nextQueueItems = Self.activeQueueItems(from: library.downloadChapters)
         if nextQueueItems != queueItems {
             applyQueueSnapshot(nextQueueItems)
         }
@@ -494,6 +491,15 @@ final class DownloadManagerScreenModel {
             ids.insert(group.id)
         }
         return ids
+    }
+
+    private static func activeQueueItems(from items: [DownloadChapterItem]) -> [DownloadChapterItem] {
+        var activeItems: [DownloadChapterItem] = []
+        activeItems.reserveCapacity(items.count)
+        for item in items where item.status != .completed {
+            activeItems.append(item)
+        }
+        return activeItems
     }
 
     private static func makeQueueGroups(from items: [DownloadChapterItem]) -> [DownloadComicGroup] {
