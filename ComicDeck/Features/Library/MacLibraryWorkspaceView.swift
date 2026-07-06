@@ -264,39 +264,21 @@ private struct MacLibraryOverviewView: View {
             )
         }
         .onAppear {
-            reconcileSelection()
-            configureSelectionCommands()
+            reconcileSelection(snapshot: snapshot)
+            configureSelectionCommands(snapshot: snapshot)
         }
-        .onChange(of: recentHistoryIDs) { _, _ in
-            reconcileSelection()
-            configureSelectionCommands()
+        .onChange(of: snapshot.recentHistoryIDs) { _, _ in
+            reconcileSelection(snapshot: snapshot)
+            configureSelectionCommands(snapshot: snapshot)
         }
-        .onChange(of: recentOfflineChapterIDs) { _, _ in
-            reconcileSelection()
-            configureSelectionCommands()
+        .onChange(of: snapshot.recentOfflineChapterIDs) { _, _ in
+            reconcileSelection(snapshot: snapshot)
+            configureSelectionCommands(snapshot: snapshot)
         }
         .onChange(of: selection) { _, _ in
-            configureSelectionCommands()
+            configureSelectionCommands(snapshot: snapshot)
         }
         .focusedSceneValue(\.macSelectionCommandController, selectionCommandController)
-    }
-
-    private var recentHistoryIDs: [ReadingHistoryItem.ID] {
-        overviewSnapshot.recentHistoryIDs
-    }
-
-    private var recentOfflineChapterIDs: [OfflineChapterAsset.ID] {
-        overviewSnapshot.recentOfflineChapterIDs
-    }
-
-    private var selectedHistoryItem: ReadingHistoryItem? {
-        guard case .history(let id) = selection else { return nil }
-        return overviewSnapshot.recentHistory.first { $0.id == id }
-    }
-
-    private var selectedOfflineChapter: OfflineChapterAsset? {
-        guard case .offline(let id) = selection else { return nil }
-        return overviewSnapshot.recentOfflineChapters.first { $0.id == id }
     }
 
     private var overviewColumns: [GridItem] {
@@ -639,8 +621,7 @@ private struct MacLibraryOverviewView: View {
         return provider
     }
 
-    private func reconcileSelection() {
-        let snapshot = overviewSnapshot
+    private func reconcileSelection(snapshot: LibraryOverviewSnapshot) {
         switch selection {
         case .history(let id) where snapshot.recentHistoryIDs.contains(id):
             return
@@ -657,10 +638,11 @@ private struct MacLibraryOverviewView: View {
         }
     }
 
-    private func configureSelectionCommands() {
+    private func configureSelectionCommands(snapshot: LibraryOverviewSnapshot) {
         selectionCommandController.reset()
 
-        if let item = selectedHistoryItem {
+        if case .history(let id) = selection,
+           let item = snapshot.recentHistoryItem(matching: id) {
             selectionCommandController.open = { openRecentReading(item) }
             selectionCommandController.copyTitle = { copyHistoryTitle(item) }
             selectionCommandController.copyID = { copyHistoryID(item) }
@@ -671,7 +653,8 @@ private struct MacLibraryOverviewView: View {
             selectionCommandController.canCopyTitle = true
             selectionCommandController.canCopyID = true
             selectionCommandController.canExport = true
-        } else if let item = selectedOfflineChapter {
+        } else if case .offline(let id) = selection,
+                  let item = snapshot.recentOfflineChapter(matching: id) {
             selectionCommandController.open = { openOfflineChapter(item) }
             selectionCommandController.copyTitle = { copyOfflineTitle(item) }
             selectionCommandController.copyID = { copyOfflineID(item) }
