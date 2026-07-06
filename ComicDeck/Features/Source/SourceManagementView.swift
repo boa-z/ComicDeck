@@ -41,6 +41,66 @@ struct SourceManagementView: View {
         let updateVersion: String?
     }
 
+    private struct SourceManagementSnapshot {
+        let installedRows: [InstalledSourceRowSnapshot]
+        let selectedRows: [InstalledSourceRowSnapshot]
+        let selectedUpdatableRows: [InstalledSourceRowSnapshot]
+        let visibleSourceKeys: Set<String>
+
+        var selectedUpdatableCount: Int {
+            selectedUpdatableRows.count
+        }
+
+        init(
+            installedSources: [InstalledSource],
+            selectedSourceKey: String?,
+            availableUpdates: [String: String],
+            selectedKeys: Set<String>,
+            normalizedQuery: String
+        ) {
+            var rows: [InstalledSourceRowSnapshot] = []
+            var selectedRows: [InstalledSourceRowSnapshot] = []
+            var selectedUpdatableRows: [InstalledSourceRowSnapshot] = []
+            var visibleKeys = Set<String>()
+            rows.reserveCapacity(installedSources.count)
+            visibleKeys.reserveCapacity(installedSources.count)
+
+            for source in installedSources {
+                guard Self.matches(source.name, normalizedQuery: normalizedQuery) ||
+                    Self.matches(source.key, normalizedQuery: normalizedQuery)
+                else {
+                    continue
+                }
+
+                let row = InstalledSourceRowSnapshot(
+                    id: source.key,
+                    source: source,
+                    isCurrentSource: selectedSourceKey == source.key,
+                    isBatchSelected: selectedKeys.contains(source.key),
+                    updateVersion: availableUpdates[source.key]
+                )
+                rows.append(row)
+                visibleKeys.insert(source.key)
+                if row.isBatchSelected {
+                    selectedRows.append(row)
+                    if row.updateVersion != nil {
+                        selectedUpdatableRows.append(row)
+                    }
+                }
+            }
+
+            self.installedRows = rows
+            self.selectedRows = selectedRows
+            self.selectedUpdatableRows = selectedUpdatableRows
+            self.visibleSourceKeys = visibleKeys
+        }
+
+        private static func matches(_ candidate: String, normalizedQuery keyword: String) -> Bool {
+            guard !keyword.isEmpty else { return true }
+            return candidate.lowercased().contains(keyword)
+        }
+    }
+
     @Bindable var vm: ReaderViewModel
     @Bindable var sourceManager: SourceManagerViewModel
     @State private var query = ""
@@ -51,32 +111,15 @@ struct SourceManagementView: View {
     @State private var showBatchUpdateConfirm = false
     @State private var showBatchDeleteConfirm = false
 
-    private var installedSourceRows: [InstalledSourceRowSnapshot] {
-        let keyword = normalizedQuery
-        return sourceManager.installedSources.compactMap { source in
-            guard matchesKeyword(source.name, normalizedQuery: keyword) ||
-                matchesKeyword(source.key, normalizedQuery: keyword)
-            else {
-                return nil
-            }
-            return InstalledSourceRowSnapshot(
-                id: source.key,
-                source: source,
-                isCurrentSource: sourceManager.selectedSourceKey == source.key,
-                isBatchSelected: selectedSourceKeys.contains(source.key),
-                updateVersion: sourceManager.availableSourceUpdates[source.key]
-            )
-        }
-    }
-
     private var updateCount: Int {
         sourceManager.availableSourceUpdates.count
     }
 
     var body: some View {
-        let rows = installedSourceRows
-        let selectedRows = selectedInstalledRows(from: rows)
-        let selectedUpdatableCount = selectedRows.lazy.filter { $0.updateVersion != nil }.count
+        let snapshot = makeSnapshot()
+        let rows = snapshot.installedRows
+        let selectedRows = snapshot.selectedRows
+        let selectedUpdatableCount = snapshot.selectedUpdatableCount
 
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
@@ -125,7 +168,7 @@ struct SourceManagementView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if isSelecting {
-                selectionBar(rows: rows, selectedRows: selectedRows, selectedUpdatableCount: selectedUpdatableCount)
+                selectionBar(snapshot: snapshot)
                     .padding(.horizontal, 12)
                     .padding(.top, 6)
                     .padding(.bottom, 8)
@@ -216,13 +259,9 @@ struct SourceManagementView: View {
         }
     }
 
-    private func selectionBar(
-        rows: [InstalledSourceRowSnapshot],
-        selectedRows: [InstalledSourceRowSnapshot],
-        selectedUpdatableCount: Int
-    ) -> some View {
+    private func selectionBar(snapshot: SourceManagementSnapshot) -> some View {
         HStack(spacing: 10) {
-            Text(AppLocalization.format("source.management.selected", "%lld selected", Int64(selectedRows.count)))
+            Text(AppLocalization.format("source.management.selected", "%lld selected", Int64(snapshot.selectedRows.count)))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .padding(.horizontal, 10)
@@ -231,11 +270,11 @@ struct SourceManagementView: View {
 
             Spacer(minLength: 0)
 
-            Button(selectedRows.count == rows.count ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("source.management.select_all", "Select All")) {
-                if selectedRows.count == rows.count {
+            Button(snapshot.selectedRows.count == snapshot.installedRows.count ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("source.management.select_all", "Select All")) {
+                if snapshot.selectedRows.count == snapshot.installedRows.count {
                     selectedSourceKeys.removeAll()
                 } else {
-                    selectedSourceKeys = Set(rows.map(\.source.key))
+                    selectedSourceKeys = snapshot.visibleSourceKeys
                 }
             }
             .font(.subheadline.weight(.semibold))
@@ -260,7 +299,7 @@ struct SourceManagementView: View {
             }
             .controlSize(.small)
             .buttonStyle(.bordered)
-            .disabled(selectedUpdatableCount == 0 || batchWorking)
+            .disabled(snapshot.selectedUpdatableCount == 0 || batchWorking)
 
             Button(role: .destructive) {
                 showBatchDeleteConfirm = true
@@ -280,7 +319,7 @@ struct SourceManagementView: View {
             }
             .controlSize(.small)
             .buttonStyle(.borderedProminent)
-            .disabled(selectedRows.isEmpty || batchWorking)
+            .disabled(snapshot.selectedRows.isEmpty || batchWorking)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -398,9 +437,7 @@ struct SourceManagementView: View {
 
     private func updateSelectedSources() async {
         guard !batchWorking else { return }
-        let targets = selectedInstalledRows(from: installedSourceRows)
-            .filter { $0.updateVersion != nil }
-            .map(\.source)
+        let targets = makeSnapshot().selectedUpdatableRows.map(\.source)
         guard !targets.isEmpty else { return }
         batchWorking = true
         batchProgressText = AppLocalization.text("source.action.preparing", "Preparing...")
@@ -418,7 +455,7 @@ struct SourceManagementView: View {
 
     private func deleteSelectedSources() async {
         guard !batchWorking else { return }
-        let targets = selectedInstalledRows(from: installedSourceRows).map(\.source)
+        let targets = makeSnapshot().selectedRows.map(\.source)
         guard !targets.isEmpty else { return }
         batchWorking = true
         batchProgressText = AppLocalization.text("source.action.preparing", "Preparing...")
@@ -475,13 +512,14 @@ struct SourceManagementView: View {
         query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    private func matchesKeyword(_ candidate: String, normalizedQuery keyword: String) -> Bool {
-        guard !keyword.isEmpty else { return true }
-        return candidate.lowercased().contains(keyword)
-    }
-
-    private func selectedInstalledRows(from rows: [InstalledSourceRowSnapshot]) -> [InstalledSourceRowSnapshot] {
-        rows.filter(\.isBatchSelected)
+    private func makeSnapshot() -> SourceManagementSnapshot {
+        SourceManagementSnapshot(
+            installedSources: sourceManager.installedSources,
+            selectedSourceKey: sourceManager.selectedSourceKey,
+            availableUpdates: sourceManager.availableSourceUpdates,
+            selectedKeys: selectedSourceKeys,
+            normalizedQuery: normalizedQuery
+        )
     }
 }
 

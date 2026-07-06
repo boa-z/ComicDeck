@@ -49,7 +49,7 @@ struct MacSourceWorkspaceView: View {
             showInstalledOnly: Bool,
             resolvedKey: (SourceConfigIndexItem) -> String
         ) {
-            let installedKeys = Set(installedSources.map(\.key))
+            let installedKeys = Self.installedKeySet(from: installedSources)
             var installedRows: [InstalledSourceRowSnapshot] = []
             installedRows.reserveCapacity(installedSources.count)
             var selectedInstalledSources: [InstalledSource] = []
@@ -112,6 +112,15 @@ struct MacSourceWorkspaceView: View {
         private static func matches(_ candidate: String, normalizedQuery keyword: String) -> Bool {
             guard !keyword.isEmpty else { return true }
             return candidate.lowercased().contains(keyword)
+        }
+
+        private static func installedKeySet(from sources: [InstalledSource]) -> Set<String> {
+            var keys = Set<String>()
+            keys.reserveCapacity(sources.count)
+            for source in sources {
+                keys.insert(source.key)
+            }
+            return keys
         }
     }
 
@@ -526,7 +535,7 @@ struct MacSourceWorkspaceView: View {
     }
 
     private func remoteRow(for key: String) -> RemoteSourceRowSnapshot? {
-        let installedKeys = Set(sourceManager.installedSources.map(\.key))
+        let installedKeys = installedSourceKeySet()
         guard let item = sourceManager.remoteSources.first(where: { sourceManager.resolvedKey(for: $0) == key }) else {
             return nil
         }
@@ -538,6 +547,15 @@ struct MacSourceWorkspaceView: View {
             isInstalled: isInstalled,
             updateVersion: sourceManager.availableSourceUpdates[key]
         )
+    }
+
+    private func installedSourceKeySet() -> Set<String> {
+        var keys = Set<String>()
+        keys.reserveCapacity(sourceManager.installedSources.count)
+        for source in sourceManager.installedSources {
+            keys.insert(source.key)
+        }
+        return keys
     }
 
     private func useInstalledSource(_ source: InstalledSource) {
