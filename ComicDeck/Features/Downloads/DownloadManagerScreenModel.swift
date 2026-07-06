@@ -106,35 +106,31 @@ final class DownloadManagerScreenModel {
     var showClearConfirm = false
     var showDeleteSelectionConfirm = false
 
+    @ObservationIgnored private var queueItemIDs: Set<Int64> = []
+    @ObservationIgnored private var queueGroupIDs: Set<String> = []
+    @ObservationIgnored private var offlineItemIDs: Set<Int64> = []
+    @ObservationIgnored private var offlineGroupIDs: Set<String> = []
+
     func applyQueueUpdate(_ item: DownloadChapterItem?) {
         guard let item else { return }
 
-        queueItems.removeAll {
+        var nextQueueItems = queueItems
+        nextQueueItems.removeAll {
             $0.sourceKey == item.sourceKey &&
             $0.comicID == item.comicID &&
             $0.chapterID == item.chapterID
         }
 
         if item.status != .completed {
-            queueItems.insert(item, at: 0)
+            nextQueueItems.insert(item, at: 0)
         }
 
-        queueItems.sort { lhs, rhs in
+        nextQueueItems.sort { lhs, rhs in
             if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
             return lhs.id > rhs.id
         }
 
-        refreshQueueCounts()
-        queueGroups = Self.makeQueueGroups(from: queueItems)
-        let validQueueGroupIDs = Set(queueGroups.map(\.id))
-        expandedQueueGroupIDs = expandedQueueGroupIDs.intersection(validQueueGroupIDs)
-        if expandedQueueGroupIDs.isEmpty {
-            expandedQueueGroupIDs = validQueueGroupIDs
-        }
-        selectedQueueIDs = selectedQueueIDs.intersection(Set(queueItems.map(\.id)))
-        if selectedCount == 0 {
-            isSelecting = false
-        }
+        applyQueueSnapshot(nextQueueItems)
     }
 
     func replaceRuntimeQueueItems(_ runtimeItems: [DownloadChapterItem], persistedFallback: [DownloadChapterItem]) {
@@ -156,52 +152,18 @@ final class DownloadManagerScreenModel {
         }
 
         guard nextQueueItems != queueItems else { return }
-        queueItems = nextQueueItems
-        refreshQueueCounts()
-        let nextQueueGroups = Self.makeQueueGroups(from: nextQueueItems)
-        queueGroups = nextQueueGroups
-        let validQueueGroupIDs = Set(nextQueueGroups.map(\.id))
-        expandedQueueGroupIDs = expandedQueueGroupIDs.intersection(validQueueGroupIDs)
-        if expandedQueueGroupIDs.isEmpty {
-            expandedQueueGroupIDs = validQueueGroupIDs
-        }
-        selectedQueueIDs = selectedQueueIDs.intersection(Set(nextQueueItems.map(\.id)))
-        if selectedCount == 0 {
-            isSelecting = false
-        }
+        applyQueueSnapshot(nextQueueItems)
     }
 
     func sync(from library: LibraryViewModel) {
         let nextQueueItems = library.downloadChapters.filter { $0.status != .completed }
         if nextQueueItems != queueItems {
-            queueItems = nextQueueItems
-            refreshQueueCounts()
-            let nextQueueGroups = Self.makeQueueGroups(from: nextQueueItems)
-            queueGroups = nextQueueGroups
-            let validQueueGroupIDs = Set(nextQueueGroups.map(\.id))
-            expandedQueueGroupIDs = expandedQueueGroupIDs.intersection(validQueueGroupIDs)
-            if expandedQueueGroupIDs.isEmpty {
-                expandedQueueGroupIDs = validQueueGroupIDs
-            }
-            selectedQueueIDs = selectedQueueIDs.intersection(Set(nextQueueItems.map(\.id)))
+            applyQueueSnapshot(nextQueueItems)
         }
 
         let nextOfflineItems = library.offlineChapters
         if nextOfflineItems != offlineItems {
-            offlineItems = nextOfflineItems
-            refreshOfflineCounts()
-            let nextOfflineGroups = Self.makeOfflineGroups(from: nextOfflineItems)
-            offlineGroups = nextOfflineGroups
-            let validOfflineGroupIDs = Set(nextOfflineGroups.map(\.id))
-            expandedOfflineGroupIDs = expandedOfflineGroupIDs.intersection(validOfflineGroupIDs)
-            if expandedOfflineGroupIDs.isEmpty {
-                expandedOfflineGroupIDs = validOfflineGroupIDs
-            }
-            selectedOfflineIDs = selectedOfflineIDs.intersection(Set(nextOfflineItems.map(\.id)))
-        }
-
-        if selectedCount == 0 {
-            isSelecting = false
+            applyOfflineSnapshot(nextOfflineItems)
         }
     }
 
@@ -241,10 +203,10 @@ final class DownloadManagerScreenModel {
 
         switch workspace {
         case .queue:
-            let targets = queueItems.filter { selectedQueueIDs.contains($0.id) }
+            let targets = selectedQueueItems()
             await library.deleteDownloads(targets)
         case .offline:
-            let targets = offlineItems.filter { selectedOfflineIDs.contains($0.id) }
+            let targets = selectedOfflineItems()
             await library.deleteOfflineChapters(targets)
         }
 
@@ -262,7 +224,7 @@ final class DownloadManagerScreenModel {
     }
 
     func selectedOfflineItems() -> [OfflineChapterAsset] {
-        offlineItems.filter { selectedOfflineIDs.contains($0.id) }
+        selectedOfflineItemsSnapshot()
     }
 
     func toggleSelectionMode() {
@@ -283,9 +245,9 @@ final class DownloadManagerScreenModel {
         isSelecting = true
         switch workspace {
         case .queue:
-            selectedQueueIDs = Set(queueItems.map(\.id))
+            selectedQueueIDs = queueItemIDs
         case .offline:
-            selectedOfflineIDs = Set(offlineItems.map(\.id))
+            selectedOfflineIDs = offlineItemIDs
         }
     }
 
@@ -392,6 +354,66 @@ final class DownloadManagerScreenModel {
         }
     }
 
+    private func applyQueueSnapshot(_ nextQueueItems: [DownloadChapterItem]) {
+        queueItems = nextQueueItems
+        refreshQueueCounts()
+
+        let nextQueueGroups = Self.makeQueueGroups(from: nextQueueItems)
+        queueGroups = nextQueueGroups
+        queueItemIDs = Self.queueItemIDSet(from: nextQueueItems)
+        queueGroupIDs = Self.queueGroupIDSet(from: nextQueueGroups)
+
+        expandedQueueGroupIDs.formIntersection(queueGroupIDs)
+        if expandedQueueGroupIDs.isEmpty {
+            expandedQueueGroupIDs = queueGroupIDs
+        }
+        selectedQueueIDs.formIntersection(queueItemIDs)
+        updateSelectionMode()
+    }
+
+    private func applyOfflineSnapshot(_ nextOfflineItems: [OfflineChapterAsset]) {
+        offlineItems = nextOfflineItems
+        refreshOfflineCounts()
+
+        let nextOfflineGroups = Self.makeOfflineGroups(from: nextOfflineItems)
+        offlineGroups = nextOfflineGroups
+        offlineItemIDs = Self.offlineItemIDSet(from: nextOfflineItems)
+        offlineGroupIDs = Self.offlineGroupIDSet(from: nextOfflineGroups)
+
+        expandedOfflineGroupIDs.formIntersection(offlineGroupIDs)
+        if expandedOfflineGroupIDs.isEmpty {
+            expandedOfflineGroupIDs = offlineGroupIDs
+        }
+        selectedOfflineIDs.formIntersection(offlineItemIDs)
+        updateSelectionMode()
+    }
+
+    private func updateSelectionMode() {
+        if selectedCount == 0 {
+            isSelecting = false
+        }
+    }
+
+    private func selectedQueueItems() -> [DownloadChapterItem] {
+        guard !selectedQueueIDs.isEmpty else { return [] }
+        var output: [DownloadChapterItem] = []
+        output.reserveCapacity(selectedQueueIDs.count)
+        for item in queueItems where selectedQueueIDs.contains(item.id) {
+            output.append(item)
+        }
+        return output
+    }
+
+    private func selectedOfflineItemsSnapshot() -> [OfflineChapterAsset] {
+        guard !selectedOfflineIDs.isEmpty else { return [] }
+        var output: [OfflineChapterAsset] = []
+        output.reserveCapacity(selectedOfflineIDs.count)
+        for item in offlineItems where selectedOfflineIDs.contains(item.id) {
+            output.append(item)
+        }
+        return output
+    }
+
     private func refreshQueueCounts() {
         var pending = 0
         var downloading = 0
@@ -426,6 +448,42 @@ final class DownloadManagerScreenModel {
         }
         offlineCompleteCount = complete
         offlineIncompleteCount = incomplete
+    }
+
+    private static func queueItemIDSet(from items: [DownloadChapterItem]) -> Set<Int64> {
+        var ids = Set<Int64>()
+        ids.reserveCapacity(items.count)
+        for item in items {
+            ids.insert(item.id)
+        }
+        return ids
+    }
+
+    private static func offlineItemIDSet(from items: [OfflineChapterAsset]) -> Set<Int64> {
+        var ids = Set<Int64>()
+        ids.reserveCapacity(items.count)
+        for item in items {
+            ids.insert(item.id)
+        }
+        return ids
+    }
+
+    private static func queueGroupIDSet(from groups: [DownloadComicGroup]) -> Set<String> {
+        var ids = Set<String>()
+        ids.reserveCapacity(groups.count)
+        for group in groups {
+            ids.insert(group.id)
+        }
+        return ids
+    }
+
+    private static func offlineGroupIDSet(from groups: [OfflineComicGroup]) -> Set<String> {
+        var ids = Set<String>()
+        ids.reserveCapacity(groups.count)
+        for group in groups {
+            ids.insert(group.id)
+        }
+        return ids
     }
 
     private static func makeQueueGroups(from items: [DownloadChapterItem]) -> [DownloadComicGroup] {
