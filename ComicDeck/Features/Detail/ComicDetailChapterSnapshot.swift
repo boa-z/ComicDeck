@@ -31,15 +31,33 @@ struct ComicDetailChapterSnapshot: Hashable {
         offlineChapters: [OfflineChapterAsset],
         latestHistory: ReadingHistoryItem?
     ) {
-        let matchingOfflineChapters = offlineChapters.filter {
-            $0.sourceKey == sourceKey && $0.comicID == comicID
-        }
-        let offlineByChapterID = Dictionary(
-            matchingOfflineChapters.map { ($0.chapterID, $0) },
-            uniquingKeysWith: { existing, replacement in
-                replacement.updatedAt > existing.updatedAt ? replacement : existing
+        var matchingOfflineChapters: [OfflineChapterAsset] = []
+        var completedOfflineChapters: [OfflineChapterAsset] = []
+        var offlineByChapterID: [String: OfflineChapterAsset] = [:]
+        matchingOfflineChapters.reserveCapacity(offlineChapters.count)
+        completedOfflineChapters.reserveCapacity(offlineChapters.count)
+        offlineByChapterID.reserveCapacity(offlineChapters.count)
+
+        for offlineChapter in offlineChapters where offlineChapter.sourceKey == sourceKey && offlineChapter.comicID == comicID {
+            matchingOfflineChapters.append(offlineChapter)
+            if offlineChapter.integrityStatus == .complete {
+                completedOfflineChapters.append(offlineChapter)
             }
-        )
+            if let existing = offlineByChapterID[offlineChapter.chapterID] {
+                if offlineChapter.updatedAt > existing.updatedAt {
+                    offlineByChapterID[offlineChapter.chapterID] = offlineChapter
+                }
+            } else {
+                offlineByChapterID[offlineChapter.chapterID] = offlineChapter
+            }
+        }
+
+        var chapterOrder: [String: Int] = [:]
+        chapterOrder.reserveCapacity(detail.chapters.count)
+        for (index, chapter) in detail.chapters.enumerated() {
+            chapterOrder[chapter.id] = index
+        }
+
         let downloadSnapshot = ComicChapterDownloadSnapshot(
             sourceKey: sourceKey,
             comicID: comicID,
@@ -56,9 +74,9 @@ struct ComicDetailChapterSnapshot: Hashable {
         )
         self.firstChapter = firstChapter
         self.readTarget = Self.readTarget(
-            chapters: detail.chapters,
             firstChapter: firstChapter,
-            offlineChapters: matchingOfflineChapters
+            chapterOrder: chapterOrder,
+            completedOfflineChapters: completedOfflineChapters
         )
         self.continueTarget = Self.continueTarget(
             chapters: detail.chapters,
@@ -82,20 +100,17 @@ struct ComicDetailChapterSnapshot: Hashable {
     }
 
     private static func readTarget(
-        chapters: [ComicChapter],
         firstChapter: ComicDetailChapterTarget,
-        offlineChapters: [OfflineChapterAsset]
+        chapterOrder: [String: Int],
+        completedOfflineChapters: [OfflineChapterAsset]
     ) -> ComicDetailChapterTarget {
-        let chapterOrder = Dictionary(uniqueKeysWithValues: chapters.enumerated().map { ($1.id, $0) })
-        let completed = offlineChapters
-            .filter { $0.integrityStatus == .complete }
-            .sorted { lhs, rhs in
-                let leftIndex = chapterOrder[lhs.chapterID] ?? Int.max
-                let rightIndex = chapterOrder[rhs.chapterID] ?? Int.max
-                if leftIndex != rightIndex { return leftIndex < rightIndex }
-                if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
-                return lhs.chapterID.localizedCompare(rhs.chapterID) == .orderedAscending
-            }
+        let completed = completedOfflineChapters.sorted { lhs, rhs in
+            let leftIndex = chapterOrder[lhs.chapterID] ?? Int.max
+            let rightIndex = chapterOrder[rhs.chapterID] ?? Int.max
+            if leftIndex != rightIndex { return leftIndex < rightIndex }
+            if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt < rhs.updatedAt }
+            return lhs.chapterID.localizedCompare(rhs.chapterID) == .orderedAscending
+        }
 
         guard let preferred = completed.first else {
             return firstChapter
@@ -171,10 +186,17 @@ struct ComicDetailChapterSnapshot: Hashable {
         descending: Bool
     ) -> [ComicChapter] {
         let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        var items = chapters.filter { chapter in
-            guard !normalized.isEmpty else { return true }
-            return chapter.id.lowercased().contains(normalized) ||
-                chapter.title.lowercased().contains(normalized)
+        guard !normalized.isEmpty else {
+            return descending ? Array(chapters.reversed()) : chapters
+        }
+
+        var items: [ComicChapter] = []
+        items.reserveCapacity(chapters.count)
+        for chapter in chapters {
+            if chapter.id.lowercased().contains(normalized) ||
+                chapter.title.lowercased().contains(normalized) {
+                items.append(chapter)
+            }
         }
         if descending {
             items.reverse()
