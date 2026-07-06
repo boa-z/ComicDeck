@@ -33,20 +33,6 @@ struct LibraryBookmarksSnapshot: Hashable {
             selectedMemberships = nil
         }
 
-        let shelfFiltered = selectedMemberships.map { keys in
-            favorites.filter { keys.contains(Self.bookmarkKey(for: $0)) }
-        } ?? favorites
-
-        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmedSearch.isEmpty {
-            visibleBookmarks = shelfFiltered
-        } else {
-            visibleBookmarks = shelfFiltered.filter { favorite in
-                favorite.title.localizedCaseInsensitiveContains(trimmedSearch) ||
-                    favorite.sourceKey.localizedCaseInsensitiveContains(trimmedSearch)
-            }
-        }
-
         var shelfNamesByBookmarkKey: [String: [String]] = [:]
         for category in categories {
             guard let memberKeys = memberships[category.id], !memberKeys.isEmpty else {
@@ -57,15 +43,29 @@ struct LibraryBookmarksSnapshot: Hashable {
             }
         }
 
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         var rows: [LibraryBookmarkRowSnapshot] = []
+        var bookmarks: [FavoriteComic] = []
         var keys: [String] = []
         var selectedBookmarks: [FavoriteComic] = []
-        rows.reserveCapacity(visibleBookmarks.count)
-        keys.reserveCapacity(visibleBookmarks.count)
-        for favorite in visibleBookmarks {
+        rows.reserveCapacity(favorites.count)
+        bookmarks.reserveCapacity(favorites.count)
+        keys.reserveCapacity(favorites.count)
+
+        for favorite in favorites {
             let key = Self.bookmarkKey(for: favorite)
+            if let selectedMemberships, !selectedMemberships.contains(key) {
+                continue
+            }
+            if !trimmedSearch.isEmpty,
+               !favorite.title.localizedCaseInsensitiveContains(trimmedSearch),
+               !favorite.sourceKey.localizedCaseInsensitiveContains(trimmedSearch) {
+                continue
+            }
+
             let shelfNames = shelfNamesByBookmarkKey[key] ?? []
             let isSelected = selectedKeys.contains(key)
+            bookmarks.append(favorite)
             rows.append(
                 LibraryBookmarkRowSnapshot(
                     id: key,
@@ -80,6 +80,7 @@ struct LibraryBookmarksSnapshot: Hashable {
             }
         }
 
+        visibleBookmarks = bookmarks
         visibleRows = rows
         visibleBookmarkKeys = keys
         selectedVisibleBookmarks = selectedBookmarks
