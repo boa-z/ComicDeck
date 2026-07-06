@@ -12,11 +12,16 @@ struct MacTrackerSubscriptionListSnapshot {
             visibleRows = rows
             return
         }
-        visibleRows = rows.filter { row in
-            row.entry.title.lowercased().contains(keyword)
+        var filteredRows: [TrackerSubscriptionRow] = []
+        filteredRows.reserveCapacity(rows.count)
+        for row in rows {
+            if row.entry.title.lowercased().contains(keyword)
                 || (row.entry.subtitle?.lowercased().contains(keyword) ?? false)
-                || row.localGroups.contains { $0.title.lowercased().contains(keyword) }
+                || row.localGroups.contains(where: { $0.title.lowercased().contains(keyword) }) {
+                filteredRows.append(row)
+            }
         }
+        visibleRows = filteredRows
     }
 }
 #endif

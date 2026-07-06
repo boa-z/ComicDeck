@@ -10,8 +10,10 @@ struct TrackerSubscriptionDetailSnapshot {
         library: LibraryViewModel
     ) -> TrackerSubscriptionDetailSnapshot {
         let localIndex = TrackerSubscriptionLocalComicIndex(library: library)
-        let groups = bindingGroups.compactMap { bindings -> TrackerSubscriptionLocalGroupSnapshot? in
-            guard let providerBinding = bindings[provider] else { return nil }
+        var groups: [TrackerSubscriptionLocalGroupSnapshot] = []
+        groups.reserveCapacity(bindingGroups.count)
+        for bindings in bindingGroups {
+            guard let providerBinding = bindings[provider] else { continue }
             let localComic = localIndex.comic(for: providerBinding)
             let localGroup = TrackerSubscriptionLocalGroup(
                 sourceKey: providerBinding.sourceKey,
@@ -21,11 +23,12 @@ struct TrackerSubscriptionDetailSnapshot {
                 bindings: bindings
             )
             let sortedBindings = TrackerProvider.mangaListWorkspaceProviders.compactMap { bindings[$0] }
-            return TrackerSubscriptionLocalGroupSnapshot(
+            let snapshot = TrackerSubscriptionLocalGroupSnapshot(
                 group: localGroup,
                 localHistory: localIndex.history(for: providerBinding),
                 sortedBindings: sortedBindings
             )
+            groups.append(snapshot)
         }
         return TrackerSubscriptionDetailSnapshot(localGroups: groups)
     }
@@ -45,40 +48,46 @@ private struct TrackerSubscriptionLocalComicIndex {
 
     @MainActor
     init(library: LibraryViewModel) {
-        favoriteComics = Dictionary(
-            library.favorites.map { favorite in
-                (
-                    Self.key(sourceKey: favorite.sourceKey, comicID: favorite.id),
-                    ComicSummary(
-                        id: favorite.id,
-                        sourceKey: favorite.sourceKey,
-                        title: favorite.title,
-                        coverURL: favorite.coverURL
-                    )
+        var favoriteComics: [String: ComicSummary] = [:]
+        favoriteComics.reserveCapacity(library.favorites.count)
+        for favorite in library.favorites {
+            let key = Self.key(sourceKey: favorite.sourceKey, comicID: favorite.id)
+            if favoriteComics[key] == nil {
+                favoriteComics[key] = ComicSummary(
+                    id: favorite.id,
+                    sourceKey: favorite.sourceKey,
+                    title: favorite.title,
+                    coverURL: favorite.coverURL
                 )
-            },
-            uniquingKeysWith: { current, _ in current }
-        )
-        historyItems = Dictionary(
-            library.history.map { history in
-                (Self.key(sourceKey: history.sourceKey, comicID: history.comicID), history)
-            },
-            uniquingKeysWith: { current, _ in current }
-        )
-        offlineComics = Dictionary(
-            library.offlineChapters.map { offline in
-                (
-                    Self.key(sourceKey: offline.sourceKey, comicID: offline.comicID),
-                    ComicSummary(
-                        id: offline.comicID,
-                        sourceKey: offline.sourceKey,
-                        title: offline.comicTitle,
-                        coverURL: offline.coverURL
-                    )
+            }
+        }
+
+        var historyItems: [String: ReadingHistoryItem] = [:]
+        historyItems.reserveCapacity(library.history.count)
+        for history in library.history {
+            let key = Self.key(sourceKey: history.sourceKey, comicID: history.comicID)
+            if historyItems[key] == nil {
+                historyItems[key] = history
+            }
+        }
+
+        var offlineComics: [String: ComicSummary] = [:]
+        offlineComics.reserveCapacity(library.offlineChapters.count)
+        for offline in library.offlineChapters {
+            let key = Self.key(sourceKey: offline.sourceKey, comicID: offline.comicID)
+            if offlineComics[key] == nil {
+                offlineComics[key] = ComicSummary(
+                    id: offline.comicID,
+                    sourceKey: offline.sourceKey,
+                    title: offline.comicTitle,
+                    coverURL: offline.coverURL
                 )
-            },
-            uniquingKeysWith: { current, _ in current }
-        )
+            }
+        }
+
+        self.favoriteComics = favoriteComics
+        self.historyItems = historyItems
+        self.offlineComics = offlineComics
     }
 
     func comic(for binding: TrackerBinding) -> ComicSummary? {
