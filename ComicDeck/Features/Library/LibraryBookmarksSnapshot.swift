@@ -1,9 +1,21 @@
 import Foundation
 
+struct LibraryBookmarkRowSnapshot: Hashable, Identifiable {
+    let id: String
+    let favorite: FavoriteComic
+    let subtitle: String
+    let isSelected: Bool
+}
+
 struct LibraryBookmarksSnapshot: Hashable {
+    let visibleRows: [LibraryBookmarkRowSnapshot]
     let visibleBookmarks: [FavoriteComic]
     let visibleBookmarkKeys: [String]
-    let shelfSubtitleByBookmarkKey: [String: String]
+    let selectedVisibleBookmarks: [FavoriteComic]
+
+    var selectedVisibleCount: Int {
+        selectedVisibleBookmarks.count
+    }
 
     init(
         favorites: [FavoriteComic],
@@ -11,6 +23,7 @@ struct LibraryBookmarksSnapshot: Hashable {
         memberships: [Int64: Set<String>],
         selectedShelfID: Int64?,
         searchText: String,
+        selectedKeys: Set<String> = [],
         defaultShelfTitle: String
     ) {
         let selectedMemberships: Set<String>?
@@ -34,8 +47,6 @@ struct LibraryBookmarksSnapshot: Hashable {
             }
         }
 
-        visibleBookmarkKeys = visibleBookmarks.map(Self.bookmarkKey(for:))
-
         var shelfNamesByBookmarkKey: [String: [String]] = [:]
         for category in categories {
             guard let memberKeys = memberships[category.id], !memberKeys.isEmpty else {
@@ -46,17 +57,32 @@ struct LibraryBookmarksSnapshot: Hashable {
             }
         }
 
-        var subtitles: [String: String] = [:]
+        var rows: [LibraryBookmarkRowSnapshot] = []
+        var keys: [String] = []
+        var selectedBookmarks: [FavoriteComic] = []
+        rows.reserveCapacity(visibleBookmarks.count)
+        keys.reserveCapacity(visibleBookmarks.count)
         for favorite in visibleBookmarks {
             let key = Self.bookmarkKey(for: favorite)
             let shelfNames = shelfNamesByBookmarkKey[key] ?? []
-            subtitles[key] = shelfNames.isEmpty ? defaultShelfTitle : shelfNames.prefix(2).joined(separator: " · ")
+            let isSelected = selectedKeys.contains(key)
+            rows.append(
+                LibraryBookmarkRowSnapshot(
+                    id: key,
+                    favorite: favorite,
+                    subtitle: shelfNames.isEmpty ? defaultShelfTitle : shelfNames.prefix(2).joined(separator: " · "),
+                    isSelected: isSelected
+                )
+            )
+            keys.append(key)
+            if isSelected {
+                selectedBookmarks.append(favorite)
+            }
         }
-        shelfSubtitleByBookmarkKey = subtitles
-    }
 
-    func subtitle(for favorite: FavoriteComic) -> String {
-        shelfSubtitleByBookmarkKey[Self.bookmarkKey(for: favorite)] ?? ""
+        visibleRows = rows
+        visibleBookmarkKeys = keys
+        selectedVisibleBookmarks = selectedBookmarks
     }
 
     static func bookmarkKey(for favorite: FavoriteComic) -> String {
