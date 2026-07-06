@@ -21,19 +21,20 @@ struct LibraryHomeView: View {
     @State private var selectedDetailItem: ComicSummary?
     @State private var pendingDetailReadRoute: ReaderLaunchContext?
 
-    private var recentHistory: [ReadingHistoryItem] {
-        Array(library.history.prefix(6))
-    }
-
     var body: some View {
-        let offlineSnapshot = OfflineChapterPreviewBuilder.snapshot(from: library.offlineChapters, limit: 3)
+        let snapshot = LibraryOverviewSnapshot(
+            history: library.history,
+            offlineChapters: library.offlineChapters,
+            historyLimit: 6,
+            offlineLimit: 3
+        )
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppSpacing.section) {
-                    workspacesSection(readyOfflineCount: offlineSnapshot.readyCount)
-                    recentReadingSection
-                    if !offlineSnapshot.recentChapters.isEmpty {
-                        downloadsSnapshotSection(recentCompletedDownloads: offlineSnapshot.recentChapters)
+                    workspacesSection(readyOfflineCount: snapshot.readyOfflineCount)
+                    recentReadingSection(recentHistory: snapshot.recentHistory)
+                    if !snapshot.recentOfflineChapters.isEmpty {
+                        downloadsSnapshotSection(recentCompletedDownloads: snapshot.recentOfflineChapters)
                     }
                 }
                 .padding(.horizontal, AppSpacing.screen)
@@ -138,7 +139,7 @@ struct LibraryHomeView: View {
         }
     }
 
-    private var recentReadingSection: some View {
+    private func recentReadingSection(recentHistory: [ReadingHistoryItem]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             HStack {
                 Text(AppLocalization.text("library.recent.title", "Recent Activity"))

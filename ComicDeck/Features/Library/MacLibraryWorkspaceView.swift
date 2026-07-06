@@ -80,8 +80,14 @@ struct MacLibraryWorkspaceView: View {
     let onTagSearchRequested: (String, String) -> Void
 
     var body: some View {
+        let snapshot = LibraryOverviewSnapshot(
+            history: library.history,
+            offlineChapters: library.offlineChapters,
+            historyLimit: 0,
+            offlineLimit: 0
+        )
         HStack(spacing: 0) {
-            sidebar
+            sidebar(readyOfflineCount: snapshot.readyOfflineCount)
                 .frame(width: 260)
 
             Divider()
@@ -93,7 +99,7 @@ struct MacLibraryWorkspaceView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var sidebar: some View {
+    private func sidebar(readyOfflineCount: Int) -> some View {
         List(selection: $selection) {
             Section {
                 sidebarRow(.overview, badge: nil)
@@ -201,9 +207,6 @@ struct MacLibraryWorkspaceView: View {
         }
     }
 
-    private var readyOfflineCount: Int {
-        library.offlineChapters.lazy.filter { $0.integrityStatus == .complete }.count
-    }
 }
 
 @MainActor
@@ -226,21 +229,22 @@ private struct MacLibraryOverviewView: View {
     @State private var selection: OverviewSelection?
     @State private var selectionCommandController = MacSelectionCommandController()
 
-    private var recentHistory: [ReadingHistoryItem] {
-        Array(library.history.prefix(8))
-    }
-
-    private var recentOfflineChapters: [OfflineChapterAsset] {
-        OfflineChapterPreviewBuilder.snapshot(from: library.offlineChapters, limit: 6).recentChapters
+    private var overviewSnapshot: LibraryOverviewSnapshot {
+        LibraryOverviewSnapshot(
+            history: library.history,
+            offlineChapters: library.offlineChapters,
+            historyLimit: 8,
+            offlineLimit: 6
+        )
     }
 
     var body: some View {
-        let offlineSnapshot = OfflineChapterPreviewBuilder.snapshot(from: library.offlineChapters, limit: 6)
+        let snapshot = overviewSnapshot
         ScrollView {
             VStack(alignment: .leading, spacing: AppSpacing.section) {
-                metricsGrid(readyOfflineCount: offlineSnapshot.readyCount)
-                recentReadingSection
-                offlineSection(recentOfflineChapters: offlineSnapshot.recentChapters)
+                metricsGrid(readyOfflineCount: snapshot.readyOfflineCount)
+                recentReadingSection(recentHistory: snapshot.recentHistory)
+                offlineSection(recentOfflineChapters: snapshot.recentOfflineChapters)
             }
             .padding(AppSpacing.screen)
             .frame(maxWidth: 980, alignment: .topLeading)
@@ -278,21 +282,21 @@ private struct MacLibraryOverviewView: View {
     }
 
     private var recentHistoryIDs: [ReadingHistoryItem.ID] {
-        recentHistory.map(\.id)
+        overviewSnapshot.recentHistoryIDs
     }
 
     private var recentOfflineChapterIDs: [OfflineChapterAsset.ID] {
-        recentOfflineChapters.map(\.id)
+        overviewSnapshot.recentOfflineChapterIDs
     }
 
     private var selectedHistoryItem: ReadingHistoryItem? {
         guard case .history(let id) = selection else { return nil }
-        return recentHistory.first { $0.id == id }
+        return overviewSnapshot.recentHistory.first { $0.id == id }
     }
 
     private var selectedOfflineChapter: OfflineChapterAsset? {
         guard case .offline(let id) = selection else { return nil }
-        return recentOfflineChapters.first { $0.id == id }
+        return overviewSnapshot.recentOfflineChapters.first { $0.id == id }
     }
 
     private var overviewColumns: [GridItem] {
@@ -421,7 +425,7 @@ private struct MacLibraryOverviewView: View {
         .buttonStyle(.plain)
     }
 
-    private var recentReadingSection: some View {
+    private func recentReadingSection(recentHistory: [ReadingHistoryItem]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
             sectionHeader(
                 title: AppLocalization.text("library.recent.title", "Recent Activity"),
@@ -636,15 +640,16 @@ private struct MacLibraryOverviewView: View {
     }
 
     private func reconcileSelection() {
+        let snapshot = overviewSnapshot
         switch selection {
-        case .history(let id) where recentHistoryIDs.contains(id):
+        case .history(let id) where snapshot.recentHistoryIDs.contains(id):
             return
-        case .offline(let id) where recentOfflineChapterIDs.contains(id):
+        case .offline(let id) where snapshot.recentOfflineChapterIDs.contains(id):
             return
         default:
-            if let firstHistory = recentHistory.first {
+            if let firstHistory = snapshot.recentHistory.first {
                 selection = .history(firstHistory.id)
-            } else if let firstOfflineChapter = recentOfflineChapters.first {
+            } else if let firstOfflineChapter = snapshot.recentOfflineChapters.first {
                 selection = .offline(firstOfflineChapter.id)
             } else {
                 selection = nil

@@ -1,6 +1,6 @@
 import Foundation
 
-struct OfflineChapterPreviewSnapshot {
+struct OfflineChapterPreviewSnapshot: Hashable {
     let readyCount: Int
     let recentChapters: [OfflineChapterAsset]
 }
