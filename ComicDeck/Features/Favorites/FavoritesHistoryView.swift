@@ -717,16 +717,17 @@ struct HistoryView: View {
         nonmutating set { browseModeRaw = newValue.rawValue }
     }
 
-    private var historyIDs: [ReadingHistoryItem.ID] {
-        model.items.map(\.id)
+    private var presentationSnapshot: HistoryPresentationSnapshot {
+        HistoryPresentationSnapshot(items: model.items)
     }
 
     private var selectedHistoryItem: ReadingHistoryItem? {
-        guard let selectedHistoryID else { return nil }
-        return model.items.first { $0.id == selectedHistoryID }
+        presentationSnapshot.item(matching: selectedHistoryID)
     }
 
     var body: some View {
+        let snapshot = presentationSnapshot
+
         Group {
             if browseMode == .list {
                 historyList
@@ -801,7 +802,7 @@ struct HistoryView: View {
             reconcileSelectedHistory()
             configureSelectionCommands()
         }
-        .onChange(of: historyIDs) { _, _ in
+        .onChange(of: snapshot.itemIDs) { _, _ in
             reconcileSelectedHistory()
             configureSelectionCommands()
         }
@@ -1067,10 +1068,11 @@ struct HistoryView: View {
     }
 
     private func reconcileSelectedHistory() {
-        if let selectedHistoryID, historyIDs.contains(selectedHistoryID) {
+        let snapshot = presentationSnapshot
+        if let selectedHistoryID, snapshot.itemIDs.contains(selectedHistoryID) {
             return
         }
-        selectedHistoryID = historyIDs.first
+        selectedHistoryID = snapshot.itemIDs.first
     }
 
     private func configureSelectionCommands() {
