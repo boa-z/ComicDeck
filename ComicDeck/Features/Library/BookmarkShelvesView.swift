@@ -453,7 +453,8 @@ struct BookmarkShelvesView: View {
         let snapshot = BookmarkShelfAddFavoritesSnapshot(
             category: category,
             favorites: library.favorites,
-            memberships: library.favoriteCategoryMemberships
+            memberships: library.favoriteCategoryMemberships,
+            selectedKeys: model.selectedFavoriteKeys
         )
 
         List {
@@ -464,9 +465,8 @@ struct BookmarkShelvesView: View {
             } else {
                 ForEach(snapshot.rows) { row in
                     let favorite = row.favorite
-                    let isSelected = model.selectedFavoriteKeys.contains(row.key)
                     Button {
-                        if isSelected {
+                        if row.isSelected {
                             model.selectedFavoriteKeys.remove(row.key)
                         } else {
                             model.selectedFavoriteKeys.insert(row.key)
@@ -484,9 +484,9 @@ struct BookmarkShelvesView: View {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer()
-                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            Image(systemName: row.isSelected ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(
-                                    isSelected ? AppTint.accent : PlatformColors.tertiaryLabel
+                                    row.isSelected ? AppTint.accent : PlatformColors.tertiaryLabel
                                 )
                         }
                     }
@@ -503,11 +503,10 @@ struct BookmarkShelvesView: View {
             }
             ToolbarItem(placement: .platformTopBarTrailing) {
                 Button(AppLocalization.text("common.add", "Add")) {
-                    let favorites = snapshot.selectedFavorites(matching: model.selectedFavoriteKeys)
-                    Task { await library.addBookmarks(favorites, to: category) }
+                    Task { await library.addBookmarks(snapshot.selectedFavorites, to: category) }
                     model.categoryToAddFavorites = nil
                 }
-                .disabled(model.selectedFavoriteKeys.isEmpty)
+                .disabled(snapshot.selectedCount == 0)
             }
         }
     }

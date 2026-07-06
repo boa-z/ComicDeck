@@ -27,29 +27,42 @@ struct BookmarkShelfAddFavoritesSnapshot: Hashable {
     struct Row: Identifiable, Hashable {
         let favorite: FavoriteComic
         let key: String
+        let isSelected: Bool
 
         var id: String { key }
     }
 
     let rows: [Row]
+    let selectedFavorites: [FavoriteComic]
+
+    var selectedCount: Int {
+        selectedFavorites.count
+    }
 
     init(
         category: LibraryCategory,
         favorites: [FavoriteComic],
-        memberships: [Int64: Set<String>]
+        memberships: [Int64: Set<String>],
+        selectedKeys: Set<String> = []
     ) {
         let assignedKeys = memberships[category.id] ?? []
-        rows = favorites.compactMap { favorite in
-            let key = Self.favoriteKey(for: favorite)
-            guard !assignedKeys.contains(key) else { return nil }
-            return Row(favorite: favorite, key: key)
-        }
-    }
+        var rows: [Row] = []
+        var selectedFavorites: [FavoriteComic] = []
+        rows.reserveCapacity(favorites.count)
 
-    func selectedFavorites(matching selectedKeys: Set<String>) -> [FavoriteComic] {
-        rows.compactMap { row in
-            selectedKeys.contains(row.key) ? row.favorite : nil
+        for favorite in favorites {
+            let key = Self.favoriteKey(for: favorite)
+            guard !assignedKeys.contains(key) else { continue }
+
+            let isSelected = selectedKeys.contains(key)
+            rows.append(Row(favorite: favorite, key: key, isSelected: isSelected))
+            if isSelected {
+                selectedFavorites.append(favorite)
+            }
         }
+
+        self.rows = rows
+        self.selectedFavorites = selectedFavorites
     }
 
     private static func favoriteKey(for favorite: FavoriteComic) -> String {
