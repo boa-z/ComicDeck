@@ -248,7 +248,6 @@ struct CachedRemoteImage: View {
                         return
                     }
                     lastError = error
-                    await ReaderImagePipeline.shared.removeCachedData(for: request)
                     ReaderDecodedImageStore.shared.removeImage(
                         for: request,
                         targetSize: decodeSize,

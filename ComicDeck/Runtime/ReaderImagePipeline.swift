@@ -95,24 +95,20 @@ actor ReaderImagePipeline {
         }
 
         let key = RequestCacheKeyBuilder.key(for: request)
+        let sharedResourceKey = RequestCacheKeyBuilder.sharedImageResourceKey(for: request)
         if priority == .prefetch,
            let retryAfter = recentFailures[key],
            retryAfter > Date() {
             throw CancellationError()
         }
-        if let hit = await cache.lookupData(forKey: key) {
-            do {
-                try Self.validateImageData(hit.data, response: nil)
-                switch hit.source {
-                case .memory:
-                    metrics.memoryHits += 1
-                case .disk:
-                    metrics.diskHits += 1
-                }
-                return hit.data
-            } catch {
-                await cache.removeData(forKey: key)
+        if let hit = await cachedImageData(forKeys: cacheLookupKeys(primary: key, shared: sharedResourceKey)) {
+            switch hit.source {
+            case .memory:
+                metrics.memoryHits += 1
+            case .disk:
+                metrics.diskHits += 1
             }
+            return hit.data
         }
 
         if let existingTask = inFlight[key] {
@@ -150,6 +146,9 @@ actor ReaderImagePipeline {
             recentFailures[key] = nil
             metrics.networkLoads += 1
             await cache.store(data, forKey: key)
+            if let sharedResourceKey, sharedResourceKey != key {
+                await cache.store(data, forKey: sharedResourceKey)
+            }
             return data
         } catch {
             inFlight[key] = nil
@@ -201,6 +200,10 @@ actor ReaderImagePipeline {
         let key = RequestCacheKeyBuilder.key(for: request)
         recentFailures[key] = nil
         await cache.removeData(forKey: key)
+        if let sharedResourceKey = RequestCacheKeyBuilder.sharedImageResourceKey(for: request),
+           sharedResourceKey != key {
+            await cache.removeData(forKey: sharedResourceKey)
+        }
     }
 
     func diskCacheSizeBytes() async -> Int64 {
@@ -244,6 +247,28 @@ actor ReaderImagePipeline {
     private func hasCapacity(for priority: LoadPriority) -> Bool {
         guard activeCount < maxConcurrent else { return false }
         return priority != .prefetch || activeCount < maxPrefetchSlots
+    }
+
+    private func cacheLookupKeys(primary: String, shared: String?) -> [String] {
+        guard let shared, shared != primary else {
+            return [primary]
+        }
+        return [primary, shared]
+    }
+
+    private func cachedImageData(forKeys keys: [String]) async -> DataCacheHit? {
+        for key in keys {
+            guard let hit = await cache.lookupData(forKey: key) else {
+                continue
+            }
+            do {
+                try Self.validateImageData(hit.data, response: nil)
+                return hit
+            } catch {
+                await cache.removeData(forKey: key)
+            }
+        }
+        return nil
     }
 
     private func recordFailure(forKey key: String, priority: LoadPriority, error: Error) {

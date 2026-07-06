@@ -139,6 +139,26 @@ enum RequestCacheKeyBuilder {
         )
     }
 
+    nonisolated static func sharedImageResourceKey(for request: URLRequest) -> String? {
+        let method = (request.httpMethod ?? "GET")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+        guard method == "GET", request.httpBody == nil else { return nil }
+        guard let url = request.url,
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" || scheme == "file"
+        else {
+            return nil
+        }
+        guard !hasSensitiveHeaders(request.allHTTPHeaderFields ?? [:]) else {
+            return nil
+        }
+        return [
+            "IMAGE_RESOURCE",
+            normalizedURLString(url.absoluteString)
+        ].joined(separator: "|")
+    }
+
     nonisolated static func digest(_ value: String) -> String {
         let hash = SHA256.hash(data: Data(value.utf8))
         return hash.map { String(format: "%02x", $0) }.joined()
@@ -170,6 +190,17 @@ enum RequestCacheKeyBuilder {
 
     private nonisolated static func normalizedURLString(_ urlString: String) -> String {
         urlString.hasPrefix("//") ? "https:\(urlString)" : urlString
+    }
+
+    private nonisolated static func hasSensitiveHeaders(_ headers: [String: String]) -> Bool {
+        let sensitiveHeaders: Set<String> = [
+            "authorization",
+            "cookie",
+            "proxy-authorization",
+            "x-api-key",
+            "x-auth-token"
+        ]
+        return headers.keys.contains { sensitiveHeaders.contains($0.lowercased()) }
     }
 
     private nonisolated static func bodyDigest(_ body: Data?) -> String {
