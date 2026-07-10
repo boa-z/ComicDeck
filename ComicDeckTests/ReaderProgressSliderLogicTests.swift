@@ -1,6 +1,7 @@
 import XCTest
 @testable import ComicDeck
 
+@MainActor
 final class ReaderProgressSliderLogicTests: XCTestCase {
     func testSliderDisplayValueFollowsCurrentPageAfterDragEndsInLTR() {
         var state = ReaderProgressSliderState()

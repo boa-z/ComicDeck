@@ -1,6 +1,7 @@
 import XCTest
 @testable import ComicDeck
 
+@MainActor
 final class ComicSourceHtmlIntegrationTests: XCTestCase {
     private let fixtureHTML = """
     <div class="card featured">
@@ -97,12 +98,13 @@ final class ComicSourceHtmlIntegrationTests: XCTestCase {
               const doc = new HtmlDocument(arguments[0]);
               const adjacent = doc.querySelectorAll('a + span.marker').map((it) => it.text);
               const nth = doc.querySelector('.row > span:nth-child(4)');
+              const nthText = nth ? nth.text : '';
               const notDisabled = doc.querySelectorAll('.row > span.marker:not(.disabled)').length;
               const attrContains = doc.querySelectorAll("a[href*='from=']").length;
               doc.dispose();
               return {
                 adjacent,
-                nth: nth ? nth.text : '',
+                nth: nthText,
                 notDisabled,
                 attrContains
               };
