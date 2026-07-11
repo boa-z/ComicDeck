@@ -17,12 +17,12 @@ struct MacMainView: View {
 
         var title: String {
             switch self {
-            case .home: return AppLocalization.text("tab.home", "Home")
-            case .discover: return AppLocalization.text("tab.discover", "Discover")
-            case .library: return AppLocalization.text("tab.library", "Library")
+            case .home: return AppLocalization.text("home.navigation.title", "Home")
+            case .discover: return AppLocalization.text("discover.navigation.title", "Discover")
+            case .library: return AppLocalization.text("library.navigation.title", "Library")
             case .downloads: return AppLocalization.text("downloads.navigation.title", "Downloads")
             case .sources: return AppLocalization.text("source.management.title", "Sources")
-            case .tracking: return AppLocalization.text("tracking.navigation.title", "Tracking")
+            case .tracking: return AppLocalization.text("tracking.section.title", "Tracking")
             case .settings: return AppLocalization.text("settings.navigation.title", "Settings")
             }
         }

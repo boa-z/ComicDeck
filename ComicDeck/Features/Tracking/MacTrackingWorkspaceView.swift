@@ -63,7 +63,7 @@ struct MacTrackingWorkspaceView: View {
             detailPane
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .navigationTitle(AppLocalization.text("tracking.navigation.title", "Tracking"))
+        .navigationTitle(AppLocalization.text("tracking.section.title", "Tracking"))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 

@@ -418,7 +418,7 @@ struct MacComicDetailWorkspaceView: View {
                             CommentPreviewRow(comment: comment)
                             Divider()
                         }
-                        Button(AppLocalization.text("comments.action.view_all", "View All Comments")) {
+                        Button(AppLocalization.text("detail.comments.view_all", "View All Comments")) {
                             showCommentsSheet = true
                         }
                         .buttonStyle(.borderless)
@@ -466,7 +466,7 @@ struct MacComicDetailWorkspaceView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)
                     } else if model.previewNextToken != nil, model.previewErrorText.isEmpty {
-                        Button(AppLocalization.text("detail.preview.load_more", "Load More"), systemImage: "arrow.down.circle") {
+                        Button(AppLocalization.text("common.load_more", "Load More"), systemImage: "arrow.down.circle") {
                             Task { await model.loadMorePreviewImages(using: vm) }
                         }
                         .buttonStyle(.bordered)

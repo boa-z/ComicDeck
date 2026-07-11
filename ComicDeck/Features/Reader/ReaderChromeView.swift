@@ -213,10 +213,9 @@ struct ReaderOverlayView: View {
             if translationEnabled, let onToggleTranslationShowOriginal {
                 Button(action: onToggleTranslationShowOriginal) {
                     Label(
-                        AppLocalization.text(
-                            "reader.translation.toggle",
-                            translationShowOriginal ? "Show translated" : "Show original"
-                        ),
+                        translationShowOriginal
+                            ? AppLocalization.text("reader.translation.show_translated", "Show translated")
+                            : AppLocalization.text("reader.translation.show_original", "Show original"),
                         systemImage: translationShowOriginal ? "eye" : "eye.slash"
                     )
                 }

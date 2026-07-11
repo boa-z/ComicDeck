@@ -162,7 +162,7 @@ struct MacSourceWorkspaceView: View {
                     if sourceManager.refreshingIndex {
                         ProgressView().controlSize(.small)
                     } else {
-                        Label(AppLocalization.text("source.action.refresh", "Refresh"), systemImage: "arrow.clockwise")
+                        Label(AppLocalization.text("common.refresh", "Refresh"), systemImage: "arrow.clockwise")
                     }
                 }
                 .disabled(sourceManager.refreshingIndex)
@@ -197,7 +197,7 @@ struct MacSourceWorkspaceView: View {
                     }
                     .disabled(!hasAvailableUpdates || batchWorking)
 
-                    Button(AppLocalization.text("source.action.check_updates", "Check Updates")) {
+                    Button(AppLocalization.text("source.repository.check_updates", "Check Updates")) {
                         sourceManager.checkSourceUpdates()
                     }
                 } label: {
@@ -322,11 +322,11 @@ struct MacSourceWorkspaceView: View {
 
             Section {
                 if sourceManager.remoteSources.isEmpty {
-                    Text(AppLocalization.text("source.repository.empty", "Source index not loaded"))
+                    Text(AppLocalization.text("source.repository.empty_title", "Source index not loaded"))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else if snapshot.remoteRows.isEmpty {
-                    Text(AppLocalization.text("source.repository.no_matches", "No matching sources"))
+                    Text(AppLocalization.text("source.repository.no_matches_title", "No matching sources"))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
@@ -392,7 +392,7 @@ struct MacSourceWorkspaceView: View {
 
     @ViewBuilder
     private func remoteRowContextMenu(for row: RemoteSourceRowSnapshot) -> some View {
-        Button(row.isInstalled ? AppLocalization.text("source.action.update", "Update") : AppLocalization.text("source.action.install", "Install")) {
+        Button(row.isInstalled ? AppLocalization.text("source.action.update", "Update") : AppLocalization.text("source.repository.install", "Install")) {
             Task { await installRemoteSource(row.item) }
         }
         .disabled(sourceManager.isOperating(on: row.key))
@@ -422,7 +422,7 @@ struct MacSourceWorkspaceView: View {
                     source: source
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationSubtitle(AppLocalization.text("source.detail.installed", "Installed"))
+                .navigationSubtitle(AppLocalization.text("source.repository.status.installed", "Installed"))
             } else {
                 emptyDetail
             }
@@ -525,7 +525,7 @@ struct MacSourceWorkspaceView: View {
             selectionCommandController.copyID = { copyRemoteSourceKey(row) }
             selectionCommandController.openTitle = row.isInstalled
                 ? AppLocalization.text("source.action.update", "Update")
-                : AppLocalization.text("source.action.install", "Install")
+                : AppLocalization.text("source.repository.install", "Install")
             selectionCommandController.canOpen = !sourceManager.isOperating(on: key)
             selectionCommandController.canCopyTitle = true
             selectionCommandController.canCopyID = true
@@ -731,7 +731,7 @@ private struct MacSourceIndexDetailView: View {
                     .platformTextInputAutocapitalizationNever()
                     .autocorrectionDisabled()
 
-                Toggle(AppLocalization.text("source.management.auto_load_toggle", "Auto-load source index on open"), isOn: $sourceManager.autoLoadRemoteSources)
+                Toggle(AppLocalization.text("source.repository.auto_load_toggle", "Auto-load source index on open"), isOn: $sourceManager.autoLoadRemoteSources)
 
                 ViewThatFits(in: .horizontal) {
                     HStack {
@@ -746,12 +746,12 @@ private struct MacSourceIndexDetailView: View {
 
             Section(AppLocalization.text("source.repository.summary", "Summary")) {
                 LabeledContent(AppLocalization.text("source.management.metric.remote", "Remote"), value: sourceManager.remoteSources.isEmpty ? "-" : "\(sourceManager.remoteSources.count)")
-                LabeledContent(AppLocalization.text("source.management.metric.installed", "Installed"), value: "\(sourceManager.installedSources.count)")
+                LabeledContent(AppLocalization.text("source.repository.metric.installed", "Installed"), value: "\(sourceManager.installedSources.count)")
                 LabeledContent(AppLocalization.text("source.management.metric.updates", "Updates"), value: "\(sourceManager.availableSourceUpdates.count)")
                 LabeledContent(AppLocalization.text("source.repository.last_refreshed", "Last Refreshed"), value: sourceManager.lastRemoteRefreshDescription)
             }
 
-            Section(AppLocalization.text("source.repository.status", "Status")) {
+            Section(AppLocalization.text("common.status", "Status")) {
                 Text(sourceManager.status)
                     .foregroundStyle(.secondary)
             }
@@ -769,12 +769,12 @@ private struct MacSourceIndexDetailView: View {
                 if sourceManager.refreshingIndex {
                     Label(AppLocalization.text("source.repository.refreshing", "Refreshing..."), systemImage: "arrow.clockwise")
                 } else {
-                    Label(AppLocalization.text("source.action.refresh", "Refresh"), systemImage: "arrow.clockwise")
+                    Label(AppLocalization.text("common.refresh", "Refresh"), systemImage: "arrow.clockwise")
                 }
             }
             .disabled(sourceManager.refreshingIndex)
 
-            Button(AppLocalization.text("source.action.check_updates", "Check Updates")) {
+            Button(AppLocalization.text("source.repository.check_updates", "Check Updates")) {
                 sourceManager.checkSourceUpdates()
             }
 
@@ -783,7 +783,7 @@ private struct MacSourceIndexDetailView: View {
                     Task { await sourceManager.updateAllSources() }
                 } label: {
                     if sourceManager.updatingAll {
-                        Label(AppLocalization.text("source.action.updating", "Updating..."), systemImage: "square.and.arrow.down")
+                        Label(AppLocalization.text("source.management.status.updating", "Updating..."), systemImage: "square.and.arrow.down")
                     } else {
                         Label(AppLocalization.text("source.action.update_all", "Update All"), systemImage: "square.and.arrow.down")
                     }
@@ -828,26 +828,26 @@ private struct MacRemoteSourceDetailView: View {
                     Task { await sourceManager.installFromIndex(item) }
                 } label: {
                     if sourceManager.isOperating(on: key) {
-                        Label(AppLocalization.text("source.action.working", "Working..."), systemImage: "arrow.down.circle")
+                        Label(AppLocalization.text("source.repository.working", "Working..."), systemImage: "arrow.down.circle")
                     } else if hasUpdate {
                         Label(AppLocalization.text("source.action.update", "Update"), systemImage: "square.and.arrow.down")
                     } else if installed != nil {
-                        Label(AppLocalization.text("source.action.reinstall", "Reinstall"), systemImage: "arrow.clockwise")
+                        Label(AppLocalization.text("source.repository.reinstall", "Reinstall"), systemImage: "arrow.clockwise")
                     } else {
-                        Label(AppLocalization.text("source.action.install", "Install"), systemImage: "arrow.down.circle")
+                        Label(AppLocalization.text("source.repository.install", "Install"), systemImage: "arrow.down.circle")
                     }
                 }
                 .disabled(sourceManager.isOperating(on: key))
             }
 
             if let installed {
-                Section(AppLocalization.text("source.detail.installed", "Installed")) {
+                Section(AppLocalization.text("source.repository.status.installed", "Installed")) {
                     LabeledContent(AppLocalization.text("source.detail.version", "Version"), value: installed.version)
                     LabeledContent(AppLocalization.text("source.detail.script", "Script"), value: installed.scriptFileName)
                 }
             }
 
-            Section(AppLocalization.text("source.repository.status", "Status")) {
+            Section(AppLocalization.text("common.status", "Status")) {
                 Text(sourceManager.status)
                     .foregroundStyle(.secondary)
             }

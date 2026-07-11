@@ -44,7 +44,7 @@ struct ComicDetailPreviewSection: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, AppSpacing.sm)
                     } else if canLoadMore, errorText.isEmpty {
-                        Button(AppLocalization.text("detail.preview.load_more", "Load More"), systemImage: "arrow.down.circle", action: onLoadMore)
+                        Button(AppLocalization.text("common.load_more", "Load More"), systemImage: "arrow.down.circle", action: onLoadMore)
                             .buttonStyle(.bordered)
                     }
 

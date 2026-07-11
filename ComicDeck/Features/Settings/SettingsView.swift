@@ -144,11 +144,11 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section(AppLocalization.text("tracking.navigation.title", "Tracking")) {
+                Section(AppLocalization.text("tracking.section.title", "Tracking")) {
                     NavigationLink {
                         TrackingSettingsView()
                     } label: {
-                        Label(AppLocalization.text("tracking.navigation.title", "Tracking"), systemImage: "arrow.triangle.2.circlepath")
+                        Label(AppLocalization.text("tracking.section.title", "Tracking"), systemImage: "arrow.triangle.2.circlepath")
                     }
                     ForEach(TrackerProvider.allCases) { provider in
                         if let account = tracker.account(for: provider) {
