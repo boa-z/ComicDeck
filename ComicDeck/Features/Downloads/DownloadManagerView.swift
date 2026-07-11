@@ -328,18 +328,17 @@ struct DownloadManagerView: View {
     private func exportSelectedOfflineZIP() {
         let targets = model.selectedOfflineItems()
         guard !targets.isEmpty else { return }
+        let exportTitle = targets.count == 1
+            ? targets[0].comicTitle
+            : AppLocalization.text("downloads.export.offline_selection_title", "Offline Export")
 
         model.isExportingSelection = true
         Task {
             defer { model.isExportingSelection = false }
             do {
-                let url = try OfflineExportService().exportOfflineSelectionZIP(
-                    items: targets,
-                    title: targets.count == 1 ? targets[0].comicTitle : AppLocalization.text(
-                        "downloads.export.offline_selection_title",
-                        "Offline Export"
-                    )
-                )
+                let url = try await Task.detached(priority: .utility) {
+                    try OfflineExportService().exportOfflineSelectionZIP(items: targets, title: exportTitle)
+                }.value
                 sharedExportURL = ShareFile(url: url)
             } catch {
                 exportError = error.localizedDescription
@@ -972,7 +971,9 @@ struct DownloadedChapterFilesView: View {
         Task {
             defer { isExporting = false }
             do {
-                let url = try OfflineExportService().exportChapter(asset, format: format)
+                let url = try await Task.detached(priority: .utility) {
+                    try OfflineExportService().exportChapter(asset, format: format)
+                }.value
                 sharedExportURL = ShareFile(url: url)
             } catch {
                 exportError = error.localizedDescription

@@ -2,19 +2,19 @@ import CryptoKit
 import Foundation
 import zlib
 
-enum OfflineImportArchiveFormat: String {
+nonisolated enum OfflineImportArchiveFormat: String, Sendable {
     case zip
     case cbz
 }
 
-struct OfflineImportSummary: Sendable {
+nonisolated struct OfflineImportSummary: Sendable {
     let importedCount: Int
     let failures: [String]
 
     var hasFailures: Bool { !failures.isEmpty }
 }
 
-enum OfflineImportServiceError: LocalizedError {
+nonisolated enum OfflineImportServiceError: LocalizedError, Sendable {
     case unsupportedFileType
     case invalidArchive
     case unsupportedCompression(String)
@@ -40,7 +40,7 @@ enum OfflineImportServiceError: LocalizedError {
     }
 }
 
-struct OfflineImportService {
+nonisolated struct OfflineImportService {
     static let importedSourceKey = "imported"
 
     private let rootDirectory: URL
@@ -51,7 +51,7 @@ struct OfflineImportService {
         self.rootDirectory = rootDirectory
     }
 
-    func importArchives(at urls: [URL]) async -> OfflineImportSummary {
+    func importArchives(at urls: [URL]) -> OfflineImportSummary {
         var importedCount = 0
         var failures: [String] = []
 
@@ -160,7 +160,7 @@ struct OfflineImportService {
     }
 }
 
-private struct ZIPArchiveReader {
+private nonisolated struct ZIPArchiveReader {
     struct Entry {
         let path: String
         let compressionMethod: UInt16
@@ -322,7 +322,7 @@ private struct ZIPArchiveReader {
     }
 }
 
-private extension Data {
+private nonisolated extension Data {
     func readUInt16(at offset: Int) throws -> UInt16 {
         guard offset >= 0, offset + 2 <= count else {
             throw OfflineImportServiceError.invalidArchive

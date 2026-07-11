@@ -48,7 +48,7 @@ struct DownloadComicGroup: Identifiable, Hashable {
     }
 }
 
-struct OfflineComicGroup: Identifiable, Hashable {
+struct OfflineComicGroup: Identifiable, Hashable, Sendable {
     let sourceKey: String
     let comicID: String
     let comicTitle: String

@@ -229,10 +229,10 @@ final class LibraryViewModel {
             return OfflineImportSummary(importedCount: 0, failures: ["Library store is not initialized."])
         }
 
-        let importer = OfflineImportService(
-            rootDirectory: core.baseDirectory.appendingPathComponent("downloads", isDirectory: true)
-        )
-        let summary = await importer.importArchives(at: urls)
+        let downloadsDirectory = core.baseDirectory.appendingPathComponent("downloads", isDirectory: true)
+        let summary = await Task.detached(priority: .utility) {
+            OfflineImportService(rootDirectory: downloadsDirectory).importArchives(at: urls)
+        }.value
 
         if summary.importedCount > 0 {
             await reindexOfflineLibrary()

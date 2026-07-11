@@ -3,7 +3,7 @@ import CoreGraphics
 import ImageIO
 import UniformTypeIdentifiers
 
-enum OfflineExportFormat: String, CaseIterable, Identifiable {
+nonisolated enum OfflineExportFormat: String, CaseIterable, Identifiable, Sendable {
     case zip
     case cbz
     case pdf
@@ -30,7 +30,7 @@ enum OfflineExportFormat: String, CaseIterable, Identifiable {
     }
 }
 
-enum OfflineExportServiceError: LocalizedError {
+nonisolated enum OfflineExportServiceError: LocalizedError, Sendable {
     case missingSourceDirectory
     case noReadableFiles
 
@@ -44,7 +44,7 @@ enum OfflineExportServiceError: LocalizedError {
     }
 }
 
-struct OfflineExportService {
+nonisolated struct OfflineExportService {
     private let fileManager = FileManager.default
 
     func exportChapter(_ item: OfflineChapterAsset, format: OfflineExportFormat) throws -> URL {
@@ -510,7 +510,7 @@ struct OfflineExportService {
     }
 }
 
-private struct ZipArchiveEntry {
+private nonisolated struct ZipArchiveEntry {
     let sourceURL: URL?
     let data: Data?
     let entryPath: String
@@ -536,7 +536,7 @@ private struct ZipArchiveEntry {
     }
 }
 
-private final class ZipArchiveWriter {
+private nonisolated final class ZipArchiveWriter {
     private struct CentralDirectoryRecord {
         let entryPathData: Data
         let crc32: UInt32
@@ -698,7 +698,7 @@ private final class ZipArchiveWriter {
     }
 }
 
-private extension Data {
+private nonisolated extension Data {
     mutating func append<T: FixedWidthInteger>(littleEndian value: T) {
         var value = value.littleEndian
         Swift.withUnsafeBytes(of: &value) { buffer in

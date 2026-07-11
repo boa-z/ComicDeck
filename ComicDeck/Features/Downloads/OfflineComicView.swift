@@ -298,10 +298,13 @@ struct OfflineComicView: View {
     private func exportComic(_ format: OfflineExportFormat) {
         guard exportTarget == nil else { return }
         exportTarget = "comic"
+        let exportGroup = group
         Task {
             defer { exportTarget = nil }
             do {
-                let url = try OfflineExportService().exportComic(group: group, format: format)
+                let url = try await Task.detached(priority: .utility) {
+                    try OfflineExportService().exportComic(group: exportGroup, format: format)
+                }.value
                 sharedExportURL = ShareFile(url: url)
             } catch {
                 exportError = error.localizedDescription
@@ -315,7 +318,9 @@ struct OfflineComicView: View {
         Task {
             defer { exportTarget = nil }
             do {
-                let url = try OfflineExportService().exportChapter(item, format: format)
+                let url = try await Task.detached(priority: .utility) {
+                    try OfflineExportService().exportChapter(item, format: format)
+                }.value
                 sharedExportURL = ShareFile(url: url)
             } catch {
                 exportError = error.localizedDescription

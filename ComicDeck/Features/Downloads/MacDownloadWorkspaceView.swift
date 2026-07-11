@@ -713,22 +713,37 @@ struct MacDownloadWorkspaceView: View {
     }
 
     private func exportOfflineGroupZIP(_ group: OfflineComicGroup) {
-        do {
-            let url = try OfflineExportService().exportComic(group: group, format: .zip)
-            sharedExportURL = ShareFile(url: url)
-        } catch {
-            exportError = error.localizedDescription
+        Task {
+            do {
+                let url = try await Task.detached(priority: .utility) {
+                    try OfflineExportService().exportComic(group: group, format: .zip)
+                }.value
+                sharedExportURL = ShareFile(url: url)
+            } catch {
+                exportError = error.localizedDescription
+            }
         }
     }
 
     private func exportedOfflineGroupItemProvider(_ group: OfflineComicGroup) -> NSItemProvider {
-        do {
-            let url = try OfflineExportService().exportComic(group: group, format: .zip)
-            return fileURLItemProvider(url)
-        } catch {
-            exportError = error.localizedDescription
-            return NSItemProvider(object: group.comicTitle as NSString)
+        let provider = NSItemProvider()
+        provider.registerFileRepresentation(
+            forTypeIdentifier: UTType.zip.identifier,
+            fileOptions: [],
+            visibility: .all
+        ) { completion in
+            Task.detached(priority: .utility) {
+                do {
+                    let url = try OfflineExportService().exportComic(group: group, format: .zip)
+                    completion(url, true, nil)
+                } catch {
+                    completion(nil, false, error)
+                }
+            }
+            return nil
         }
+        provider.suggestedName = group.comicTitle
+        return provider
     }
 
     private func fileURLItemProvider(_ url: URL) -> NSItemProvider {
