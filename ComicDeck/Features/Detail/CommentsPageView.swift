@@ -172,6 +172,7 @@ struct CommentsPageView: View {
                         }
                     }
                     .disabled(model.sendButtonDisabled)
+                    .accessibilityLabel(AppLocalization.text("comments.action.send", "Send comment"))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -245,7 +246,8 @@ struct CommentItemRow: View {
                     Button {
                         Task { await vote(isUp: true) }
                     } label: {
-                        Image(systemName: "arrow.up")
+                        Label(AppLocalization.text("comments.action.vote_up", "Upvote"), systemImage: "arrow.up")
+                            .labelStyle(.iconOnly)
                     }
                     .disabled(working)
                     .tint(voteStatus == 1 ? .red : .primary)
@@ -257,7 +259,8 @@ struct CommentItemRow: View {
                     Button {
                         Task { await vote(isUp: false) }
                     } label: {
-                        Image(systemName: "arrow.down")
+                        Label(AppLocalization.text("comments.action.vote_down", "Downvote"), systemImage: "arrow.down")
+                            .labelStyle(.iconOnly)
                     }
                     .disabled(working)
                     .tint(voteStatus == -1 ? .blue : .primary)

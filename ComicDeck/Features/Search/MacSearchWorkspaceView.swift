@@ -267,9 +267,9 @@ struct MacSearchWorkspaceView: View {
             Button {
                 showSearchSettings = true
             } label: {
-                Image(systemName: "line.3.horizontal.decrease.circle")
+                Label(AppLocalization.text("search.action.open_filters", "Open search filters"), systemImage: "line.3.horizontal.decrease.circle")
+                    .labelStyle(.iconOnly)
             }
-            .accessibilityLabel(AppLocalization.text("search.action.open_filters", "Open search filters"))
             .help(AppLocalization.text("search.settings.navigation", "Search Settings"))
         }
         .padding(.horizontal, AppSpacing.lg)

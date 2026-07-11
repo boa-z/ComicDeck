@@ -52,9 +52,9 @@ struct SearchView: View {
                     Button {
                         showSearchSettings = true
                     } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
+                        Label(AppLocalization.text("search.action.open_filters", "Open search filters"), systemImage: "line.3.horizontal.decrease.circle")
+                            .labelStyle(.iconOnly)
                     }
-                    .accessibilityLabel(AppLocalization.text("search.action.open_filters", "Open search filters"))
 
                     Button(AppLocalization.text("common.done", "Done")) { dismiss() }
                 }

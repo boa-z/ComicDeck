@@ -310,7 +310,8 @@ struct FavoritesView: View {
                 model.currentPage -= 1
                 requestRefresh()
             } label: {
-                Image(systemName: "chevron.left")
+                Label(AppLocalization.text("favorites.page.previous", "Previous page"), systemImage: "chevron.left")
+                    .labelStyle(.iconOnly)
                     .font(.subheadline.weight(.semibold))
                     .frame(width: 28, height: 28)
             }
@@ -331,7 +332,8 @@ struct FavoritesView: View {
             Button {
                 Task { await model.jumpToPage(model.currentPage + 1, vm: vm) }
             } label: {
-                Image(systemName: "chevron.right")
+                Label(AppLocalization.text("favorites.page.next", "Next page"), systemImage: "chevron.right")
+                    .labelStyle(.iconOnly)
                     .font(.subheadline.weight(.semibold))
                     .frame(width: 28, height: 28)
             }

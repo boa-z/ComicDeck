@@ -267,7 +267,8 @@ struct ComicDetailView: View {
                 }
             }
         } label: {
-            Image(systemName: "ellipsis.circle")
+            Label(AppLocalization.text("common.more", "More"), systemImage: "ellipsis.circle")
+                .labelStyle(.iconOnly)
         }
     }
 

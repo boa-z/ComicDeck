@@ -74,7 +74,8 @@ private struct BookmarkShelfReorderView: View {
                         Button {
                             moveCategory(at: index, by: -1)
                         } label: {
-                            Image(systemName: "chevron.up")
+                            Label(AppLocalization.text("library.shelves.move_up", "Move Up"), systemImage: "chevron.up")
+                                .labelStyle(.iconOnly)
                         }
                         .buttonStyle(.borderless)
                         .disabled(index == 0)
@@ -83,7 +84,8 @@ private struct BookmarkShelfReorderView: View {
                         Button {
                             moveCategory(at: index, by: 1)
                         } label: {
-                            Image(systemName: "chevron.down")
+                            Label(AppLocalization.text("library.shelves.move_down", "Move Down"), systemImage: "chevron.down")
+                                .labelStyle(.iconOnly)
                         }
                         .buttonStyle(.borderless)
                         .disabled(index == model.reorderCategories.count - 1)
