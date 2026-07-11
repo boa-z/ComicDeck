@@ -69,7 +69,7 @@ actor ReaderImagePipeline {
         }
     }
 
-    init() {
+    init(session: URLSession? = nil, cacheRootDirectory: URL? = nil) {
         let config = URLSessionConfiguration.ephemeral
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -77,7 +77,7 @@ actor ReaderImagePipeline {
         config.httpCookieAcceptPolicy = .always
         config.httpShouldSetCookies = true
         config.waitsForConnectivity = true
-        self.session = URLSession(configuration: config)
+        self.session = session ?? URLSession(configuration: config)
         self.cache = HybridDataCache(
             directoryName: "ReaderImageCache",
             policy: DataCachePolicy(
@@ -86,7 +86,8 @@ actor ReaderImagePipeline {
                 maxMemoryItems: 120,
                 maxMemoryBytes: 80 * 1024 * 1024,
                 maxDiskBytes: 300 * 1024 * 1024
-            )
+            ),
+            rootDirectory: cacheRootDirectory
         )
     }
 
@@ -118,13 +119,13 @@ actor ReaderImagePipeline {
             return hit.data
         }
 
-        if let existingLoad = inFlightLoad(forKey: key) {
+        if let existingLoad = inFlightLoad(forKey: queueKey) {
             metrics.inFlightHits += 1
             upgradeWaitingRequest(forKey: queueKey, to: priority)
             do {
                 return try await existingLoad.task.value
             } catch {
-                removeInFlightLoad(forKey: key, id: existingLoad.id)
+                removeInFlightLoad(forKey: queueKey, id: existingLoad.id)
                 throw error
             }
         }
@@ -148,10 +149,10 @@ actor ReaderImagePipeline {
         }
         let load = InFlightImageLoad(id: loadID, task: task)
 
-        storeInFlightLoad(load, forKey: key)
+        storeInFlightLoad(load, forKey: queueKey)
         do {
             let data = try await task.value
-            removeInFlightLoad(forKey: key, id: loadID)
+            removeInFlightLoad(forKey: queueKey, id: loadID)
             clearFailures(forKeys: lookupKeys)
             metrics.networkLoads += 1
             await cache.store(data, forKey: key)
@@ -160,7 +161,7 @@ actor ReaderImagePipeline {
             }
             return data
         } catch {
-            removeInFlightLoad(forKey: key, id: loadID)
+            removeInFlightLoad(forKey: queueKey, id: loadID)
             recordFailure(forKeys: lookupKeys, priority: priority, error: error)
             throw error
         }
