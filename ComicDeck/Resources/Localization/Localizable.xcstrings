@@ -320,6 +320,23 @@
     "Comments" : {
 
     },
+    "comic.author_format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Author: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作者：%@"
+          }
+        }
+      }
+    },
     "comments.action.load_more" : {
       "extractionState" : "manual",
       "localizations" : {

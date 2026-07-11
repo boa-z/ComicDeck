@@ -5,7 +5,7 @@ struct ComicBrowseModePicker: View {
 
     var body: some View {
         Menu {
-            Picker("Browse Mode", selection: $mode) {
+            Picker(AppLocalization.text("browse.mode", "Browse Mode"), selection: $mode) {
                 ForEach(ComicBrowseDisplayMode.allCases) { item in
                     Label(item.title, systemImage: item.systemImage)
                         .tag(item)
@@ -14,7 +14,7 @@ struct ComicBrowseModePicker: View {
         } label: {
             Image(systemName: mode.systemImage)
         }
-        .accessibilityLabel("Browse layout")
+        .accessibilityLabel(AppLocalization.text("settings.appearance.browse_layout", "Comic Browse Layout"))
         .accessibilityValue(mode.title)
     }
 }
@@ -159,7 +159,7 @@ struct ComicPreviewCard: View {
                     .lineLimit(1)
 
                 if let author, !author.isEmpty {
-                    Text("Author: \(author)")
+                    Text(AppLocalization.format("comic.author_format", "Author: %@", author))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

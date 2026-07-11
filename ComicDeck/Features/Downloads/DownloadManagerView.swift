@@ -132,7 +132,7 @@ struct DownloadManagerView: View {
     }
 
     private var workspacePicker: some View {
-        Picker("Workspace", selection: $model.workspace) {
+        Picker(AppLocalization.text("downloads.workspace", "Workspace"), selection: $model.workspace) {
             ForEach(DownloadWorkspace.allCases) { workspace in
                 Text(workspace.title).tag(workspace)
             }

@@ -49,7 +49,7 @@ struct MainView: View {
             .environment(vm.library)
             .environment(vm.tracker)
             .tabItem {
-                Label("Home", systemImage: "house")
+                Label(AppLocalization.text("home.navigation.title", "Home"), systemImage: "house")
             }
             .tag(MainTab.home)
 
@@ -57,7 +57,7 @@ struct MainView: View {
                 .environment(vm.library)
                 .environment(vm.tracker)
                 .tabItem {
-                    Label("Discover", systemImage: "sparkles.rectangle.stack")
+                    Label(AppLocalization.text("discover.navigation.title", "Discover"), systemImage: "sparkles.rectangle.stack")
                 }
                 .tag(MainTab.discover)
 
@@ -67,7 +67,7 @@ struct MainView: View {
             .environment(vm.library)
             .environment(vm.tracker)
             .tabItem {
-                Label("Library", systemImage: "books.vertical")
+                Label(AppLocalization.text("library.navigation.title", "Library"), systemImage: "books.vertical")
             }
             .tag(MainTab.library)
         }
