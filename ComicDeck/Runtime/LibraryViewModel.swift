@@ -285,7 +285,7 @@ final class LibraryViewModel {
         do {
             let path = try await core.database.deleteDownloadChapter(id: item.id)
             if let path {
-                try? FileManager.default.removeItem(atPath: path)
+                await Self.removeFileSystemItems(atPaths: [path])
             }
             downloadChapters.removeAll { $0.id == item.id }
             status = "Deleted download: \(item.chapterTitle)"
@@ -300,9 +300,7 @@ final class LibraryViewModel {
         guard !ids.values.isEmpty else { return }
         do {
             let paths = try await core.database.deleteDownloadChapters(ids: ids.values)
-            for path in Set(paths) {
-                try? FileManager.default.removeItem(atPath: path)
-            }
+            await Self.removeFileSystemItems(atPaths: paths)
             downloadChapters.removeAll { ids.set.contains($0.id) }
             status = "Deleted \(ids.values.count) downloads"
         } catch {
@@ -316,9 +314,7 @@ final class LibraryViewModel {
         guard !ids.values.isEmpty else { return }
         do {
             let paths = try await core.database.deleteOfflineChapters(ids: ids.values)
-            for path in Set(paths) {
-                try? FileManager.default.removeItem(atPath: path)
-            }
+            await Self.removeFileSystemItems(atPaths: paths)
             offlineChapters.removeAll { ids.set.contains($0.id) }
             status = "Deleted \(ids.values.count) offline chapters"
         } catch {
@@ -330,9 +326,7 @@ final class LibraryViewModel {
         guard let core else { return }
         do {
             let paths = try await core.database.clearDownloadChapters()
-            for path in paths {
-                try? FileManager.default.removeItem(atPath: path)
-            }
+            await Self.removeFileSystemItems(atPaths: paths)
             downloadChapters = []
             status = "All downloads cleared"
         } catch {
@@ -344,9 +338,7 @@ final class LibraryViewModel {
         guard let core else { return }
         do {
             let paths = try await core.database.clearOfflineChapters()
-            for path in Set(paths) {
-                try? FileManager.default.removeItem(atPath: path)
-            }
+            await Self.removeFileSystemItems(atPaths: paths)
             offlineChapters = []
             status = "Offline library cleared"
         } catch {
@@ -378,9 +370,10 @@ final class LibraryViewModel {
 
         do {
             try await core.database.renameOfflineComic(sourceKey: sourceKey, comicID: comicID, comicTitle: trimmed)
-            for item in items {
-                try updateOfflineMetadataTitle(at: item.directoryPath, title: trimmed)
-            }
+            try await Self.updateOfflineMetadataTitles(
+                atPaths: items.map(\.directoryPath),
+                title: trimmed
+            )
             await refreshOfflineLibrary()
             status = "Offline comic renamed"
         } catch {
@@ -671,7 +664,24 @@ final class LibraryViewModel {
         return lhs.id < rhs.id
     }
 
-    private func updateOfflineMetadataTitle(at directoryPath: String, title: String) throws {
+    private nonisolated static func removeFileSystemItems(atPaths paths: [String]) async {
+        guard !paths.isEmpty else { return }
+        await Task.detached(priority: .utility) {
+            for path in Set(paths) {
+                try? FileManager.default.removeItem(atPath: path)
+            }
+        }.value
+    }
+
+    private nonisolated static func updateOfflineMetadataTitles(atPaths paths: [String], title: String) async throws {
+        try await Task.detached(priority: .utility) {
+            for path in paths {
+                try updateOfflineMetadataTitle(at: path, title: title)
+            }
+        }.value
+    }
+
+    private nonisolated static func updateOfflineMetadataTitle(at directoryPath: String, title: String) throws {
         let metadataURL = URL(fileURLWithPath: directoryPath, isDirectory: true).appendingPathComponent("metadata.json")
         guard FileManager.default.fileExists(atPath: metadataURL.path) else { return }
         let data = try Data(contentsOf: metadataURL)
