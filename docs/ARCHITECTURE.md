@@ -439,6 +439,8 @@ Excluded:
 
 Backup JSON can contain plaintext tracker access tokens. WebDAV remains a transport layer over `AppBackupPayload`; it does not read tracker storage directly.
 
+Local backup JSON encoding, decoding, and file I/O run in utility-priority detached tasks after the MainActor snapshots app state. Save panels, restore state mutation, and user-facing status updates remain on the MainActor.
+
 WebDAV sync currently supports:
 - connection verification
 - upload configured latest backup

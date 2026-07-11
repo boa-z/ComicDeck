@@ -87,7 +87,7 @@ enum AppBackupService {
         )
     }
 
-    static func writePayload(_ payload: AppBackupPayload) throws -> URL {
+    nonisolated static func writePayload(_ payload: AppBackupPayload) throws -> URL {
         let directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         let backupsDirectory = directory.appendingPathComponent("Backups", isDirectory: true)
@@ -96,34 +96,31 @@ enum AppBackupService {
         let fileName = snapshotFileName(for: payload)
         let url = backupsDirectory.appendingPathComponent(fileName, isDirectory: false)
 
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
         let data = try encodePayload(payload)
         try data.write(to: url, options: .atomic)
         return url
     }
 
-    static func snapshotFileName(for payload: AppBackupPayload) -> String {
+    nonisolated static func snapshotFileName(for payload: AppBackupPayload) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withDashSeparatorInDate, .withColonSeparatorInTime]
         let timestamp = formatter.string(from: payload.exportedAt).replacingOccurrences(of: ":", with: "-")
         return "comicdeck-backup-\(timestamp).json"
     }
 
-    static func readPayload(from url: URL) throws -> AppBackupPayload {
+    nonisolated static func readPayload(from url: URL) throws -> AppBackupPayload {
         let data = try Data(contentsOf: url)
         return try decodePayload(data: data)
     }
 
-    static func encodePayload(_ payload: AppBackupPayload) throws -> Data {
+    nonisolated static func encodePayload(_ payload: AppBackupPayload) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         return try encoder.encode(payload)
     }
 
-    static func decodePayload(data: Data) throws -> AppBackupPayload {
+    nonisolated static func decodePayload(data: Data) throws -> AppBackupPayload {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let payload = try decoder.decode(AppBackupPayload.self, from: data)
@@ -321,7 +318,7 @@ private extension TrackerBindingBackupData {
     }
 }
 
-enum BackupServiceError: LocalizedError {
+nonisolated enum BackupServiceError: LocalizedError, Sendable {
     case unsupportedSchema(Int)
 
     var errorDescription: String? {

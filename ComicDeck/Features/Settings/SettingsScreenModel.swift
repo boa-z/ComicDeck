@@ -90,20 +90,22 @@ final class SettingsScreenModel {
         try console.exportLogSnapshot()
     }
 
-    func prepareBackupShare(using library: LibraryViewModel, tracker: TrackerViewModel) {
+    func prepareBackupShare(using library: LibraryViewModel, tracker: TrackerViewModel) async {
         sharingBackup = true
         backupError = nil
+        defer { sharingBackup = false }
         do {
-            sharedBackupURL = try makeBackupExport(using: library, tracker: tracker)
+            sharedBackupURL = try await makeBackupExport(using: library, tracker: tracker)
         } catch {
             backupError = error.localizedDescription
         }
-        sharingBackup = false
     }
 
-    func makeBackupExport(using library: LibraryViewModel, tracker: TrackerViewModel) throws -> URL {
+    func makeBackupExport(using library: LibraryViewModel, tracker: TrackerViewModel) async throws -> URL {
         let payload = library.createBackupPayload(tracker: tracker)
-        return try AppBackupService.writePayload(payload)
+        return try await Task.detached(priority: .utility) {
+            try AppBackupService.writePayload(payload)
+        }.value
     }
 
     func restoreBackup(
@@ -118,7 +120,9 @@ final class SettingsScreenModel {
         defer { restoringBackup = false }
 
         do {
-            let payload = try AppBackupService.readPayload(from: url)
+            let payload = try await Task.detached(priority: .utility) {
+                try AppBackupService.readPayload(from: url)
+            }.value
             try await library.restore(from: payload, sourceManager: sourceManager, tracker: tracker)
             backupSuccessMessage = AppLocalization.text("settings.backup.restored_message", "Backup restored. Preferences, library data, and tracker settings have been reloaded.")
         } catch {

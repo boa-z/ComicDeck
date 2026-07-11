@@ -1,6 +1,6 @@
 import Foundation
 
-struct AppBackupPayload: Codable, Hashable {
+nonisolated struct AppBackupPayload: Codable, Sendable {
     static let currentSchemaVersion = 1
 
     let schemaVersion: Int
@@ -11,14 +11,14 @@ struct AppBackupPayload: Codable, Hashable {
     let tracker: TrackerBackupData?
 }
 
-struct LibraryBackupData: Codable, Hashable {
+nonisolated struct LibraryBackupData: Codable, Sendable {
     let favorites: [FavoriteComic]
     let categories: [LibraryCategory]
     let categoryMemberships: [String: [String]]
     let history: [ReadingHistoryItem]
 }
 
-struct AppPreferencesBackup: Codable, Hashable {
+nonisolated struct AppPreferencesBackup: Codable, Sendable {
     let appAppearance: String?
     let comicBrowseMode: String?
     let debugLogsEnabled: Bool?
@@ -33,7 +33,7 @@ struct AppPreferencesBackup: Codable, Hashable {
     let readerKeepScreenOn: Bool?
 }
 
-struct SourceRuntimeBackupData: Codable, Hashable {
+nonisolated struct SourceRuntimeBackupData: Codable, Sendable {
     let indexURL: String?
     let selectedSourceKey: String?
     let autoLoadRemoteSources: Bool?
@@ -72,14 +72,14 @@ struct SourceRuntimeBackupData: Codable, Hashable {
     }
 }
 
-struct TrackerBackupData: Codable, Hashable {
+nonisolated struct TrackerBackupData: Codable, Sendable {
     let accounts: [TrackerAccount]
     let bindings: [TrackerBindingBackupData]
     let syncPreferences: TrackerSyncPreferencesBackupData
     let credentials: [TrackerCredentialBackupData]
 }
 
-struct TrackerBindingBackupData: Codable, Hashable {
+nonisolated struct TrackerBindingBackupData: Codable, Sendable {
     let provider: TrackerProvider
     let sourceKey: String
     let comicID: String
@@ -92,19 +92,19 @@ struct TrackerBindingBackupData: Codable, Hashable {
     let lastSyncedStatus: TrackerReadingStatus?
 }
 
-struct TrackerSyncPreferencesBackupData: Codable, Hashable {
+nonisolated struct TrackerSyncPreferencesBackupData: Codable, Sendable {
     let automaticSyncEnabled: Bool?
     let automaticSyncDirection: TrackerSyncDirection?
     let manualSyncDefaultDirection: TrackerSyncDirection?
     let automaticProviderSyncEnabled: [String: Bool]
 }
 
-struct TrackerCredentialBackupData: Codable, Hashable {
+nonisolated struct TrackerCredentialBackupData: Codable, Sendable {
     let provider: TrackerProvider
     let accessToken: String
 }
 
-enum BackupJSONValue: Codable, Hashable {
+nonisolated enum BackupJSONValue: Codable, Hashable, Sendable {
     case string(String)
     case number(Double)
     case bool(Bool)

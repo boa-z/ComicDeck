@@ -125,7 +125,7 @@ struct SettingsView: View {
                         #if os(macOS)
                         exportBackupToFile()
                         #else
-                        model.prepareBackupShare(using: library, tracker: tracker)
+                        Task { await model.prepareBackupShare(using: library, tracker: tracker) }
                         #endif
                     } label: {
                         Label(AppLocalization.text("settings.data.export_backup", "Export Backup"), systemImage: "square.and.arrow.up")
@@ -266,27 +266,29 @@ struct SettingsView: View {
 
     #if os(macOS)
     private func exportBackupToFile() {
-        model.sharingBackup = true
-        model.backupError = nil
-        model.backupExportSuccessMessage = nil
-        defer { model.sharingBackup = false }
+        Task {
+            model.sharingBackup = true
+            model.backupError = nil
+            model.backupExportSuccessMessage = nil
+            defer { model.sharingBackup = false }
 
-        do {
-            let temporaryURL = try model.makeBackupExport(using: library, tracker: tracker)
-            guard let destinationURL = try PlatformFileActions.copyFileToUserSelectedDestination(
-                sourceURL: temporaryURL,
-                suggestedFileName: temporaryURL.lastPathComponent
-            ) else {
-                return
+            do {
+                let temporaryURL = try await model.makeBackupExport(using: library, tracker: tracker)
+                guard let destinationURL = try PlatformFileActions.copyFileToUserSelectedDestination(
+                    sourceURL: temporaryURL,
+                    suggestedFileName: temporaryURL.lastPathComponent
+                ) else {
+                    return
+                }
+                PlatformFileActions.reveal(url: destinationURL)
+                model.backupExportSuccessMessage = AppLocalization.format(
+                    "settings.backup.exported_message",
+                    "Backup exported to %@.",
+                    destinationURL.lastPathComponent
+                )
+            } catch {
+                model.backupError = error.localizedDescription
             }
-            PlatformFileActions.reveal(url: destinationURL)
-            model.backupExportSuccessMessage = AppLocalization.format(
-                "settings.backup.exported_message",
-                "Backup exported to %@.",
-                destinationURL.lastPathComponent
-            )
-        } catch {
-            model.backupError = error.localizedDescription
         }
     }
     #endif
