@@ -4,16 +4,6 @@ import SQLite3
 
 @MainActor
 final class SQLiteStoreTests: XCTestCase {
-    private var temporaryDirectories: [URL] = []
-
-    override func tearDownWithError() throws {
-        let fileManager = FileManager.default
-        for directory in temporaryDirectories {
-            try? fileManager.removeItem(at: directory)
-        }
-        temporaryDirectories.removeAll()
-    }
-
     func testFreshBootstrapSupportsLibraryDownloadOfflineAndTrackerFlows() async throws {
         let store = try makeStore()
 
@@ -861,7 +851,9 @@ final class SQLiteStoreTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ComicDeckTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        temporaryDirectories.append(directory)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: directory)
+        }
         return directory
     }
 

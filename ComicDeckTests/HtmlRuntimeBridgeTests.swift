@@ -18,13 +18,14 @@ final class HtmlRuntimeBridgeTests: XCTestCase {
 
     func testBridgeWorksOffMainThread() {
         let expectation = expectation(description: "background html parse")
+        let html = fixtureHTML
         DispatchQueue.global(qos: .userInitiated).async {
             XCTAssertFalse(Thread.isMainThread)
-            let documentKey = HtmlRuntimeBridge.shared.parse(html: self.fixtureHTML)
+            let documentKey = HtmlRuntimeBridge.shared.parse(html: html)
             XCTAssertGreaterThan(documentKey, 0)
             let titleKey = HtmlRuntimeBridge.shared.getElementById(documentKey: documentKey, id: "title")
             XCTAssertNotNil(titleKey)
-            XCTAssertEqual(self.normalized(HtmlRuntimeBridge.shared.text(elementKey: titleKey ?? 0)), "Hello World")
+            XCTAssertEqual(Self.normalized(HtmlRuntimeBridge.shared.text(elementKey: titleKey ?? 0)), "Hello World")
             HtmlRuntimeBridge.shared.dispose(documentKey: documentKey)
             expectation.fulfill()
         }
@@ -43,7 +44,7 @@ final class HtmlRuntimeBridgeTests: XCTestCase {
 
         let title = HtmlRuntimeBridge.shared.getElementById(documentKey: documentKey, id: "title")
         XCTAssertNotNil(title)
-        XCTAssertEqual(normalized(HtmlRuntimeBridge.shared.text(elementKey: title ?? 0)), "Hello World")
+        XCTAssertEqual(Self.normalized(HtmlRuntimeBridge.shared.text(elementKey: title ?? 0)), "Hello World")
 
         HtmlRuntimeBridge.shared.dispose(documentKey: documentKey)
     }
@@ -60,8 +61,8 @@ final class HtmlRuntimeBridgeTests: XCTestCase {
         let chaptersKey = HtmlRuntimeBridge.shared.getElementById(documentKey: documentKey, id: "chapters")
         let children = HtmlRuntimeBridge.shared.children(elementKey: chaptersKey ?? 0)
         XCTAssertEqual(children.count, 2)
-        XCTAssertEqual(normalized(HtmlRuntimeBridge.shared.text(elementKey: children[0])), "One")
-        XCTAssertEqual(normalized(HtmlRuntimeBridge.shared.text(elementKey: children[1])), "Two")
+        XCTAssertEqual(Self.normalized(HtmlRuntimeBridge.shared.text(elementKey: children[0])), "One")
+        XCTAssertEqual(Self.normalized(HtmlRuntimeBridge.shared.text(elementKey: children[1])), "Two")
 
         HtmlRuntimeBridge.shared.dispose(documentKey: documentKey)
     }
@@ -272,7 +273,7 @@ final class HtmlRuntimeBridgeTests: XCTestCase {
         XCTAssertEqual(HtmlRuntimeBridge.shared.attributes(elementKey: 999_999), [:])
     }
 
-    private func normalized(_ value: String) -> String {
+    private nonisolated static func normalized(_ value: String) -> String {
         value
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
