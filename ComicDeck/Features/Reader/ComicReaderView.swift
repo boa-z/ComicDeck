@@ -556,7 +556,7 @@ struct ComicReaderView: View {
             defer { pageExportInProgress = false }
             do {
                 let image = try await makeCurrentPageExportImage()
-                let url = try writeTemporaryPageExport(image)
+                let url = try await writeTemporaryPageExport(image)
                 sharedPageExport = ShareFile(url: url)
             } catch {
                 pageExportError = error.localizedDescription
@@ -571,7 +571,7 @@ struct ComicReaderView: View {
             defer { pageExportInProgress = false }
             do {
                 let image = try await makeCurrentPageExportImage()
-                let url = try writeTemporaryPageExport(image)
+                let url = try await writeTemporaryPageExport(image)
                 try await saveImageToPhotos(at: url)
                 pageExportSuccessMessage = AppLocalization.text("reader.export.saved", "Saved current page")
             } catch {
@@ -618,16 +618,18 @@ struct ComicReaderView: View {
         return await ReaderTranslatedImageRenderer.renderAsync(baseImage, overlays: overlays)
     }
 
-    private func writeTemporaryPageExport(_ image: PlatformImage) throws -> URL {
-        guard let data = image.platformPNGData else {
+    private func writeTemporaryPageExport(_ image: PlatformImage) async throws -> URL {
+        guard let image = image.cgImage else {
             throw ReaderPageExportError.imageWriteFailed
         }
         let fileName = "comicdeck-\(safeExportFileName(item.title))-p\(displayedPageIndex).png"
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("ComicDeckPageExports", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let url = directory.appendingPathComponent(fileName)
-        try data.write(to: url, options: .atomic)
-        return url
+        do {
+            return try await Task.detached(priority: .utility) {
+                try ReaderImageExportService.writeTemporaryPNG(image, fileName: fileName)
+            }.value
+        } catch {
+            throw ReaderPageExportError.imageWriteFailed
+        }
     }
 
     private func safeExportFileName(_ value: String) -> String {

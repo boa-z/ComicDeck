@@ -610,6 +610,7 @@ final class ZoomingImageScrollView: NSScrollView, NSDraggingSource {
     private var isLongPressZoomed = false
     private var longPressRestoreMagnification: CGFloat = 1
     private var dragStartEvent: NSEvent?
+    private var dragFilePromiseDelegate: ReaderImageFilePromiseDelegate?
     var onLongPressZoomStart: ((CGPoint) -> Void)?
     var onLongPressZoomEnd: (() -> Void)?
 
@@ -727,15 +728,14 @@ final class ZoomingImageScrollView: NSScrollView, NSDraggingSource {
         guard
             let dragStartEvent,
             shouldBeginImageDrag(from: dragStartEvent, to: event),
-            let image = imageView.image,
-            let imageURL = writeTemporaryDragImage(image)
+            let image = imageView.image
         else {
             super.mouseDragged(with: event)
             return
         }
 
         self.dragStartEvent = nil
-        beginImageDrag(image: image, imageURL: imageURL, event: dragStartEvent)
+        beginImageDrag(image: image, event: dragStartEvent)
     }
 
     func draggingSession(
@@ -959,17 +959,15 @@ final class ZoomingImageScrollView: NSScrollView, NSDraggingSource {
         panel.allowedContentTypes = [.png, .jpeg]
         panel.nameFieldStringValue = "page.png"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        guard let data = image.tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: data) else { return }
-        let ext = url.pathExtension.lowercased()
-        let imageData: Data?
-        switch ext {
-        case "jpg", "jpeg":
-            imageData = bitmap.representation(using: .jpeg, properties: [:])
-        default:
-            imageData = bitmap.representation(using: .png, properties: [:])
+        guard let image = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+        let format: ReaderImageExportFormat = ["jpg", "jpeg"].contains(url.pathExtension.lowercased()) ? .jpeg : .png
+        Task.detached(priority: .utility) {
+            do {
+                try ReaderImageExportService.write(image, to: url, format: format)
+            } catch {
+                readerDebugLog("macOS image export failed: \(error.localizedDescription)", level: .error)
+            }
         }
-        try? imageData?.write(to: url)
     }
 
     @objc private func copyImage(_ sender: Any?) {
@@ -986,8 +984,12 @@ final class ZoomingImageScrollView: NSScrollView, NSDraggingSource {
         return hypot(deltaX, deltaY) >= 4
     }
 
-    private func beginImageDrag(image: NSImage, imageURL: URL, event: NSEvent) {
-        let draggingItem = NSDraggingItem(pasteboardWriter: imageURL as NSURL)
+    private func beginImageDrag(image: NSImage, event: NSEvent) {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+        let delegate = ReaderImageFilePromiseDelegate(image: cgImage)
+        let provider = NSFilePromiseProvider(fileType: UTType.png.identifier, delegate: delegate)
+        dragFilePromiseDelegate = delegate
+        let draggingItem = NSDraggingItem(pasteboardWriter: provider)
         draggingItem.setDraggingFrame(dragPreviewFrame(for: image, event: event), contents: image)
         beginDraggingSession(with: [draggingItem], event: event, source: self)
     }
@@ -1010,44 +1012,6 @@ final class ZoomingImageScrollView: NSScrollView, NSDraggingSource {
         )
     }
 
-    private func writeTemporaryDragImage(_ image: NSImage) -> URL? {
-        guard let data = image.platformPNGData else { return nil }
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ComicDeckReaderDrags", isDirectory: true)
-        do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            removeStaleDragImages(in: directory)
-            let url = directory.appendingPathComponent("page-\(UUID().uuidString).png")
-            try data.write(to: url, options: .atomic)
-            return url
-        } catch {
-            readerDebugLog("macOS image drag export failed: \(error.localizedDescription)", level: .error)
-            return nil
-        }
-    }
-
-    private func removeStaleDragImages(in directory: URL) {
-        let expirationDate = Date().addingTimeInterval(-24 * 60 * 60)
-        guard let urls = try? FileManager.default.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return
-        }
-
-        for url in urls {
-            guard
-                let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
-                let modifiedAt = values.contentModificationDate,
-                modifiedAt < expirationDate
-            else {
-                continue
-            }
-            try? FileManager.default.removeItem(at: url)
-        }
-    }
-
     @objc private func actualSize(_ sender: Any?) {
         magnification = 1.0
     }
@@ -1060,6 +1024,42 @@ final class ZoomingImageScrollView: NSScrollView, NSDraggingSource {
     @objc private func zoomOut(_ sender: Any?) {
         let target = max(minMagnification, magnification / 1.25)
         setMagnification(target, centeredAt: NSPoint(x: contentView.bounds.midX, y: contentView.bounds.midY))
+    }
+}
+
+private nonisolated final class ReaderImageFilePromiseDelegate: NSObject, NSFilePromiseProviderDelegate {
+    private let image: CGImage
+    private let queue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "ComicDeck.ReaderImageFilePromise"
+        queue.qualityOfService = .utility
+        queue.maxConcurrentOperationCount = 1
+        return queue
+    }()
+
+    init(image: CGImage) {
+        self.image = image
+    }
+
+    func filePromiseProvider(_ filePromiseProvider: NSFilePromiseProvider, fileNameForType fileType: String) -> String {
+        "comicdeck-page.png"
+    }
+
+    func filePromiseProvider(
+        _ filePromiseProvider: NSFilePromiseProvider,
+        writePromiseTo url: URL,
+        completionHandler: @escaping (Error?) -> Void
+    ) {
+        do {
+            try ReaderImageExportService.write(image, to: url, format: .png)
+            completionHandler(nil)
+        } catch {
+            completionHandler(error)
+        }
+    }
+
+    func operationQueue(for filePromiseProvider: NSFilePromiseProvider) -> OperationQueue {
+        queue
     }
 }
 #endif
