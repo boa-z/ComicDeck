@@ -11,43 +11,29 @@ private struct BatchSelectionBar: View {
     let confirmAction: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(AppLocalization.format("common.selected_count", "%lld selected", Int64(selectedCount)))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(AppSurface.subtle, in: Capsule(style: .continuous))
+        VStack(alignment: .leading, spacing: 8) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    selectionCountLabel
 
-            Spacer(minLength: 0)
+                    Spacer(minLength: 0)
 
-            HStack(spacing: 8) {
-                Button(selectedCount == totalCount ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("common.select_all", "Select All")) {
-                    selectAllAction()
+                    selectionActions
                 }
-                .font(.subheadline.weight(.semibold))
-                .controlSize(.small)
-                .buttonStyle(.bordered)
 
-                Button(role: .destructive) {
-                    confirmAction()
-                } label: {
-                    if isWorking {
-                        HStack(spacing: 6) {
-                            ProgressView()
-                            if !progressText.isEmpty {
-                                Text(progressText)
-                            }
-                        }
-                        .font(.subheadline.weight(.semibold))
-                    } else {
-                        Text(actionTitle)
-                            .font(.subheadline.weight(.semibold))
-                    }
+                VStack(alignment: .leading, spacing: 8) {
+                    selectionCountLabel
+
+                    selectionActions
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .controlSize(.small)
-                .buttonStyle(.borderedProminent)
-                .disabled(selectedCount == 0 || isWorking)
+            }
+
+            if isWorking, !progressText.isEmpty {
+                Text(progressText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
         }
         .padding(.horizontal, 12)
@@ -58,6 +44,39 @@ private struct BatchSelectionBar: View {
                 .stroke(AppSurface.border, lineWidth: 1)
         }
         .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var selectionCountLabel: some View {
+        Text(AppLocalization.format("common.selected_count", "%lld selected", Int64(selectedCount)))
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(AppSurface.subtle, in: Capsule(style: .continuous))
+    }
+
+    private var selectionActions: some View {
+        HStack(spacing: 8) {
+            Button(selectedCount == totalCount ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("common.select_all", "Select All"), action: selectAllAction)
+                .font(.subheadline.weight(.semibold))
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+
+            Button(role: .destructive, action: confirmAction) {
+                HStack(spacing: 6) {
+                    if isWorking {
+                        ProgressView()
+                    }
+                    Text(actionTitle)
+                }
+                .font(.subheadline.weight(.semibold))
+            }
+            .controlSize(.small)
+            .buttonStyle(.borderedProminent)
+            .disabled(selectedCount == 0 || isWorking)
+        }
     }
 }
 

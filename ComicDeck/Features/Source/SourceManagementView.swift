@@ -260,16 +260,54 @@ struct SourceManagementView: View {
     }
 
     private func selectionBar(snapshot: SourceManagementSnapshot) -> some View {
-        HStack(spacing: 10) {
-            Text(AppLocalization.format("source.management.selected", "%lld selected", Int64(snapshot.selectedRows.count)))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(AppSurface.subtle, in: Capsule(style: .continuous))
+        VStack(alignment: .leading, spacing: 8) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    selectionCountLabel(snapshot: snapshot)
 
-            Spacer(minLength: 0)
+                    Spacer(minLength: 0)
 
+                    selectionActions(snapshot: snapshot)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    selectionCountLabel(snapshot: snapshot)
+
+                    selectionActions(snapshot: snapshot)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+
+            if batchWorking, !batchProgressText.isEmpty {
+                Text(batchProgressText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous)
+                .stroke(AppSurface.border, lineWidth: 1)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private func selectionCountLabel(snapshot: SourceManagementSnapshot) -> some View {
+        Text(AppLocalization.format("source.management.selected", "%lld selected", Int64(snapshot.selectedRows.count)))
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(AppSurface.subtle, in: Capsule(style: .continuous))
+    }
+
+    private func selectionActions(snapshot: SourceManagementSnapshot) -> some View {
+        HStack(spacing: 8) {
             Button(snapshot.selectedRows.count == snapshot.installedRows.count ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("source.management.select_all", "Select All")) {
                 if snapshot.selectedRows.count == snapshot.installedRows.count {
                     selectedSourceKeys.removeAll()
@@ -284,18 +322,13 @@ struct SourceManagementView: View {
             Button {
                 showBatchUpdateConfirm = true
             } label: {
-                if batchWorking {
-                    HStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    if batchWorking {
                         ProgressView()
-                        if !batchProgressText.isEmpty {
-                            Text(batchProgressText)
-                        }
                     }
-                    .font(.subheadline.weight(.semibold))
-                } else {
                     Text(AppLocalization.text("source.action.update", "Update"))
-                        .font(.subheadline.weight(.semibold))
                 }
+                .font(.subheadline.weight(.semibold))
             }
             .controlSize(.small)
             .buttonStyle(.bordered)
@@ -304,31 +337,18 @@ struct SourceManagementView: View {
             Button(role: .destructive) {
                 showBatchDeleteConfirm = true
             } label: {
-                if batchWorking {
-                    HStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    if batchWorking {
                         ProgressView()
-                        if !batchProgressText.isEmpty {
-                            Text(batchProgressText)
-                        }
                     }
-                    .font(.subheadline.weight(.semibold))
-                } else {
                     Text(AppLocalization.text("source.action.delete", "Delete"))
-                        .font(.subheadline.weight(.semibold))
                 }
+                .font(.subheadline.weight(.semibold))
             }
             .controlSize(.small)
             .buttonStyle(.borderedProminent)
             .disabled(snapshot.selectedRows.isEmpty || batchWorking)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: AppRadius.lg, style: .continuous)
-                .stroke(AppSurface.border, lineWidth: 1)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func installedSourceEntry(_ row: InstalledSourceRowSnapshot) -> some View {

@@ -9,39 +9,20 @@ private struct BookmarkBatchSelectionBar: View {
     let removeAction: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text(AppLocalization.format("library.bookmarks.selected", "%lld selected", Int64(selectedCount)))
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(AppSurface.subtle, in: Capsule(style: .continuous))
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                selectionCountLabel
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
-            HStack(spacing: 8) {
-                Button(selectedCount == totalCount ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("common.select_all", "Select All")) {
-                    selectAllAction()
-                }
-                .font(.subheadline.weight(.semibold))
-                .controlSize(.small)
-                .buttonStyle(.bordered)
+                selectionActions
+            }
 
-                Button(AppLocalization.text("library.bookmarks.add_to_shelf", "Add to Shelf")) {
-                    addToShelfAction()
-                }
-                .font(.subheadline.weight(.semibold))
-                .controlSize(.small)
-                .buttonStyle(.bordered)
-                .disabled(selectedCount == 0 || isWorking)
+            VStack(alignment: .leading, spacing: 8) {
+                selectionCountLabel
 
-                Button(AppLocalization.text("library.bookmarks.remove", "Remove"), role: .destructive) {
-                    removeAction()
-                }
-                .font(.subheadline.weight(.semibold))
-                .controlSize(.small)
-                .buttonStyle(.borderedProminent)
-                .disabled(selectedCount == 0 || isWorking)
+                selectionActions
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
         .padding(.horizontal, 12)
@@ -52,6 +33,38 @@ private struct BookmarkBatchSelectionBar: View {
                 .stroke(AppSurface.border, lineWidth: 1)
         }
         .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var selectionCountLabel: some View {
+        Text(AppLocalization.format("library.bookmarks.selected", "%lld selected", Int64(selectedCount)))
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(AppSurface.subtle, in: Capsule(style: .continuous))
+    }
+
+    private var selectionActions: some View {
+        HStack(spacing: 8) {
+            Button(selectedCount == totalCount ? AppLocalization.text("common.clear", "Clear") : AppLocalization.text("common.select_all", "Select All"), action: selectAllAction)
+                .font(.subheadline.weight(.semibold))
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+
+            Button(AppLocalization.text("library.bookmarks.add_to_shelf", "Add to Shelf"), action: addToShelfAction)
+                .font(.subheadline.weight(.semibold))
+                .controlSize(.small)
+                .buttonStyle(.bordered)
+                .disabled(selectedCount == 0 || isWorking)
+
+            Button(AppLocalization.text("library.bookmarks.remove", "Remove"), role: .destructive, action: removeAction)
+                .font(.subheadline.weight(.semibold))
+                .controlSize(.small)
+                .buttonStyle(.borderedProminent)
+                .disabled(selectedCount == 0 || isWorking)
+        }
     }
 }
 
