@@ -10,6 +10,8 @@ final class RuntimeDebugConsole {
 
     private(set) var lines: [String] = []
     private(set) var lastWriteError: String?
+    private(set) var activeLogFileSizeBytes: Int64 = 0
+    private(set) var activeLogFileAvailable = false
 
     private let maxLines = 300
     @ObservationIgnored
@@ -31,6 +33,12 @@ final class RuntimeDebugConsole {
     @ObservationIgnored
     nonisolated private var activeLogFileURL: URL {
         logsDirectoryURL.appendingPathComponent("runtime-debug.log", isDirectory: false)
+    }
+
+    init() {
+        let metadata = Self.logFileMetadata(at: activeLogFileURL)
+        activeLogFileSizeBytes = metadata.sizeBytes
+        activeLogFileAvailable = metadata.exists
     }
 
     nonisolated static var isEnabled: Bool {
@@ -55,6 +63,8 @@ final class RuntimeDebugConsole {
         lines = bufferedLines
         let timestamp = formatter.string(from: Date())
         let line = "[\(timestamp)] \(message)"
+        activeLogFileSizeBytes += Int64(line.utf8.count + 1)
+        activeLogFileAvailable = true
         let fileURL = activeLogFileURL
         writeQueue.async {
             Self.appendToFileSync(line, fileURL: fileURL)
@@ -65,6 +75,7 @@ final class RuntimeDebugConsole {
         bufferedLines.removeAll(keepingCapacity: true)
         lines.removeAll(keepingCapacity: true)
         lastWriteError = nil
+        activeLogFileSizeBytes = 0
         let fileURL = activeLogFileURL
         writeQueue.async {
             Self.truncateLogFileSync(fileURL)
@@ -72,14 +83,12 @@ final class RuntimeDebugConsole {
     }
 
     func activeLogDescription() -> String {
-        let attrs = (try? FileManager.default.attributesOfItem(atPath: activeLogFileURL.path)) ?? [:]
-        let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
-        if size <= 0 { return "Empty" }
-        return ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
+        if activeLogFileSizeBytes <= 0 { return "Empty" }
+        return ByteCountFormatter.string(fromByteCount: activeLogFileSizeBytes, countStyle: .file)
     }
 
     func activeLogFileExists() -> Bool {
-        FileManager.default.fileExists(atPath: activeLogFileURL.path)
+        activeLogFileAvailable
     }
 
     func exportLogSnapshot() throws -> URL {
@@ -140,5 +149,12 @@ final class RuntimeDebugConsole {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
         return formatter.string(from: Date())
+    }
+
+    private nonisolated static func logFileMetadata(at url: URL) -> (exists: Bool, sizeBytes: Int64) {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return (false, 0)
+        }
+        return (true, (attributes[.size] as? NSNumber)?.int64Value ?? 0)
     }
 }
