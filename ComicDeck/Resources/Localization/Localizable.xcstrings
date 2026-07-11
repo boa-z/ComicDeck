@@ -11440,6 +11440,23 @@
         }
       }
     },
+    "source.detail.key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标识"
+          }
+        }
+      }
+    },
     "source.detail.refresh_login" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11480,13 +11497,30 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Search methods        : %@"
+            "value" : "Search methods: %@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜索方式：%@"
+          }
+        }
+      }
+    },
+    "source.detail.script" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "脚本"
           }
         }
       }
@@ -11525,6 +11559,40 @@
         }
       }
     },
+    "source.detail.supported" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supported"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持"
+          }
+        }
+      }
+    },
+    "source.detail.unavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unavailable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不可用"
+          }
+        }
+      }
+    },
     "source.detail.use_account" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11555,6 +11623,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "验证 Cookie"
+          }
+        }
+      }
+    },
+    "source.detail.version" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本"
           }
         }
       }
@@ -12092,7 +12177,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Update available   : %@"
+            "value" : "Update available: %@"
           }
         },
         "zh-Hans" : {
@@ -12609,6 +12694,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "图源设置"
+          }
+        }
+      }
+    },
+    "source.settings.count" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 项设置"
+          }
+        }
+      }
+    },
+    "source.settings.disabled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已停用"
+          }
+        }
+      }
+    },
+    "source.settings.enabled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enabled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已启用"
           }
         }
       }

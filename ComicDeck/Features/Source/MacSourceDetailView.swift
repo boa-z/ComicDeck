@@ -89,7 +89,7 @@ struct MacSourceDetailView: View {
             sourceManager.selectSource(source)
         } label: {
             Label(
-                isSelected ? AppLocalization.text("source.detail.selected", "Selected") : AppLocalization.text("source.action.use", "Use Source"),
+                isSelected ? AppLocalization.text("source.management.status.selected", "Selected") : AppLocalization.text("source.action.use", "Use Source"),
                 systemImage: isSelected ? "checkmark.circle.fill" : "checkmark.circle"
             )
         }
@@ -101,7 +101,7 @@ struct MacSourceDetailView: View {
             } label: {
                 Label(
                     sourceManager.isOperating(on: source.key)
-                        ? AppLocalization.text("source.action.updating", "Updating...")
+                        ? AppLocalization.text("source.management.status.updating", "Updating...")
                         : AppLocalization.text("source.action.update", "Update"),
                     systemImage: "square.and.arrow.down"
                 )
@@ -133,7 +133,7 @@ struct MacSourceDetailView: View {
 
             if !model.capabilityProfile.availableSearchMethods.isEmpty {
                 Text(AppLocalization.format(
-                    "source.detail.search_methods_format",
+                    "source.detail.search_methods",
                     "Search methods: %@",
                     model.capabilityProfile.availableSearchMethods.joined(separator: ", ")
                 ))
@@ -143,7 +143,7 @@ struct MacSourceDetailView: View {
         } header: {
             Text(AppLocalization.text("source.detail.support", "Support"))
         } footer: {
-            Text(AppLocalization.text("source.detail.support_footer", "Capabilities detected from the installed source script"))
+            Text(AppLocalization.text("source.detail.capabilities_hint", "Capabilities detected from the installed source script"))
         }
     }
 
@@ -225,7 +225,7 @@ struct MacSourceDetailView: View {
         } header: {
             Text(AppLocalization.text("source.detail.authentication", "Authentication"))
         } footer: {
-            Text(AppLocalization.text("source.detail.authentication_footer", "Login flows and session state for this source"))
+            Text(AppLocalization.text("source.detail.authentication_hint", "Login flows and session state for this source"))
         }
     }
 
@@ -331,7 +331,7 @@ struct MacSourceDetailView: View {
                     Spacer()
                 }
             } else if model.settings.isEmpty {
-                Text(AppLocalization.text("source.detail.no_settings", "No source settings available."))
+                Text(AppLocalization.text("source.settings.empty", "No source settings available."))
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(model.settings) { setting in
@@ -339,11 +339,11 @@ struct MacSourceDetailView: View {
                 }
             }
         } header: {
-            Text(AppLocalization.text("source.detail.settings", "Source Settings"))
+            Text(AppLocalization.text("source.settings", "Source Settings"))
         } footer: {
             Text(model.settings.isEmpty
-                 ? AppLocalization.text("source.detail.settings_footer_empty", "This source does not expose runtime settings.")
-                 : AppLocalization.text("source.detail.settings_footer", "Settings are persisted per source, following the source script contract."))
+                 ? AppLocalization.text("source.settings.empty_hint", "This source does not expose runtime settings.")
+                 : AppLocalization.text("source.settings.hint", "Settings are persisted per source, following the source script contract."))
         }
     }
 
@@ -387,7 +387,7 @@ struct MacSourceDetailView: View {
                 .platformTextInputAutocapitalizationNever()
                 .autocorrectionDisabled()
 
-                Button(AppLocalization.text("source.detail.save", "Save")) {
+                Button(AppLocalization.text("source.settings.save", "Save")) {
                     let value = textSettingDrafts[setting.key] ?? setting.currentStringValue
                     Task { await model.saveSetting(setting, value: value, using: vm, sourceKey: source.key) }
                 }
@@ -411,7 +411,7 @@ struct MacSourceDetailView: View {
                     .font(.callout)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } header: {
-                Text(AppLocalization.text("source.repository.status", "Status"))
+                Text(AppLocalization.text("common.status", "Status"))
             }
         }
     }
@@ -428,7 +428,7 @@ struct MacSourceDetailView: View {
     }
 
     private var loginStatusColor: Color {
-        login.currentSourceLoginStateLabel.contains("Logged In") ? AppTint.success : .secondary
+        login.currentSourceIsLogged == true ? AppTint.success : .secondary
     }
 
     private func seedTextDrafts() {

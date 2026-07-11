@@ -18,16 +18,16 @@ struct SourceDetailView: View {
 
     private var supportItems: [(title: String, systemImage: String, enabled: Bool)] {
         [
-            ("Explore", "sparkles.rectangle.stack", model.capabilityProfile.hasExplore),
-            ("Category", "square.grid.3x3.topleft.filled", model.capabilityProfile.hasCategory),
-            ("Search", "magnifyingglass", model.capabilityProfile.hasSearch),
-            ("Favorites", "heart", model.capabilityProfile.hasFavorites),
-            ("Comments", "bubble.left.and.bubble.right", model.capabilityProfile.hasComments),
+            (AppLocalization.text("source.capability.explore", "Explore"), "sparkles.rectangle.stack", model.capabilityProfile.hasExplore),
+            (AppLocalization.text("source.capability.category", "Category"), "square.grid.3x3.topleft.filled", model.capabilityProfile.hasCategory),
+            (AppLocalization.text("source.capability.search", "Search"), "magnifyingglass", model.capabilityProfile.hasSearch),
+            (AppLocalization.text("source.capability.favorites", "Favorites"), "heart", model.capabilityProfile.hasFavorites),
+            (AppLocalization.text("source.capability.comments", "Comments"), "bubble.left.and.bubble.right", model.capabilityProfile.hasComments),
             (AppLocalization.text("source.capability.previews", "Previews"), "photo.on.rectangle.angled", model.capabilityProfile.hasComicPreview),
-            ("Account", "person.text.rectangle", model.capabilityProfile.hasAccountLogin),
-            ("Web", "globe", model.capabilityProfile.hasWebLogin),
-            ("Cookies", "key.horizontal", model.capabilityProfile.hasCookieLogin),
-            ("Settings", "slider.horizontal.3", model.capabilityProfile.hasSettings)
+            (AppLocalization.text("source.capability.account", "Account"), "person.text.rectangle", model.capabilityProfile.hasAccountLogin),
+            (AppLocalization.text("source.capability.web", "Web"), "globe", model.capabilityProfile.hasWebLogin),
+            (AppLocalization.text("source.capability.cookies", "Cookies"), "key.horizontal", model.capabilityProfile.hasCookieLogin),
+            (AppLocalization.text("source.capability.settings", "Settings"), "slider.horizontal.3", model.capabilityProfile.hasSettings)
         ]
     }
 
@@ -57,13 +57,13 @@ struct SourceDetailView: View {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 HStack(spacing: 8) {
                     if sourceManager.selectedSourceKey == source.key {
-                        statusBadge("Selected", tint: AppTint.accent)
+                        statusBadge(AppLocalization.text("source.management.status.selected", "Selected"), tint: AppTint.accent)
                     }
                     if let updateVersion {
-                        statusBadge("Update v\(updateVersion)", tint: AppTint.warning)
+                        statusBadge(AppLocalization.format("source.management.update_available", "Update available: %@", "v\(updateVersion)"), tint: AppTint.warning)
                     }
                     if model.capabilityProfile.hasSettings {
-                        statusBadge("\(model.capabilityProfile.settingCount) settings", tint: AppTint.success)
+                        statusBadge(AppLocalization.format("source.settings.count", "%lld settings", Int64(model.capabilityProfile.settingCount)), tint: AppTint.success)
                     }
                 }
 
@@ -72,7 +72,9 @@ struct SourceDetailView: View {
                         sourceManager.selectSource(source)
                     } label: {
                         Label(
-                            sourceManager.selectedSourceKey == source.key ? "Selected" : "Use Source",
+                            sourceManager.selectedSourceKey == source.key
+                                ? AppLocalization.text("source.management.status.selected", "Selected")
+                                : AppLocalization.text("source.action.use", "Use Source"),
                             systemImage: sourceManager.selectedSourceKey == source.key ? "checkmark.circle.fill" : "checkmark.circle"
                         )
                     }
@@ -83,7 +85,12 @@ struct SourceDetailView: View {
                         Button {
                             Task { await sourceManager.updateSource(source) }
                         } label: {
-                            Label(sourceManager.isOperating(on: source.key) ? "Updating..." : "Update", systemImage: "square.and.arrow.down")
+                            Label(
+                                sourceManager.isOperating(on: source.key)
+                                    ? AppLocalization.text("source.management.status.updating", "Updating...")
+                                    : AppLocalization.text("source.action.update", "Update"),
+                                systemImage: "square.and.arrow.down"
+                            )
                         }
                         .buttonStyle(.bordered)
                         .disabled(sourceManager.isOperating(on: source.key))
@@ -94,7 +101,7 @@ struct SourceDetailView: View {
                     Button(role: .destructive) {
                         Task { await sourceManager.uninstallSource(source) }
                     } label: {
-                        Label("Delete", systemImage: "trash")
+                        Label(AppLocalization.text("source.action.delete", "Delete"), systemImage: "trash")
                     }
                     .buttonStyle(.bordered)
                     .disabled(sourceManager.isOperating(on: source.key))
@@ -110,7 +117,10 @@ struct SourceDetailView: View {
     }
 
     private var supportCard: some View {
-        ComicDetailSectionCard(title: "Support", subtitle: "Capabilities detected from the installed source script") {
+        ComicDetailSectionCard(
+            title: AppLocalization.text("source.detail.support", "Support"),
+            subtitle: AppLocalization.text("source.detail.capabilities_hint", "Capabilities detected from the installed source script")
+        ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     ForEach(supportItems, id: \.title) { item in
@@ -119,7 +129,11 @@ struct SourceDetailView: View {
                 }
 
                 if !model.capabilityProfile.availableSearchMethods.isEmpty {
-                    Text("Search methods: \(model.capabilityProfile.availableSearchMethods.joined(separator: ", "))")
+                    Text(AppLocalization.format(
+                        "source.detail.search_methods",
+                        "Search methods: %@",
+                        model.capabilityProfile.availableSearchMethods.joined(separator: ", ")
+                    ))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -128,7 +142,10 @@ struct SourceDetailView: View {
     }
 
     private var authenticationCard: some View {
-        ComicDetailSectionCard(title: "Authentication", subtitle: "Login flows and session state for this source") {
+        ComicDetailSectionCard(
+            title: AppLocalization.text("source.detail.authentication", "Authentication"),
+            subtitle: AppLocalization.text("source.detail.authentication_hint", "Login flows and session state for this source")
+        ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 HStack {
                     Label(AppLocalization.text("source.detail.session", "Session"), systemImage: "person.badge.key")
@@ -310,17 +327,17 @@ struct SourceDetailView: View {
 
     private var settingsCard: some View {
         ComicDetailSectionCard(
-            title: "Source Settings",
+            title: AppLocalization.text("source.settings", "Source Settings"),
             subtitle: model.settings.isEmpty
-                ? "This source does not expose runtime settings."
-                : "Settings are persisted per source, following the source script contract."
+                ? AppLocalization.text("source.settings.empty_hint", "This source does not expose runtime settings.")
+                : AppLocalization.text("source.settings.hint", "Settings are persisted per source, following the source script contract.")
         ) {
             VStack(alignment: .leading, spacing: AppSpacing.md) {
                 if model.isLoading && model.settings.isEmpty {
                     ProgressView()
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else if model.settings.isEmpty {
-                    Text("No source settings available.")
+                    Text(AppLocalization.text("source.settings.empty", "No source settings available."))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 } else {
@@ -360,7 +377,9 @@ struct SourceDetailView: View {
                         }
                     )
                 ) {
-                    Text(setting.currentBoolValue ? "Enabled" : "Disabled")
+                    Text(setting.currentBoolValue
+                         ? AppLocalization.text("source.settings.enabled", "Enabled")
+                         : AppLocalization.text("source.settings.disabled", "Disabled"))
                         .foregroundStyle(.secondary)
                 }
                 .toggleStyle(.switch)
@@ -406,7 +425,7 @@ struct SourceDetailView: View {
                 .padding(.vertical, 10)
                 .background(AppSurface.elevated, in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
 
-                Button("Save") {
+                Button(AppLocalization.text("source.settings.save", "Save")) {
                     let value = textSettingDrafts[setting.key] ?? setting.currentStringValue
                     Task { await model.saveSetting(setting, value: value, using: vm, sourceKey: source.key) }
                 }
@@ -428,7 +447,7 @@ struct SourceDetailView: View {
     }
 
     private var loginStatusColor: Color {
-        login.currentSourceLoginStateLabel.contains("Logged In") ? AppTint.success : .secondary
+        login.currentSourceIsLogged == true ? AppTint.success : .secondary
     }
 
     private func statusBadge(_ title: String, tint: Color) -> some View {
@@ -448,7 +467,9 @@ struct SourceDetailView: View {
             Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.primary)
-            Text(enabled ? "Supported" : "Unavailable")
+            Text(enabled
+                 ? AppLocalization.text("source.detail.supported", "Supported")
+                 : AppLocalization.text("source.detail.unavailable", "Unavailable"))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
