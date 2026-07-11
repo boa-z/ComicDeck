@@ -223,6 +223,11 @@ private nonisolated final class HybridDataCacheDiskStorage: @unchecked Sendable 
     private let directory: URL
     private let diskTTL: TimeInterval
     private let maxDiskBytes: Int64
+    private static let pruneStoreInterval = 32
+    private static let pruneByteInterval: Int64 = 16 * 1024 * 1024
+    // The first write also prunes caches created before automatic enforcement existed.
+    private var storesSincePrune = HybridDataCacheDiskStorage.pruneStoreInterval - 1
+    private var bytesSincePrune: Int64 = 0
 
     init(directory: URL, diskTTL: TimeInterval, maxDiskBytes: Int64) {
         self.directory = directory
@@ -261,6 +266,11 @@ private nonisolated final class HybridDataCacheDiskStorage: @unchecked Sendable 
         do {
             try data.write(to: dataFileURL(forKey: key), options: .atomic)
             try persistMetadata(metadata, forKey: key)
+            storesSincePrune += 1
+            bytesSincePrune += Int64(data.count)
+            if storesSincePrune >= Self.pruneStoreInterval || bytesSincePrune >= Self.pruneByteInterval {
+                try? pruneIfNeeded(now: now)
+            }
         } catch {
             removeData(forKey: key)
         }
@@ -276,6 +286,8 @@ private nonisolated final class HybridDataCacheDiskStorage: @unchecked Sendable 
             try? fileManager.removeItem(at: directory)
         }
         try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        storesSincePrune = 0
+        bytesSincePrune = 0
     }
 
     func diskSizeBytes(now: Date) -> Int64 {
@@ -313,6 +325,10 @@ private nonisolated final class HybridDataCacheDiskStorage: @unchecked Sendable 
 
     private func pruneIfNeeded(now: Date) throws {
         var metadata = try loadMetadata()
+        defer {
+            storesSincePrune = 0
+            bytesSincePrune = 0
+        }
         for item in metadata where item.expiresAt <= now {
             removeData(forKey: item.key)
         }

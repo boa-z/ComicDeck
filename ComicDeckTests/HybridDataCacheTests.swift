@@ -49,7 +49,21 @@ final class HybridDataCacheTests: XCTestCase {
         XCTAssertNil(hit)
     }
 
-    private func makeCache(root: URL) -> HybridDataCache {
+    func testQueuedWritesAutomaticallyEnforceDiskLimit() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let maxDiskBytes: Int64 = 128
+        let cache = makeCache(root: root, maxDiskBytes: maxDiskBytes)
+
+        for index in 0..<33 {
+            await cache.store(Data(repeating: UInt8(index), count: 64), forKey: "image-\(index)")
+        }
+        await cache.flushPendingDiskOperations()
+
+        XCTAssertLessThanOrEqual(try storedDataBytes(root: root), maxDiskBytes)
+    }
+
+    private func makeCache(root: URL, maxDiskBytes: Int64 = 4_096) -> HybridDataCache {
         HybridDataCache(
             directoryName: "HybridDataCacheTests",
             policy: DataCachePolicy(
@@ -57,7 +71,7 @@ final class HybridDataCacheTests: XCTestCase {
                 diskTTL: 60,
                 maxMemoryItems: 4,
                 maxMemoryBytes: 1_024,
-                maxDiskBytes: 4_096
+                maxDiskBytes: maxDiskBytes
             ),
             rootDirectory: root
         )
@@ -68,5 +82,19 @@ final class HybridDataCacheTests: XCTestCase {
             .appendingPathComponent("ComicDeckTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+
+    private func storedDataBytes(root: URL) throws -> Int64 {
+        let cacheDirectory = root.appendingPathComponent("HybridDataCacheTests", isDirectory: true)
+        let urls = try FileManager.default.contentsOfDirectory(
+            at: cacheDirectory,
+            includingPropertiesForKeys: [.fileSizeKey],
+            options: [.skipsHiddenFiles]
+        )
+        return try urls
+            .filter { $0.pathExtension == "bin" }
+            .reduce(into: Int64(0)) { total, url in
+                total += Int64(try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
+            }
     }
 }
