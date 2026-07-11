@@ -318,7 +318,7 @@ struct MacDownloadWorkspaceView: View {
     private func metric(_ title: String, _ value: String, _ tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Text(value)
@@ -381,9 +381,11 @@ struct MacDownloadWorkspaceView: View {
                     MacQueueChapterRow(item: item)
                         .tag(item.id)
                         .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedQueueChapterID = item.id
-                            selectedQueueItem = item
+                        .onTapGesture(count: 2) {
+                            openQueueChapter(item)
+                        }
+                        .accessibilityAction(named: Text(AppLocalization.text("common.open", "Open"))) {
+                            openQueueChapter(item)
                         }
                         .contextMenu {
                             queueChapterContextMenu(for: item)
@@ -426,9 +428,11 @@ struct MacDownloadWorkspaceView: View {
                     MacOfflineChapterRow(item: item)
                         .tag(item.id)
                         .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedOfflineChapterID = item.id
-                            selectedOfflineItem = item
+                        .onTapGesture(count: 2) {
+                            openOfflineChapter(item)
+                        }
+                        .accessibilityAction(named: Text(AppLocalization.text("common.open", "Open"))) {
+                            openOfflineChapter(item)
                         }
                         .onDrag {
                             selectedOfflineChapterID = item.id
@@ -476,7 +480,7 @@ struct MacDownloadWorkspaceView: View {
                                 Text(badge.0)
                                     .font(.headline.monospacedDigit())
                                 Text(badge.1)
-                                    .font(.caption2)
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             .padding(.horizontal, 10)

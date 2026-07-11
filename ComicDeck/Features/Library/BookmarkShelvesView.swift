@@ -330,11 +330,6 @@ struct BookmarkShelvesView: View {
             } else {
                 ForEach(snapshot.categories) { category in
                     categoryRow(category, bookmarkCount: snapshot.bookmarkCount(in: category))
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedCategoryID = category.id
-                            model.selectedCategory = category
-                        }
                         .listRowInsets(EdgeInsets(top: AppSpacing.sm, leading: AppSpacing.screen, bottom: AppSpacing.sm, trailing: AppSpacing.screen))
                         .listRowSeparator(.hidden)
                         .listRowBackground(AppSurface.card)
@@ -367,22 +362,35 @@ struct BookmarkShelvesView: View {
 
     private func categoryRow(_ category: LibraryCategory, bookmarkCount: Int) -> some View {
         HStack(spacing: AppSpacing.md) {
-            Image(systemName: "square.stack.3d.up")
-                .font(.headline)
-                .foregroundStyle(AppTint.accent)
-                .frame(width: 40, height: 40)
-                .background(AppTint.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            Button {
+                openCategory(category)
+            } label: {
+                HStack(spacing: AppSpacing.md) {
+                    Image(systemName: "square.stack.3d.up")
+                        .font(.headline)
+                        .foregroundStyle(AppTint.accent)
+                        .frame(width: 40, height: 40)
+                        .background(AppTint.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(category.name)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                Text(AppLocalization.format("library.shelves.bookmark_count_format", "%lld bookmarks", Int64(bookmarkCount)))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(category.name)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Text(AppLocalization.format("library.shelves.bookmark_count_format", "%lld bookmarks", Int64(bookmarkCount)))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
             }
-
-            Spacer(minLength: 0)
+            .buttonStyle(.plain)
 
             Menu {
                 Button(AppLocalization.text("library.shelves.add_bookmarks", "Add Bookmarks"), systemImage: "plus") {
@@ -395,15 +403,13 @@ struct BookmarkShelvesView: View {
                     beginDelete(category)
                 }
             } label: {
-                Image(systemName: "ellipsis.circle")
+                Label(AppLocalization.text("tracking.sync.more", "More"), systemImage: "ellipsis.circle")
+                    .labelStyle(.iconOnly)
                     .font(.title3)
                     .foregroundStyle(.secondary)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
-
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.tertiary)
         }
         .padding(.vertical, AppSpacing.sm)
     }
@@ -435,7 +441,7 @@ struct BookmarkShelvesView: View {
     private func statCard(title: String, value: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title.uppercased())
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.title3.weight(.bold))
