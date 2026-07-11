@@ -13,7 +13,7 @@ struct ComicDetailPreviewSection: View {
     ]
 
     var body: some View {
-        if !images.isEmpty || loading || !errorText.isEmpty {
+        if !images.isEmpty || loading || canLoadMore || !errorText.isEmpty {
             ComicDetailSectionCard(
                 title: AppLocalization.text("detail.preview.title", "Preview"),
                 subtitle: AppLocalization.text("detail.preview.subtitle", "Tap a page preview to continue reading from that page")
@@ -79,7 +79,7 @@ private struct ComicDetailPreviewTile: View {
                 .clipped()
 
                 Text(String(image.page))
-                    .font(.caption2.weight(.bold))
+                    .font(.caption.weight(.bold))
                     .monospacedDigit()
                     .padding(.horizontal, 7)
                     .padding(.vertical, 4)

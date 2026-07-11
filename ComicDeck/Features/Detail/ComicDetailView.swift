@@ -362,7 +362,7 @@ struct ComicDetailView: View {
                     chapterID: target.chapterID,
                     chapterTitle: target.chapterTitle,
                     localDirectory: target.localDirectory,
-                    initialPage: preview.page,
+                    initialPage: max(1, preview.page),
                     chapterSequence: detail.chapters
                 )
             },

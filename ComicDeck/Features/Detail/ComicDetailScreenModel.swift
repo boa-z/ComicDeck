@@ -1,6 +1,51 @@
 import Observation
 import SwiftUI
 
+struct ComicPreviewPaginationResult {
+    let images: [ComicPreviewImage]
+    let nextToken: String?
+}
+
+enum ComicPreviewPagination {
+    static func nextStartPage(after images: [ComicPreviewImage]) -> Int {
+        guard let highestPage = images.lazy.map(\.page).max() else { return 1 }
+        guard highestPage < Int.max else { return Int.max }
+        return max(1, highestPage + 1)
+    }
+
+    static func merge(
+        existing: [ComicPreviewImage],
+        page: ComicPreviewImagePage,
+        requestedToken: String?
+    ) -> ComicPreviewPaginationResult {
+        var seenPages = Set(existing.lazy.map(\.page))
+        var seenIDs = Set(existing.lazy.map(\.id))
+        var images = existing
+        images.reserveCapacity(existing.count + page.images.count)
+        for image in page.images {
+            guard !seenPages.contains(image.page), !seenIDs.contains(image.id) else { continue }
+            seenPages.insert(image.page)
+            seenIDs.insert(image.id)
+            images.append(image)
+        }
+
+        let requestedToken = normalizedToken(requestedToken)
+        var nextToken = normalizedToken(page.nextToken)
+        if nextToken == requestedToken, nextToken != nil {
+            nextToken = nil
+        }
+        return ComicPreviewPaginationResult(images: images, nextToken: nextToken)
+    }
+
+    private static func normalizedToken(_ token: String?) -> String? {
+        guard let token = token?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !token.isEmpty else {
+            return nil
+        }
+        return token
+    }
+}
+
 @MainActor
 @Observable
 final class ComicDetailScreenModel {
@@ -93,8 +138,16 @@ final class ComicDetailScreenModel {
             isBookmarked = library.isBookmarked(item)
             await library.refreshDownloadList()
             detail = try await vm.loadComicDetail(item)
-            previewImages = detail?.previewImages ?? []
-            previewNextToken = detail?.previewNextToken
+            let initialPreview = ComicPreviewPagination.merge(
+                existing: [],
+                page: ComicPreviewImagePage(
+                    images: detail?.previewImages ?? [],
+                    nextToken: detail?.previewNextToken
+                ),
+                requestedToken: nil
+            )
+            previewImages = initialPreview.images
+            previewNextToken = initialPreview.nextToken
             previewUnavailable = false
             previewErrorText = ""
             if previewImages.isEmpty {
@@ -128,16 +181,20 @@ final class ComicDetailScreenModel {
         defer { previewLoading = false }
 
         do {
+            let requestedToken = previewNextToken
             let page = try await vm.loadComicThumbnailPage(
                 item,
-                nextToken: previewNextToken,
-                startPage: previewImages.count + 1
+                nextToken: requestedToken,
+                startPage: ComicPreviewPagination.nextStartPage(after: previewImages)
             )
-            if page.images.isEmpty, page.nextToken == nil {
-                previewUnavailable = previewImages.isEmpty
-            }
-            previewImages.append(contentsOf: page.images)
-            previewNextToken = page.nextToken
+            let merged = ComicPreviewPagination.merge(
+                existing: previewImages,
+                page: page,
+                requestedToken: requestedToken
+            )
+            previewImages = merged.images
+            previewNextToken = merged.nextToken
+            previewUnavailable = previewImages.isEmpty && previewNextToken == nil
             previewErrorText = ""
         } catch {
             if previewImages.isEmpty {

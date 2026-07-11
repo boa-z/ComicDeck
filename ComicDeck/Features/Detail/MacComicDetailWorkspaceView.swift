@@ -432,7 +432,7 @@ struct MacComicDetailWorkspaceView: View {
 
     @ViewBuilder
     private func previewPanel(detail: ComicDetail) -> some View {
-        if !model.previewImages.isEmpty || model.previewLoading || !model.previewErrorText.isEmpty {
+        if !model.previewImages.isEmpty || model.previewLoading || model.previewNextToken != nil || !model.previewErrorText.isEmpty {
             MacDetailPanel(title: AppLocalization.text("detail.preview.title", "Preview")) {
                 VStack(alignment: .leading, spacing: 12) {
                     if model.previewImages.isEmpty, model.previewLoading {
@@ -863,7 +863,7 @@ private struct MacComicPreviewTile: View {
                 .clipped()
 
                 Text(String(image.page))
-                    .font(.caption2.weight(.bold))
+                    .font(.caption.weight(.bold))
                     .monospacedDigit()
                     .padding(.horizontal, 7)
                     .padding(.vertical, 4)
