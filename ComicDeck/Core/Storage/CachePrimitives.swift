@@ -23,7 +23,7 @@ struct DataCachePolicy: Sendable {
     }
 }
 
-enum DataCacheSource: Sendable {
+enum DataCacheSource: Sendable, Equatable {
     case memory
     case disk
 }
@@ -210,14 +210,8 @@ enum RequestCacheKeyBuilder {
     }
 }
 
-actor HybridDataCache {
-    private struct MemoryEntry: Sendable {
-        let data: Data
-        let expiresAt: Date
-        var lastAccessAt: Date
-    }
-
-    private struct DiskEntryMetadata: Codable, Sendable {
+private nonisolated final class HybridDataCacheDiskStorage: @unchecked Sendable {
+    private struct EntryMetadata: Codable, Sendable {
         let key: String
         let createdAt: Date
         var lastAccessAt: Date
@@ -225,19 +219,166 @@ actor HybridDataCache {
         let byteCount: Int64
     }
 
-    private let policy: DataCachePolicy
     private let fileManager = FileManager.default
     private let directory: URL
+    private let diskTTL: TimeInterval
+    private let maxDiskBytes: Int64
+
+    init(directory: URL, diskTTL: TimeInterval, maxDiskBytes: Int64) {
+        self.directory = directory
+        self.diskTTL = diskTTL
+        self.maxDiskBytes = maxDiskBytes
+        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    func lookupData(forKey key: String, now: Date) -> Data? {
+        let metadataURL = metadataFileURL(forKey: key)
+        let dataURL = dataFileURL(forKey: key)
+        guard let metadataData = try? Data(contentsOf: metadataURL),
+              var metadata = try? JSONDecoder().decode(EntryMetadata.self, from: metadataData),
+              metadata.key == key,
+              metadata.expiresAt > now,
+              let data = try? Data(contentsOf: dataURL)
+        else {
+            removeData(forKey: key)
+            return nil
+        }
+
+        metadata.lastAccessAt = now
+        try? persistMetadata(metadata, forKey: key)
+        return data
+    }
+
+    func store(_ data: Data, forKey key: String, now: Date) {
+        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        let metadata = EntryMetadata(
+            key: key,
+            createdAt: now,
+            lastAccessAt: now,
+            expiresAt: now.addingTimeInterval(diskTTL),
+            byteCount: Int64(data.count)
+        )
+        do {
+            try data.write(to: dataFileURL(forKey: key), options: .atomic)
+            try persistMetadata(metadata, forKey: key)
+        } catch {
+            removeData(forKey: key)
+        }
+    }
+
+    func removeData(forKey key: String) {
+        try? fileManager.removeItem(at: dataFileURL(forKey: key))
+        try? fileManager.removeItem(at: metadataFileURL(forKey: key))
+    }
+
+    func removeAll() {
+        if fileManager.fileExists(atPath: directory.path) {
+            try? fileManager.removeItem(at: directory)
+        }
+        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    func diskSizeBytes(now: Date) -> Int64 {
+        try? pruneIfNeeded(now: now)
+        guard let metadata = try? loadMetadata() else { return 0 }
+        return metadata.reduce(into: 0) { result, item in
+            if item.expiresAt > now {
+                result += item.byteCount
+            }
+        }
+    }
+
+    private func loadMetadata() throws -> [EntryMetadata] {
+        let urls = try fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )
+        var metadata: [EntryMetadata] = []
+        metadata.reserveCapacity(urls.count)
+        for url in urls where url.pathExtension == "json" {
+            guard let data = try? Data(contentsOf: url),
+                  let decoded = try? JSONDecoder().decode(EntryMetadata.self, from: data)
+            else {
+                try? fileManager.removeItem(at: url)
+                try? fileManager.removeItem(
+                    at: url.deletingPathExtension().appendingPathExtension("bin")
+                )
+                continue
+            }
+            metadata.append(decoded)
+        }
+        return metadata
+    }
+
+    private func pruneIfNeeded(now: Date) throws {
+        var metadata = try loadMetadata()
+        for item in metadata where item.expiresAt <= now {
+            removeData(forKey: item.key)
+        }
+        for item in metadata where !fileManager.fileExists(atPath: dataFileURL(forKey: item.key).path) {
+            removeData(forKey: item.key)
+        }
+        metadata = metadata.filter {
+            $0.expiresAt > now && fileManager.fileExists(atPath: dataFileURL(forKey: $0.key).path)
+        }
+        var total = metadata.reduce(into: Int64(0)) { result, item in
+            result += item.byteCount
+        }
+        guard total > maxDiskBytes else { return }
+        for item in metadata.sorted(by: { $0.lastAccessAt < $1.lastAccessAt }) {
+            removeData(forKey: item.key)
+            total -= item.byteCount
+            if total <= maxDiskBytes {
+                break
+            }
+        }
+    }
+
+    private func dataFileURL(forKey key: String) -> URL {
+        directory
+            .appendingPathComponent(RequestCacheKeyBuilder.digest(key))
+            .appendingPathExtension("bin")
+    }
+
+    private func metadataFileURL(forKey key: String) -> URL {
+        directory
+            .appendingPathComponent(RequestCacheKeyBuilder.digest(key))
+            .appendingPathExtension("json")
+    }
+
+    private func persistMetadata(_ metadata: EntryMetadata, forKey key: String) throws {
+        let data = try JSONEncoder().encode(metadata)
+        try data.write(to: metadataFileURL(forKey: key), options: .atomic)
+    }
+}
+
+actor HybridDataCache {
+    private struct MemoryEntry: Sendable {
+        let data: Data
+        let expiresAt: Date
+        var lastAccessAt: Date
+    }
+
+    private let policy: DataCachePolicy
+    private let diskStorage: HybridDataCacheDiskStorage
 
     private var memoryEntries: [String: MemoryEntry] = [:]
     private var memoryBytes: Int64 = 0
+    private var keyMutationVersions: [String: UInt64] = [:]
+    private var clearGeneration: UInt64 = 0
+    private var diskOperationTail: Task<Void, Never>?
 
-    init(directoryName: String, policy: DataCachePolicy) {
+    init(directoryName: String, policy: DataCachePolicy, rootDirectory: URL? = nil) {
         self.policy = policy
-        let root = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first
+        let root = rootDirectory
+            ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        self.directory = root.appendingPathComponent(directoryName, isDirectory: true)
-        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        self.diskStorage = HybridDataCacheDiskStorage(
+            directory: root.appendingPathComponent(directoryName, isDirectory: true),
+            diskTTL: policy.diskTTL,
+            maxDiskBytes: policy.maxDiskBytes
+        )
     }
 
     func lookupData(forKey key: String) async -> DataCacheHit? {
@@ -253,64 +394,51 @@ actor HybridDataCache {
             return DataCacheHit(data: entry.data, source: .memory)
         }
 
-        let metaURL = metadataFileURL(forKey: key)
-        let dataURL = dataFileURL(forKey: key)
-        let diskResult = await Task.detached(priority: .utility) { () -> (metadata: DiskEntryMetadata?, data: Data?) in
-            guard let metaData = try? Data(contentsOf: metaURL),
-                  let metadata = try? JSONDecoder().decode(DiskEntryMetadata.self, from: metaData) else {
-                return (nil, nil)
-            }
-            guard metadata.expiresAt > now else {
-                return (nil, nil)
-            }
-            let data = try? Data(contentsOf: dataURL)
-            return (metadata, data)
-        }.value
-
-        guard let metadata = diskResult.metadata else { return nil }
-        guard let data = diskResult.data else {
-            removeDiskValue(forKey: key)
-            return nil
+        let mutationVersion = keyMutationVersions[key, default: 0]
+        let lookupClearGeneration = clearGeneration
+        let storage = diskStorage
+        let data = await performDiskOperation {
+            storage.lookupData(forKey: key, now: now)
         }
 
-        var updatedMetadata = metadata
-        updatedMetadata.lastAccessAt = now
-        persistMetadata(updatedMetadata, forKey: key)
+        guard mutationVersion == keyMutationVersions[key, default: 0],
+              lookupClearGeneration == clearGeneration
+        else {
+            return currentMemoryHit(forKey: key, now: Date())
+        }
+        guard let data else { return nil }
         storeMemoryValue(data, forKey: key, now: now)
         return DataCacheHit(data: data, source: .disk)
     }
 
     func store(_ data: Data, forKey key: String) {
         let now = Date()
+        recordMutation(forKey: key)
         storeMemoryValue(data, forKey: key, now: now)
-        let dataURL = dataFileURL(forKey: key)
-        let metaURL = metadataFileURL(forKey: key)
-        let metadata = DiskEntryMetadata(
-            key: key,
-            createdAt: now,
-            lastAccessAt: now,
-            expiresAt: now.addingTimeInterval(policy.diskTTL),
-            byteCount: Int64(data.count)
-        )
-        Task.detached(priority: .utility) {
-            try? data.write(to: dataURL, options: .atomic)
-            let encoded = try? JSONEncoder().encode(metadata)
-            try? encoded?.write(to: metaURL, options: .atomic)
+        let storage = diskStorage
+        enqueueDiskOperation {
+            storage.store(data, forKey: key, now: now)
         }
     }
 
-    func removeData(forKey key: String) {
+    func removeData(forKey key: String) async {
+        recordMutation(forKey: key)
         removeMemoryValue(forKey: key)
-        removeDiskValue(forKey: key)
+        let storage = diskStorage
+        await performDiskOperation {
+            storage.removeData(forKey: key)
+        }
     }
 
-    func removeAll() {
+    func removeAll() async {
         memoryEntries.removeAll(keepingCapacity: true)
         memoryBytes = 0
-        if fileManager.fileExists(atPath: directory.path) {
-            try? fileManager.removeItem(at: directory)
+        keyMutationVersions.removeAll(keepingCapacity: true)
+        clearGeneration &+= 1
+        let storage = diskStorage
+        await performDiskOperation {
+            storage.removeAll()
         }
-        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
     func memorySnapshot() -> (items: Int, bytes: Int64) {
@@ -318,15 +446,16 @@ actor HybridDataCache {
         return (memoryEntries.count, memoryBytes)
     }
 
-    func diskSizeBytes() -> Int64 {
+    func diskSizeBytes() async -> Int64 {
         let now = Date()
-        try? pruneDiskIfNeeded(now: now)
-        guard let metadata = try? loadDiskMetadata() else { return 0 }
-        return metadata.reduce(into: 0) { partialResult, item in
-            if item.expiresAt > now {
-                partialResult += item.byteCount
-            }
+        let storage = diskStorage
+        return await performDiskOperation {
+            storage.diskSizeBytes(now: now)
         }
+    }
+
+    func flushPendingDiskOperations() async {
+        await diskOperationTail?.value
     }
 
     private func storeMemoryValue(_ data: Data, forKey key: String, now: Date) {
@@ -367,86 +496,39 @@ actor HybridDataCache {
         }
     }
 
-    private func writeDiskValue(_ data: Data, forKey key: String, now: Date) throws {
-        let dataURL = dataFileURL(forKey: key)
-        let metadata = DiskEntryMetadata(
-            key: key,
-            createdAt: now,
-            lastAccessAt: now,
-            expiresAt: now.addingTimeInterval(policy.diskTTL),
-            byteCount: Int64(data.count)
-        )
-        try data.write(to: dataURL, options: .atomic)
-        try persistMetadataThrowing(metadata, forKey: key)
+    private func recordMutation(forKey key: String) {
+        keyMutationVersions[key, default: 0] &+= 1
     }
 
-    private func loadDiskMetadata() throws -> [DiskEntryMetadata] {
-        let urls = try fileManager.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        )
-        var metadata: [DiskEntryMetadata] = []
-        metadata.reserveCapacity(urls.count)
-        for url in urls where url.pathExtension == "json" {
-            guard let data = try? Data(contentsOf: url),
-                  let decoded = try? JSONDecoder().decode(DiskEntryMetadata.self, from: data)
-            else {
-                try? fileManager.removeItem(at: url)
-                continue
-            }
-            metadata.append(decoded)
+    private func currentMemoryHit(forKey key: String, now: Date) -> DataCacheHit? {
+        guard var entry = memoryEntries[key], entry.expiresAt > now else {
+            removeMemoryValue(forKey: key)
+            return nil
         }
-        return metadata
+        entry.lastAccessAt = now
+        memoryEntries[key] = entry
+        return DataCacheHit(data: entry.data, source: .memory)
     }
 
-    private func pruneDiskIfNeeded(now: Date) throws {
-        var metadata = try loadDiskMetadata()
-        for item in metadata where item.expiresAt <= now {
-            removeDiskValue(forKey: item.key)
-        }
-        metadata = metadata.filter { $0.expiresAt > now && fileManager.fileExists(atPath: dataFileURL(forKey: $0.key).path) }
-        var total = metadata.reduce(into: Int64(0)) { partialResult, item in
-            partialResult += item.byteCount
-        }
-        guard total > policy.maxDiskBytes else { return }
-        for item in metadata.sorted(by: { $0.lastAccessAt < $1.lastAccessAt }) {
-            removeDiskValue(forKey: item.key)
-            total -= item.byteCount
-            if total <= policy.maxDiskBytes {
-                break
-            }
+    private func enqueueDiskOperation(_ operation: @escaping @Sendable () -> Void) {
+        let previous = diskOperationTail
+        diskOperationTail = Task.detached(priority: .utility) {
+            await previous?.value
+            operation()
         }
     }
 
-    private func dataFileURL(forKey key: String) -> URL {
-        let fileName = RequestCacheKeyBuilder.digest(key)
-        return directory.appendingPathComponent(fileName).appendingPathExtension("bin")
-    }
-
-    private func metadataFileURL(forKey key: String) -> URL {
-        let fileName = RequestCacheKeyBuilder.digest(key)
-        return directory.appendingPathComponent(fileName).appendingPathExtension("json")
-    }
-
-    private func readMetadata(forKey key: String) -> DiskEntryMetadata? {
-        let url = metadataFileURL(forKey: key)
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(DiskEntryMetadata.self, from: data)
-    }
-
-    private func persistMetadata(_ metadata: DiskEntryMetadata, forKey key: String) {
-        try? persistMetadataThrowing(metadata, forKey: key)
-    }
-
-    private func persistMetadataThrowing(_ metadata: DiskEntryMetadata, forKey key: String) throws {
-        let url = metadataFileURL(forKey: key)
-        let data = try JSONEncoder().encode(metadata)
-        try data.write(to: url, options: .atomic)
-    }
-
-    private func removeDiskValue(forKey key: String) {
-        try? fileManager.removeItem(at: dataFileURL(forKey: key))
-        try? fileManager.removeItem(at: metadataFileURL(forKey: key))
+    private func performDiskOperation<Result: Sendable>(
+        _ operation: @escaping @Sendable () -> Result
+    ) async -> Result {
+        let previous = diskOperationTail
+        let operationTask = Task.detached(priority: .utility) {
+            await previous?.value
+            return operation()
+        }
+        diskOperationTail = Task.detached(priority: .utility) {
+            _ = await operationTask.value
+        }
+        return await operationTask.value
     }
 }
