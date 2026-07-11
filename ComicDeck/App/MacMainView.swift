@@ -132,27 +132,25 @@ struct MacMainView: View {
     private var detailView: some View {
         switch selectedDestination ?? .home {
         case .home:
-            NavigationStack {
-                HomeView(
-                    vm: vm,
-                    sourceManager: vm.sourceManager,
-                    onOpenSearch: openSearchWindow,
-                    onOpenSettings: { selectedDestination = .settings },
-                    onOpenDiscover: { selectedDestination = .discover },
-                    onOpenLibrary: { selectedDestination = .library },
-                    onTagSearchRequested: { tag, sourceKey in
-                        sourceSearchRoute = SourceSearchRoute(sourceKey: sourceKey, keyword: tag)
-                    }
-                )
+            HomeView(
+                vm: vm,
+                sourceManager: vm.sourceManager,
+                onOpenSearch: openSearchWindow,
+                onOpenSettings: { selectedDestination = .settings },
+                onOpenDiscover: { selectedDestination = .discover },
+                onOpenLibrary: { selectedDestination = .library },
+                onOpenDownloads: { selectedDestination = .downloads },
+                onOpenSources: { selectedDestination = .sources },
+                onTagSearchRequested: { tag, sourceKey in
+                    sourceSearchRoute = SourceSearchRoute(sourceKey: sourceKey, keyword: tag)
+                }
+            )
+            .environment(vm.library)
+            .environment(vm.tracker)
+        case .discover:
+            DiscoverView(vm: vm, onOpenSearch: openSearchWindow)
                 .environment(vm.library)
                 .environment(vm.tracker)
-            }
-        case .discover:
-            NavigationStack {
-                DiscoverView(vm: vm, onOpenSearch: openSearchWindow)
-                    .environment(vm.library)
-                    .environment(vm.tracker)
-            }
         case .library:
             MacLibraryWorkspaceView(vm: vm, sourceManager: vm.sourceManager) { tag, sourceKey in
                 sourceSearchRoute = SourceSearchRoute(sourceKey: sourceKey, keyword: tag)
@@ -176,12 +174,10 @@ struct MacMainView: View {
                     .environment(vm.tracker)
             }
         case .settings:
-            NavigationStack {
-                SettingsView()
-                    .environment(vm.library)
-                    .environment(vm.sourceManager)
-                    .environment(vm.tracker)
-            }
+            SettingsView()
+                .environment(vm.library)
+                .environment(vm.sourceManager)
+                .environment(vm.tracker)
         }
     }
 

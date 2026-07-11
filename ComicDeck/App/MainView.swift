@@ -42,6 +42,8 @@ struct MainView: View {
                 onOpenSettings: { showSettings = true },
                 onOpenDiscover: { selectedTab = .discover },
                 onOpenLibrary: { selectedTab = .library },
+                onOpenDownloads: nil,
+                onOpenSources: nil,
                 onTagSearchRequested: { tag, sourceKey in
                     sourceSearchRoute = SourceSearchRoute(sourceKey: sourceKey, keyword: tag)
                 }

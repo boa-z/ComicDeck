@@ -79,3 +79,4 @@ Use this checklist when adding or modifying features that affect both iOS and ma
 - [x] macOS drag-and-drop polish covers shelf reordering, Finder drag-out for offline groups/chapters, Library Overview offline tiles, and reader page images.
 - [x] Native macOS builds use `Config/ComicDeckMac-Info.plist` for release metadata, the `comicdeck://` OAuth callback scheme, and a macOS-only `AppIconMac` asset set so macOS asset compilation does not inherit iOS/watchOS icon entries.
 - [x] The macOS `Cmd+,` settings command opens the native Settings scene consistently from the main, search, and other command-enabled windows; the sidebar Settings destination remains available for in-window browsing.
+- [x] macOS Home shortcuts switch to native Downloads and Sources workspaces, and root destinations avoid nested `NavigationStack` containers.

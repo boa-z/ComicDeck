@@ -37,6 +37,8 @@ struct HomeView: View {
     let onOpenSettings: () -> Void
     let onOpenDiscover: () -> Void
     let onOpenLibrary: () -> Void
+    var onOpenDownloads: (() -> Void)?
+    var onOpenSources: (() -> Void)?
     let onTagSearchRequested: (String, String) -> Void
 
     @State private var model = HomeScreenModel()
@@ -306,38 +308,50 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
+    @ViewBuilder
     private var sourcesSnapshotCard: some View {
-        NavigationLink {
-            SourceManagementView(vm: vm, sourceManager: sourceManager)
-        } label: {
-            VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                Label(AppLocalization.text("home.sources_snapshot.title", "Sources"), systemImage: "tray.full")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(
-                    AppLocalization.format(
-                        "home.sources_snapshot.installed",
-                        "%@ installed",
-                        String(sourceManager.installedSources.count)
-                    )
-                )
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                Text(sourceManager.availableSourceUpdates.isEmpty
-                     ? AppLocalization.text("home.sources_snapshot.up_to_date", "All sources up to date")
-                     : AppLocalization.format(
-                         "home.sources_snapshot.updates",
-                         "%@ updates available",
-                         String(sourceManager.availableSourceUpdates.count)
-                     ))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+        if let onOpenSources {
+            Button(action: onOpenSources) {
+                sourcesSnapshotCardLabel
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .appCardStyle()
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink {
+                SourceManagementView(vm: vm, sourceManager: sourceManager)
+            } label: {
+                sourcesSnapshotCardLabel
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+    }
+
+    private var sourcesSnapshotCardLabel: some View {
+        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+            Label(AppLocalization.text("home.sources_snapshot.title", "Sources"), systemImage: "tray.full")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(
+                AppLocalization.format(
+                    "home.sources_snapshot.installed",
+                    "%@ installed",
+                    String(sourceManager.installedSources.count)
+                )
+            )
+                .font(.headline)
+                .foregroundStyle(.primary)
+            Text(sourceManager.availableSourceUpdates.isEmpty
+                 ? AppLocalization.text("home.sources_snapshot.up_to_date", "All sources up to date")
+                 : AppLocalization.format(
+                     "home.sources_snapshot.updates",
+                     "%@ updates available",
+                     String(sourceManager.availableSourceUpdates.count)
+                 ))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .appCardStyle()
     }
 
     private func offlineSpotlightSection(_ item: OfflineChapterAsset) -> some View {
@@ -346,10 +360,7 @@ struct HomeView: View {
                 Text(AppLocalization.text("home.offline_spotlight.title", "Offline Spotlight"))
                     .font(.title3.weight(.semibold))
                 Spacer()
-                NavigationLink(AppLocalization.text("downloads.navigation.title", "Downloads")) {
-                    DownloadManagerView(vm: vm)
-                }
-                .font(.subheadline.weight(.semibold))
+                downloadsLink
             }
 
             NavigationLink {
@@ -400,6 +411,19 @@ struct HomeView: View {
                 .appCardStyle()
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var downloadsLink: some View {
+        if let onOpenDownloads {
+            Button(AppLocalization.text("downloads.navigation.title", "Downloads"), action: onOpenDownloads)
+                .font(.subheadline.weight(.semibold))
+        } else {
+            NavigationLink(AppLocalization.text("downloads.navigation.title", "Downloads")) {
+                DownloadManagerView(vm: vm)
+            }
+            .font(.subheadline.weight(.semibold))
         }
     }
 
