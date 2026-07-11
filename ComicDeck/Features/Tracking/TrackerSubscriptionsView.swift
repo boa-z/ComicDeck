@@ -23,6 +23,62 @@ struct TrackerSourceSearchRoute: Identifiable, Hashable {
     var id: String { "\(sourceKey)::\(keyword)" }
 }
 
+struct TrackerLocalComicIndex {
+    private struct Key: Hashable {
+        let sourceKey: String
+        let comicID: String
+    }
+
+    private let comicsByKey: [Key: ComicSummary]
+
+    init(
+        favorites: [FavoriteComic],
+        history: [ReadingHistoryItem],
+        offlineChapters: [OfflineChapterAsset]
+    ) {
+        var comicsByKey: [Key: ComicSummary] = [:]
+        comicsByKey.reserveCapacity(favorites.count + history.count + offlineChapters.count)
+
+        // Reverse traversal preserves the first match within each tier while
+        // later tiers retain the existing favorites > history > offline priority.
+        for item in offlineChapters.reversed() {
+            comicsByKey[Key(sourceKey: item.sourceKey, comicID: item.comicID)] = ComicSummary(
+                id: item.comicID,
+                sourceKey: item.sourceKey,
+                title: item.comicTitle,
+                coverURL: item.coverURL
+            )
+        }
+        for item in history.reversed() {
+            comicsByKey[Key(sourceKey: item.sourceKey, comicID: item.comicID)] = ComicSummary(
+                id: item.comicID,
+                sourceKey: item.sourceKey,
+                title: item.title,
+                coverURL: item.coverURL,
+                author: item.author,
+                tags: item.tags
+            )
+        }
+        for item in favorites.reversed() {
+            comicsByKey[Key(sourceKey: item.sourceKey, comicID: item.id)] = ComicSummary(
+                id: item.id,
+                sourceKey: item.sourceKey,
+                title: item.title,
+                coverURL: item.coverURL
+            )
+        }
+        self.comicsByKey = comicsByKey
+    }
+
+    func comic(sourceKey: String, comicID: String) -> ComicSummary? {
+        comicsByKey[Key(sourceKey: sourceKey, comicID: comicID)]
+    }
+
+    func comic(for binding: TrackerBinding) -> ComicSummary? {
+        comic(sourceKey: binding.sourceKey, comicID: binding.comicID)
+    }
+}
+
 @MainActor
 @Observable
 final class TrackerSubscriptionsScreenModel {
@@ -49,8 +105,13 @@ final class TrackerSubscriptionsScreenModel {
     }
 
     func refreshLocalBindings(provider: TrackerProvider, using tracker: TrackerViewModel, library: LibraryViewModel) {
+        let localComics = TrackerLocalComicIndex(
+            favorites: library.favorites,
+            history: library.history,
+            offlineChapters: library.offlineChapters
+        )
         rows = Self.makeRows(entries: entries, provider: provider, localComicForBinding: { binding in
-            Self.localComic(for: binding, library: library)
+            localComics.comic(for: binding)
         }) { mediaID in
             tracker.bindingGroups(provider: provider, remoteMediaID: mediaID)
         }
@@ -78,35 +139,6 @@ final class TrackerSubscriptionsScreenModel {
         }
     }
 
-    private static func localComic(for binding: TrackerBinding, library: LibraryViewModel) -> ComicSummary? {
-        if let favorite = library.favorites.first(where: { $0.sourceKey == binding.sourceKey && $0.id == binding.comicID }) {
-            return ComicSummary(
-                id: favorite.id,
-                sourceKey: favorite.sourceKey,
-                title: favorite.title,
-                coverURL: favorite.coverURL
-            )
-        }
-        if let history = library.history.first(where: { $0.sourceKey == binding.sourceKey && $0.comicID == binding.comicID }) {
-            return ComicSummary(
-                id: history.comicID,
-                sourceKey: history.sourceKey,
-                title: history.title,
-                coverURL: history.coverURL,
-                author: history.author,
-                tags: history.tags
-            )
-        }
-        if let offline = library.offlineChapters.first(where: { $0.sourceKey == binding.sourceKey && $0.comicID == binding.comicID }) {
-            return ComicSummary(
-                id: offline.comicID,
-                sourceKey: offline.sourceKey,
-                title: offline.comicTitle,
-                coverURL: offline.coverURL
-            )
-        }
-        return nil
-    }
 }
 
 @MainActor
