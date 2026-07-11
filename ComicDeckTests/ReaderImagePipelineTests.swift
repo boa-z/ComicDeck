@@ -1,6 +1,7 @@
 import XCTest
 @testable import ComicDeck
 
+@MainActor
 final class ReaderImagePipelineTests: XCTestCase {
     override func setUp() {
         super.setUp()
@@ -22,6 +23,9 @@ final class ReaderImagePipelineTests: XCTestCase {
         XCTAssertEqual(results.0, Self.imageData)
         XCTAssertEqual(results.1, Self.imageData)
         XCTAssertEqual(ImagePipelineURLProtocolStub.requestCount, 1)
+        let metrics = await pipeline.cacheMetrics()
+        XCTAssertEqual(metrics.memoryItems, 1)
+        XCTAssertEqual(metrics.memoryBytes, Int64(Self.imageData.count))
     }
 
     func testSensitiveHeaderVariantsKeepNetworkLoadsIsolated() async throws {
@@ -61,7 +65,7 @@ final class ReaderImagePipelineTests: XCTestCase {
         return request
     }
 
-    fileprivate static let imageData = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")!
+    nonisolated fileprivate static let imageData = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")!
 }
 
 private final class ImagePipelineURLProtocolStub: URLProtocol {

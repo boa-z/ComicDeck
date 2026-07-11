@@ -102,7 +102,7 @@ actor ReaderImagePipeline {
 
         let key = RequestCacheKeyBuilder.key(for: request)
         let sharedResourceKey = RequestCacheKeyBuilder.sharedImageResourceKey(for: request)
-        let queueKey = sharedResourceKey ?? key
+        let resourceKey = sharedResourceKey ?? key
         let lookupKeys = cacheLookupKeys(primary: key, shared: sharedResourceKey)
         if priority == .prefetch,
            let retryAfter = retryAfter(forKeys: lookupKeys),
@@ -119,13 +119,13 @@ actor ReaderImagePipeline {
             return hit.data
         }
 
-        if let existingLoad = inFlightLoad(forKey: queueKey) {
+        if let existingLoad = inFlightLoad(forKey: resourceKey) {
             metrics.inFlightHits += 1
-            upgradeWaitingRequest(forKey: queueKey, to: priority)
+            upgradeWaitingRequest(forKey: resourceKey, to: priority)
             do {
                 return try await existingLoad.task.value
             } catch {
-                removeInFlightLoad(forKey: queueKey, id: existingLoad.id)
+                removeInFlightLoad(forKey: resourceKey, id: existingLoad.id)
                 throw error
             }
         }
@@ -133,7 +133,7 @@ actor ReaderImagePipeline {
         metrics.misses += 1
         let loadID = UUID()
         let task = Task<Data, Error> {
-            guard await self.acquireSlot(forKey: queueKey, priority: priority) else {
+            guard await self.acquireSlot(forKey: resourceKey, priority: priority) else {
                 throw CancellationError()
             }
             defer { self.releaseSlot() }
@@ -149,19 +149,16 @@ actor ReaderImagePipeline {
         }
         let load = InFlightImageLoad(id: loadID, task: task)
 
-        storeInFlightLoad(load, forKey: queueKey)
+        storeInFlightLoad(load, forKey: resourceKey)
         do {
             let data = try await task.value
-            removeInFlightLoad(forKey: queueKey, id: loadID)
+            removeInFlightLoad(forKey: resourceKey, id: loadID)
             clearFailures(forKeys: lookupKeys)
             metrics.networkLoads += 1
-            await cache.store(data, forKey: key)
-            if let sharedResourceKey, sharedResourceKey != key {
-                await cache.store(data, forKey: sharedResourceKey)
-            }
+            await cache.store(data, forKey: resourceKey)
             return data
         } catch {
-            removeInFlightLoad(forKey: queueKey, id: loadID)
+            removeInFlightLoad(forKey: resourceKey, id: loadID)
             recordFailure(forKeys: lookupKeys, priority: priority, error: error)
             throw error
         }
