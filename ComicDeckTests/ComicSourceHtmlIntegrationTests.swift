@@ -66,6 +66,37 @@ final class ComicSourceHtmlIntegrationTests: XCTestCase {
         XCTAssertEqual(object["disposedText"] as? String, "")
     }
 
+    func testSourceCapabilityProfileDetectsComicPreviewLoader() throws {
+        let supportedScript = """
+        class TestSource extends ComicSource {
+          constructor() {
+            super();
+            this.key = 'preview-supported';
+            this.name = 'Preview Supported';
+            this.comic = {
+              loadThumbnails: async () => ({ thumbnails: [], next: null })
+            };
+          }
+        }
+        """
+        let unsupportedScript = """
+        class TestSource extends ComicSource {
+          constructor() {
+            super();
+            this.key = 'preview-unsupported';
+            this.name = 'Preview Unsupported';
+            this.comic = {};
+          }
+        }
+        """
+
+        let supportedEngine = try ComicSourceRepository().createSourceEngine(script: supportedScript)
+        let unsupportedEngine = try ComicSourceRepository().createSourceEngine(script: unsupportedScript)
+
+        XCTAssertTrue(try supportedEngine.getSourceCapabilityProfile().hasComicPreview)
+        XCTAssertFalse(try unsupportedEngine.getSourceCapabilityProfile().hasComicPreview)
+    }
+
     func testHtmlDocumentSupportsAdvancedSelectorsInsideSourceEngine() throws {
         let script = """
         class TestSource extends ComicSource {

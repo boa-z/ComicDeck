@@ -1269,6 +1269,7 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
               typeof comic.likeComment === 'function' ||
               typeof comic.voteComment === 'function'
             )),
+            hasComicPreview: !!(comic && typeof comic.loadThumbnails === 'function'),
             hasAccountLogin: !!(account && typeof account.login === 'function'),
             hasWebLogin: !!(web && typeof web.url === 'string' && web.url.length > 0),
             hasCookieLogin: !!(cookie && Array.isArray(cookie.fields) && typeof cookie.validate === 'function'),
@@ -1290,6 +1291,7 @@ nonisolated final class ComicSourceScriptEngine: @unchecked Sendable {
             hasSearch: object["hasSearch"] as? Bool ?? false,
             hasFavorites: object["hasFavorites"] as? Bool ?? false,
             hasComments: object["hasComments"] as? Bool ?? false,
+            hasComicPreview: object["hasComicPreview"] as? Bool ?? false,
             hasAccountLogin: object["hasAccountLogin"] as? Bool ?? false,
             hasWebLogin: object["hasWebLogin"] as? Bool ?? false,
             hasCookieLogin: object["hasCookieLogin"] as? Bool ?? false,

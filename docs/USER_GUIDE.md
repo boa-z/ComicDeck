@@ -58,7 +58,7 @@ You can discover content in two main ways.
 The comic detail page prioritizes reading first:
 
 - use the primary hero action to continue from saved history or start reading
-- inspect source-provided preview thumbnails when the source supports them; tapping a preview opens the reader at that page
+- inspect source-provided preview thumbnails when the source supports them; tapping a preview opens the reader at that page, and transient preview failures can be retried inline
 - search, sort, open, or queue chapter downloads from the chapter section directly below the hero
 - use tags, comments, tracking, and source favorites lower on the page when you need related discovery or account sync
 
@@ -284,6 +284,7 @@ Installed sources can expose:
 - web login
 - cookie login
 - source settings
+- paged comic previews
 
 On a source detail page you can:
 

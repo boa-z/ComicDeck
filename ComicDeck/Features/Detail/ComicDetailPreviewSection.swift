@@ -43,7 +43,7 @@ struct ComicDetailPreviewSection: View {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, AppSpacing.sm)
-                    } else if canLoadMore {
+                    } else if canLoadMore, errorText.isEmpty {
                         Button(AppLocalization.text("detail.preview.load_more", "Load More"), systemImage: "arrow.down.circle", action: onLoadMore)
                             .buttonStyle(.bordered)
                     }
@@ -52,6 +52,8 @@ struct ComicDetailPreviewSection: View {
                         Text(errorText)
                             .font(.caption)
                             .foregroundStyle(AppTint.danger)
+                        Button(AppLocalization.text("common.retry", "Retry"), systemImage: "arrow.clockwise", action: onLoadMore)
+                            .buttonStyle(.bordered)
                     }
                 }
             }

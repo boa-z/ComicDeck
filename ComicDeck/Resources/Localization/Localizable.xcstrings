@@ -11270,6 +11270,23 @@
         }
       }
     },
+    "source.capability.previews" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previews"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预览"
+          }
+        }
+      }
+    },
     "source.capability.search" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -465,7 +465,7 @@ struct MacComicDetailWorkspaceView: View {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)
-                    } else if model.previewNextToken != nil {
+                    } else if model.previewNextToken != nil, model.previewErrorText.isEmpty {
                         Button(AppLocalization.text("detail.preview.load_more", "Load More"), systemImage: "arrow.down.circle") {
                             Task { await model.loadMorePreviewImages(using: vm) }
                         }
@@ -477,6 +477,11 @@ struct MacComicDetailWorkspaceView: View {
                         Text(model.previewErrorText)
                             .font(.caption)
                             .foregroundStyle(AppTint.danger)
+                        Button(AppLocalization.text("common.retry", "Retry"), systemImage: "arrow.clockwise") {
+                            Task { await model.loadMorePreviewImages(using: vm) }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                     }
                 }
             }

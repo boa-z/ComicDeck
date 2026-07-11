@@ -6,6 +6,7 @@ struct SourceCapabilityProfile: Hashable {
     let hasSearch: Bool
     let hasFavorites: Bool
     let hasComments: Bool
+    let hasComicPreview: Bool
     let hasAccountLogin: Bool
     let hasWebLogin: Bool
     let hasCookieLogin: Bool
@@ -20,6 +21,7 @@ struct SourceCapabilityProfile: Hashable {
         hasSearch: false,
         hasFavorites: false,
         hasComments: false,
+        hasComicPreview: false,
         hasAccountLogin: false,
         hasWebLogin: false,
         hasCookieLogin: false,

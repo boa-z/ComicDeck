@@ -23,6 +23,7 @@ struct SourceDetailView: View {
             ("Search", "magnifyingglass", model.capabilityProfile.hasSearch),
             ("Favorites", "heart", model.capabilityProfile.hasFavorites),
             ("Comments", "bubble.left.and.bubble.right", model.capabilityProfile.hasComments),
+            (AppLocalization.text("source.capability.previews", "Previews"), "photo.on.rectangle.angled", model.capabilityProfile.hasComicPreview),
             ("Account", "person.text.rectangle", model.capabilityProfile.hasAccountLogin),
             ("Web", "globe", model.capabilityProfile.hasWebLogin),
             ("Cookies", "key.horizontal", model.capabilityProfile.hasCookieLogin),

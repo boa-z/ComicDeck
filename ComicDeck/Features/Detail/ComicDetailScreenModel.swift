@@ -74,6 +74,7 @@ final class ComicDetailScreenModel {
     var previewLoading = false
     var previewUnavailable = false
     var previewErrorText = ""
+    var previewLoadSupported = true
 
     init(item: ComicSummary) {
         self.item = item
@@ -138,6 +139,12 @@ final class ComicDetailScreenModel {
             isBookmarked = library.isBookmarked(item)
             await library.refreshDownloadList()
             detail = try await vm.loadComicDetail(item)
+            do {
+                let capabilityProfile = try await vm.loadSourceCapabilityProfile(sourceKey: item.sourceKey)
+                previewLoadSupported = capabilityProfile.hasComicPreview
+            } catch {
+                previewLoadSupported = true
+            }
             let initialPreview = ComicPreviewPagination.merge(
                 existing: [],
                 page: ComicPreviewImagePage(
@@ -147,10 +154,10 @@ final class ComicDetailScreenModel {
                 requestedToken: nil
             )
             previewImages = initialPreview.images
-            previewNextToken = initialPreview.nextToken
-            previewUnavailable = false
+            previewNextToken = previewLoadSupported ? initialPreview.nextToken : nil
+            previewUnavailable = previewImages.isEmpty && !previewLoadSupported
             previewErrorText = ""
-            if previewImages.isEmpty {
+            if previewImages.isEmpty, previewLoadSupported {
                 await loadMorePreviewImages(using: vm)
             }
             do {
@@ -174,7 +181,7 @@ final class ComicDetailScreenModel {
     }
 
     func loadMorePreviewImages(using vm: ReaderViewModel) async {
-        guard !previewLoading, !previewUnavailable else { return }
+        guard previewLoadSupported, !previewLoading, !previewUnavailable else { return }
         if !previewImages.isEmpty, previewNextToken == nil { return }
 
         previewLoading = true
@@ -197,11 +204,8 @@ final class ComicDetailScreenModel {
             previewUnavailable = previewImages.isEmpty && previewNextToken == nil
             previewErrorText = ""
         } catch {
-            if previewImages.isEmpty {
-                previewUnavailable = true
-            } else {
-                previewErrorText = error.localizedDescription
-            }
+            previewUnavailable = false
+            previewErrorText = error.localizedDescription
         }
     }
 
