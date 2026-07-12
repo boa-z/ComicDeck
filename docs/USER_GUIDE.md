@@ -233,6 +233,8 @@ Archive import rules:
 
 On macOS, reader pages can also be dragged from the reader window to Finder as image files.
 
+Animated WebP images play in covers, previews, and reader pages. ComicDeck shows the first frame when Reduce Motion is enabled or when translated text overlays are active.
+
 ### Reindex
 
 Use `Reindex` when:

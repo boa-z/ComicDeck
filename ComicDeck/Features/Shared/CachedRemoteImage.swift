@@ -13,6 +13,7 @@ struct CachedRemoteImage: View {
 
     @Environment(\.displayScale) private var displayScale
     @State private var image: PlatformImage?
+    @State private var animatedImage: AnimatedImageAsset?
     @State private var loadedIdentity = ""
     @State private var activeResourceIdentity = ""
     @State private var failed = false
@@ -43,7 +44,9 @@ struct CachedRemoteImage: View {
 
     var body: some View {
         ZStack {
-            if let image {
+            if let animatedImage {
+                AnimatedPlatformImageView(asset: animatedImage, contentMode: contentMode)
+            } else if let image {
                 Image(platformImage: image)
                     .resizable()
                     .aspectRatio(contentMode: contentMode)
@@ -186,6 +189,7 @@ struct CachedRemoteImage: View {
             preferredRequestKey = nil
             cancelledWhileLoading = false
             image = nil
+            animatedImage = nil
             failed = false
         } else if loadedIdentity != identity, image == nil {
             failed = false
@@ -204,6 +208,23 @@ struct CachedRemoteImage: View {
                 do {
                     let data = try await ReaderImagePipeline.shared.loadData(for: request, priority: priority)
                     try Task.checkCancellation()
+                    if cropRegion == nil,
+                       let animated = await AnimatedImageDecoder.decodeAsync(
+                            data: data,
+                            targetSize: decodeSize,
+                            scale: displayScale,
+                            limits: .thumbnail
+                       ) {
+                        try Task.checkCancellation()
+                        guard resourceIdentity == currentResourceIdentity else { return }
+                        preferredRequestKey = urlRequestKey(request)
+                        animatedImage = animated
+                        image = animated.firstImage
+                        loadedIdentity = identity
+                        failed = false
+                        cancelledWhileLoading = false
+                        return
+                    }
                     if reloadToken != 0 {
                         ReaderDecodedImageStore.shared.removeImage(
                             for: request,

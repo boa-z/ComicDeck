@@ -9,6 +9,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
     var displayScale: CGFloat = 2.0
     var onLongPressZoomStart: ((CGPoint) -> Void)?
     var onLongPressZoomEnd: (() -> Void)?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeCoordinator() -> Coordinator {
         Coordinator(displayScale: displayScale)
@@ -17,6 +18,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
     func makeUIView(context: Context) -> ZoomingImageScrollView {
         let view = ZoomingImageScrollView()
         context.coordinator.attach(view)
+        context.coordinator.allowsAnimation = !reduceMotion
         view.setOverlays(overlays)
         view.onLongPressZoomStart = onLongPressZoomStart
         view.onLongPressZoomEnd = onLongPressZoomEnd
@@ -26,6 +28,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
 
     func updateUIView(_ uiView: ZoomingImageScrollView, context: Context) {
         context.coordinator.attach(uiView)
+        context.coordinator.allowsAnimation = !reduceMotion
         uiView.setOverlays(overlays)
         uiView.onLongPressZoomStart = onLongPressZoomStart
         uiView.onLongPressZoomEnd = onLongPressZoomEnd
@@ -35,6 +38,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
 
     static func dismantleUIView(_ uiView: ZoomingImageScrollView, coordinator: Coordinator) {
         coordinator.cancel()
+        uiView.stopAnimatedImage()
     }
 
     final class Coordinator: NSObject {
@@ -44,7 +48,13 @@ struct ZoomableRemoteImage: UIViewRepresentable {
         private var currentRequest: URLRequest?
         private var lastRenderedBaseImage: PlatformImage?
         private var lastRenderedOverlays: [ReaderTextBlock]?
+        private var animatedAsset: AnimatedImageAsset?
         private let displayScale: CGFloat
+        var allowsAnimation = true {
+            didSet {
+                view?.setAnimationEnabled(allowsAnimation)
+            }
+        }
 
         init(displayScale: CGFloat) {
             self.displayScale = displayScale
@@ -63,6 +73,7 @@ struct ZoomableRemoteImage: UIViewRepresentable {
             guard key != currentKey else { return }
             currentKey = key
             cancel()
+            animatedAsset = nil
             view?.setLoading(true)
             loadTask = Task.detached(priority: .userInitiated) { [weak self, displayScale] in
                 do {
@@ -72,6 +83,28 @@ struct ZoomableRemoteImage: UIViewRepresentable {
                         self?.view?.bounds.size ?? .zero
                     }
                     try Task.checkCancellation()
+                    if let animated = await AnimatedImageDecoder.decodeAsync(
+                        data: data,
+                        targetSize: targetSize,
+                        scale: displayScale,
+                        limits: .reader
+                    ) {
+                        try Task.checkCancellation()
+                        guard let firstImage = animated.firstImage else { return }
+                        await MainActor.run { [weak self] in
+                            guard let self else { return }
+                            self.animatedAsset = animated
+                            self.lastRenderedBaseImage = firstImage
+                            self.lastRenderedOverlays = []
+                            self.view?.setBaseImage(firstImage)
+                            if self.view?.currentOverlays.isEmpty == true {
+                                self.view?.setAnimatedImage(animated, enabled: self.allowsAnimation)
+                            } else {
+                                self.updateRenderedImageIfNeeded()
+                            }
+                        }
+                        return
+                    }
                     guard let baseImage = await ReaderDecodedImageStore.shared.imageAsync(
                         for: request,
                         data: data,
@@ -110,6 +143,12 @@ struct ZoomableRemoteImage: UIViewRepresentable {
         func updateRenderedImageIfNeeded() {
             guard let view, let baseImage = view.baseImage else { return }
             let overlays = view.currentOverlays
+            if overlays.isEmpty, let animatedAsset {
+                lastRenderedBaseImage = baseImage
+                lastRenderedOverlays = overlays
+                view.setAnimatedImage(animatedAsset, enabled: allowsAnimation)
+                return
+            }
             guard lastRenderedBaseImage !== baseImage || lastRenderedOverlays != overlays || view.imageView.image == nil else { return }
             lastRenderedBaseImage = baseImage
             lastRenderedOverlays = overlays
@@ -148,6 +187,10 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     var onLongPressZoomStart: ((CGPoint) -> Void)?
     var onLongPressZoomEnd: (() -> Void)?
     private var isLongPressZoomed = false
+    private var animatedAsset: AnimatedImageAsset?
+    private var animationDisplayLink: CADisplayLink?
+    private var animationStartedAt: CFTimeInterval = 0
+    private var displayedAnimationFrame = 0
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -227,6 +270,7 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
     }
 
     func setImage(_ image: PlatformImage) {
+        stopAnimatedImage()
         imageView.image = image
         errorLabel.isHidden = true
         setLoading(false)
@@ -238,6 +282,55 @@ final class ZoomingImageScrollView: UIScrollView, UIScrollViewDelegate {
 
     func setBaseImage(_ image: PlatformImage) {
         baseImage = image
+    }
+
+    func setAnimatedImage(_ asset: AnimatedImageAsset, enabled: Bool) {
+        if animatedAsset?.id == asset.id {
+            setAnimationEnabled(enabled)
+            return
+        }
+        guard let firstImage = asset.firstImage else { return }
+        setImage(firstImage)
+        animatedAsset = asset
+        displayedAnimationFrame = 0
+        setAnimationEnabled(enabled)
+    }
+
+    func setAnimationEnabled(_ enabled: Bool) {
+        guard enabled, animatedAsset?.frames.count ?? 0 > 1 else {
+            animationDisplayLink?.invalidate()
+            animationDisplayLink = nil
+            displayedAnimationFrame = 0
+            if let firstImage = animatedAsset?.firstImage {
+                imageView.image = firstImage
+            }
+            return
+        }
+        guard animationDisplayLink == nil else { return }
+        let displayLink = CADisplayLink(target: self, selector: #selector(updateAnimatedImage(_:)))
+        displayLink.preferredFrameRateRange = CAFrameRateRange(minimum: 10, maximum: 30, preferred: 30)
+        animationStartedAt = 0
+        displayLink.add(to: .main, forMode: .common)
+        animationDisplayLink = displayLink
+    }
+
+    func stopAnimatedImage() {
+        animationDisplayLink?.invalidate()
+        animationDisplayLink = nil
+        animatedAsset = nil
+        animationStartedAt = 0
+        displayedAnimationFrame = 0
+    }
+
+    @objc private func updateAnimatedImage(_ displayLink: CADisplayLink) {
+        guard window != nil, let animatedAsset else { return }
+        if animationStartedAt == 0 {
+            animationStartedAt = displayLink.timestamp
+        }
+        let index = animatedAsset.frameIndex(at: displayLink.timestamp - animationStartedAt)
+        guard index != displayedAnimationFrame else { return }
+        displayedAnimationFrame = index
+        imageView.image = animatedAsset.frames[index].image
     }
 
     func setError(_ text: String) {
@@ -383,6 +476,7 @@ struct ZoomableRemoteImage: NSViewRepresentable {
     var displayScale: CGFloat = 2.0
     var onLongPressZoomStart: ((CGPoint) -> Void)?
     var onLongPressZoomEnd: (() -> Void)?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeCoordinator() -> Coordinator {
         Coordinator(displayScale: displayScale)
@@ -391,6 +485,7 @@ struct ZoomableRemoteImage: NSViewRepresentable {
     func makeNSView(context: Context) -> ZoomingImageScrollView {
         let view = ZoomingImageScrollView()
         context.coordinator.attach(view)
+        context.coordinator.allowsAnimation = !reduceMotion
         view.setOverlays(overlays)
         view.onLongPressZoomStart = onLongPressZoomStart
         view.onLongPressZoomEnd = onLongPressZoomEnd
@@ -400,6 +495,7 @@ struct ZoomableRemoteImage: NSViewRepresentable {
 
     func updateNSView(_ nsView: ZoomingImageScrollView, context: Context) {
         context.coordinator.attach(nsView)
+        context.coordinator.allowsAnimation = !reduceMotion
         nsView.setOverlays(overlays)
         nsView.onLongPressZoomStart = onLongPressZoomStart
         nsView.onLongPressZoomEnd = onLongPressZoomEnd
@@ -409,6 +505,7 @@ struct ZoomableRemoteImage: NSViewRepresentable {
 
     static func dismantleNSView(_ nsView: ZoomingImageScrollView, coordinator: Coordinator) {
         coordinator.cancel()
+        nsView.stopAnimatedImage()
     }
 
     @MainActor
@@ -419,7 +516,13 @@ struct ZoomableRemoteImage: NSViewRepresentable {
         private var currentRequest: URLRequest?
         private var lastRenderedBaseImage: PlatformImage?
         private var lastRenderedOverlays: [ReaderTextBlock]?
+        private var animatedAsset: AnimatedImageAsset?
         private let displayScale: CGFloat
+        var allowsAnimation = true {
+            didSet {
+                view?.setAnimationEnabled(allowsAnimation)
+            }
+        }
 
         init(displayScale: CGFloat) {
             self.displayScale = max(1, displayScale)
@@ -441,6 +544,7 @@ struct ZoomableRemoteImage: NSViewRepresentable {
             guard key != currentKey else { return }
             currentKey = key
             cancel()
+            animatedAsset = nil
             lastRenderedBaseImage = nil
             lastRenderedOverlays = nil
             view?.baseImage = nil
@@ -463,6 +567,28 @@ struct ZoomableRemoteImage: NSViewRepresentable {
                         "macOS image load start: url=\(request.url?.absoluteString ?? "nil"), bytes=\(data.count), viewport=\(Int(viewportSize.width.rounded()))x\(Int(viewportSize.height.rounded())), source=\(Int(sourceSize?.width ?? 0))x\(Int(sourceSize?.height ?? 0)), target=\(Int(resolvedTarget.width.rounded()))x\(Int(resolvedTarget.height.rounded()))",
                         level: .debug
                     )
+                    if let animated = await AnimatedImageDecoder.decodeAsync(
+                        data: data,
+                        targetSize: resolvedTarget,
+                        scale: displayScale,
+                        limits: .reader
+                    ) {
+                        try Task.checkCancellation()
+                        guard let firstImage = animated.firstImage else { return }
+                        await MainActor.run { [weak self] in
+                            guard let self else { return }
+                            self.animatedAsset = animated
+                            self.lastRenderedBaseImage = firstImage
+                            self.lastRenderedOverlays = []
+                            self.view?.setBaseImage(firstImage)
+                            if self.view?.currentOverlays.isEmpty == true {
+                                self.view?.setAnimatedImage(animated, enabled: self.allowsAnimation)
+                            } else {
+                                self.updateRenderedImageIfNeeded()
+                            }
+                        }
+                        return
+                    }
                     guard let baseImage = await ReaderDecodedImageStore.shared.imageAsync(
                         for: request,
                         data: data,
@@ -532,6 +658,12 @@ struct ZoomableRemoteImage: NSViewRepresentable {
         func updateRenderedImageIfNeeded() {
             guard let view, let baseImage = view.baseImage else { return }
             let overlays = view.currentOverlays
+            if overlays.isEmpty, let animatedAsset {
+                lastRenderedBaseImage = baseImage
+                lastRenderedOverlays = overlays
+                view.setAnimatedImage(animatedAsset, enabled: allowsAnimation)
+                return
+            }
             guard lastRenderedBaseImage !== baseImage || lastRenderedOverlays != overlays || view.imageView.image == nil else { return }
             let shouldResetViewport = lastRenderedBaseImage !== baseImage || view.imageView.image == nil
             lastRenderedBaseImage = baseImage
@@ -611,6 +743,10 @@ final class ZoomingImageScrollView: NSScrollView, NSDraggingSource {
     private var longPressRestoreMagnification: CGFloat = 1
     private var dragStartEvent: NSEvent?
     private var dragFilePromiseDelegate: ReaderImageFilePromiseDelegate?
+    private var animatedAsset: AnimatedImageAsset?
+    private var animationTimer: Timer?
+    private var animationStartedAt = Date.now
+    private var displayedAnimationFrame = 0
     var onLongPressZoomStart: ((CGPoint) -> Void)?
     var onLongPressZoomEnd: (() -> Void)?
 
@@ -761,6 +897,7 @@ final class ZoomingImageScrollView: NSScrollView, NSDraggingSource {
     }
 
     func setImage(_ image: PlatformImage, resetViewport: Bool = true) {
+        stopAnimatedImage()
         imageView.image = image
         errorLabel.isHidden = true
         setLoading(false)
@@ -775,6 +912,56 @@ final class ZoomingImageScrollView: NSScrollView, NSDraggingSource {
 
     func setBaseImage(_ image: PlatformImage) {
         baseImage = image
+    }
+
+    func setAnimatedImage(_ asset: AnimatedImageAsset, enabled: Bool) {
+        if animatedAsset?.id == asset.id {
+            setAnimationEnabled(enabled)
+            return
+        }
+        guard let firstImage = asset.firstImage else { return }
+        setImage(firstImage)
+        animatedAsset = asset
+        displayedAnimationFrame = 0
+        setAnimationEnabled(enabled)
+    }
+
+    func setAnimationEnabled(_ enabled: Bool) {
+        guard enabled, animatedAsset?.frames.count ?? 0 > 1 else {
+            animationTimer?.invalidate()
+            animationTimer = nil
+            displayedAnimationFrame = 0
+            if let firstImage = animatedAsset?.firstImage {
+                imageView.image = firstImage
+            }
+            return
+        }
+        guard animationTimer == nil else { return }
+        animationStartedAt = .now
+        let timer = Timer(
+            timeInterval: 1.0 / 30.0,
+            target: self,
+            selector: #selector(updateAnimatedImage),
+            userInfo: nil,
+            repeats: true
+        )
+        RunLoop.main.add(timer, forMode: .common)
+        animationTimer = timer
+    }
+
+    func stopAnimatedImage() {
+        animationTimer?.invalidate()
+        animationTimer = nil
+        animatedAsset = nil
+        displayedAnimationFrame = 0
+    }
+
+    @objc private func updateAnimatedImage() {
+        guard window?.isVisible == true, let animatedAsset else { return }
+        let index = animatedAsset.frameIndex(at: Date.now.timeIntervalSince(animationStartedAt))
+        guard index != displayedAnimationFrame else { return }
+        displayedAnimationFrame = index
+        imageView.image = animatedAsset.frames[index].image
     }
 
     func setError(_ text: String) {

@@ -5,6 +5,7 @@ struct PlainRemoteImage: View {
     let request: URLRequest
     let overlays: [ReaderTextBlock]
     @State private var uiImage: PlatformImage?
+    @State private var animatedImage: AnimatedImageAsset?
     @State private var imageSize: CGSize?
     @State private var errorText: String?
     @State private var loading = false
@@ -12,7 +13,11 @@ struct PlainRemoteImage: View {
 
     var body: some View {
         ZStack {
-            if let uiImage {
+            if let animatedImage, overlays.isEmpty {
+                AnimatedPlatformImageView(asset: animatedImage)
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let uiImage {
                 Image(platformImage: uiImage)
                     .resizable()
                     .scaledToFit()
@@ -82,6 +87,7 @@ struct PlainRemoteImage: View {
         defer { loading = false }
         errorText = nil
         uiImage = nil
+        animatedImage = nil
 
         do {
             let data = try await ReaderImagePipeline.shared.loadData(for: request, priority: .visible)
@@ -101,6 +107,23 @@ struct PlainRemoteImage: View {
                 "plain image load start: url=\(request.url?.absoluteString ?? "nil"), isFile=\(request.url?.isFileURL == true), width=\(Int(containerWidth.rounded())), source=\(Int(sourceSize?.width ?? 0))x\(Int(sourceSize?.height ?? 0)), target=\(Int(targetSize.width.rounded()))x\(Int(targetSize.height.rounded()))",
                 level: .debug
             )
+            if overlays.isEmpty,
+               let animated = await AnimatedImageDecoder.decodeAsync(
+                    data: data,
+                    targetSize: targetSize,
+                    scale: displayScale,
+                    limits: .reader
+               ) {
+                guard !Task.isCancelled else { return }
+                animatedImage = animated
+                uiImage = animated.firstImage
+                imageSize = animated.firstImage?.platformSize
+                readerDebugLog(
+                    "plain animated image ready: frames=\(animated.frames.count), size=\(Int(animated.firstImage?.platformSize.width ?? 0))x\(Int(animated.firstImage?.platformSize.height ?? 0))",
+                    level: .info
+                )
+                return
+            }
             guard let baseImage = await ReaderDecodedImageStore.shared.imageAsync(
                 for: request,
                 data: data,
