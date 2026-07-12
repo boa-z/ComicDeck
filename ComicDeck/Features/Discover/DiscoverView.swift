@@ -5,27 +5,44 @@ import Observation
 struct DiscoverView: View {
     @Bindable var vm: ReaderViewModel
     var onOpenSearch: () -> Void = {}
+    var onOpenSources: () -> Void = {}
     @State private var mode: DiscoverMode = .explore
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                Picker(AppLocalization.text("discover.picker.section", "Section"), selection: $mode) {
-                    ForEach(DiscoverMode.allCases, id: \.self) { section in
-                        Text(section.title).tag(section)
+            Group {
+                if vm.sourceManager.installedSources.isEmpty {
+                    ContentUnavailableView {
+                        Label(
+                            AppLocalization.text("discover.empty.no_source.title", "No Sources Installed"),
+                            systemImage: "puzzlepiece.extension"
+                        )
+                    } description: {
+                        Text(AppLocalization.text("discover.empty.no_source.message", "Add a comic source before browsing Explore and Category pages."))
+                    } actions: {
+                        Button(AppLocalization.text("discover.empty.no_source.action", "Manage Sources"), action: onOpenSources)
+                            .buttonStyle(.borderedProminent)
                     }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, AppSpacing.md)
-                .padding(.top, AppSpacing.sm)
-                .padding(.bottom, 6)
+                } else {
+                    VStack(spacing: 0) {
+                        Picker(AppLocalization.text("discover.picker.section", "Section"), selection: $mode) {
+                            ForEach(DiscoverMode.allCases, id: \.self) { section in
+                                Text(section.title).tag(section)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.top, AppSpacing.sm)
+                        .padding(.bottom, 6)
 
-                Group {
-                    switch mode {
-                    case .explore:
-                        ExploreView(vm: vm)
-                    case .category:
-                        CategoryView(vm: vm)
+                        Group {
+                            switch mode {
+                            case .explore:
+                                ExploreView(vm: vm)
+                            case .category:
+                                CategoryView(vm: vm)
+                            }
+                        }
                     }
                 }
             }
@@ -133,11 +150,12 @@ struct ExploreView: View {
     private var contentSection: some View {
         if model.isLoading && model.comics.isEmpty && model.parts.isEmpty && model.mixedBlocks.isEmpty {
             Section {
-                HStack {
-                    Spacer()
-                    ProgressView(AppLocalization.text("discover.loading", "Loading explore..."))
-                    Spacer()
-                }
+                AppLoadingStateCard(
+                    title: AppLocalization.text("discover.loading", "Loading explore..."),
+                    message: model.status
+                )
+                .listRowInsets(EdgeInsets(top: AppSpacing.sm, leading: AppSpacing.md, bottom: AppSpacing.sm, trailing: AppSpacing.md))
+                .listRowBackground(Color.clear)
             }
         } else if let selected = model.pages.first(where: { $0.id == model.selectedPageID }) {
             switch selected.kind {
@@ -590,21 +608,24 @@ struct CategoryComicsPageView: View {
     }
 
     private var emptyCategoryState: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+        Group {
             if model.isLoading {
-                HStack {
-                    Spacer()
-                    ProgressView(AppLocalization.text("discover.category.loading", "Loading category..."))
-                    Spacer()
-                }
+                AppLoadingStateCard(
+                    title: AppLocalization.text("discover.category.loading", "Loading category..."),
+                    message: model.status
+                )
             } else {
-                Text(AppLocalization.text("search.no_results", "No results"))
-                    .foregroundStyle(.secondary)
+                AppEmptyStateCard(
+                    title: AppLocalization.text("search.no_results", "No results"),
+                    message: model.status.isEmpty
+                        ? AppLocalization.text("discover.category.empty_hint", "Try another filter or refresh this category.")
+                        : model.status,
+                    systemImage: "square.grid.2x2"
+                )
             }
-            Text(model.status)
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
+        .listRowInsets(EdgeInsets(top: AppSpacing.sm, leading: AppSpacing.md, bottom: AppSpacing.sm, trailing: AppSpacing.md))
+        .listRowBackground(Color.clear)
     }
 
     private var loadMoreCategoryButton: some View {
@@ -814,21 +835,24 @@ struct CategoryRankingPageView: View {
     }
 
     private var emptyRankingState: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
+        Group {
             if model.isLoading {
-                HStack {
-                    Spacer()
-                    ProgressView(AppLocalization.text("ranking.loading", "Loading ranking..."))
-                    Spacer()
-                }
+                AppLoadingStateCard(
+                    title: AppLocalization.text("ranking.loading", "Loading ranking..."),
+                    message: model.status
+                )
             } else {
-                Text(AppLocalization.text("ranking.empty", "No ranking data"))
-                    .foregroundStyle(.secondary)
+                AppEmptyStateCard(
+                    title: AppLocalization.text("ranking.empty", "No ranking data"),
+                    message: model.status.isEmpty
+                        ? AppLocalization.text("ranking.empty_hint", "Choose a ranking option and apply filters.")
+                        : model.status,
+                    systemImage: "chart.line.uptrend.xyaxis"
+                )
             }
-            Text(model.status)
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
+        .listRowInsets(EdgeInsets(top: AppSpacing.sm, leading: AppSpacing.md, bottom: AppSpacing.sm, trailing: AppSpacing.md))
+        .listRowBackground(Color.clear)
     }
 
     private var loadMoreRankingButton: some View {

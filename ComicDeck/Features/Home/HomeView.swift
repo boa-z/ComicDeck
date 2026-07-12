@@ -63,19 +63,9 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, AppSpacing.screen)
                 .padding(.top, AppSpacing.md)
-                .padding(.bottom, AppSpacing.xl)
+                .padding(.bottom, AppSpacing.xxl)
             }
-            .background(
-                LinearGradient(
-                    colors: [
-                        AppSurface.grouped,
-                        AppSurface.background.opacity(0.7)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
-            )
+            .appScreenBackground()
             .navigationTitle(AppLocalization.text("home.navigation.title", "Home"))
             .navigationDestination(item: $selectedDetailItem) { item in
                 ComicDetailRoutingView(
@@ -89,16 +79,10 @@ struct HomeView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .platformTopBarLeading) {
-                    Button(action: onOpenSettings) {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel(AppLocalization.text("home.action.settings", "Open settings"))
+                    Button(AppLocalization.text("home.action.settings", "Open settings"), systemImage: "gearshape", action: onOpenSettings)
                 }
                 ToolbarItem(placement: .platformTopBarTrailing) {
-                    Button(action: onOpenSearch) {
-                        Image(systemName: "magnifyingglass")
-                    }
-                    .accessibilityLabel(AppLocalization.text("home.action.search", "Open search"))
+                    Button(AppLocalization.text("home.action.search", "Open search"), systemImage: "magnifyingglass", action: onOpenSearch)
                 }
             }
         }
@@ -107,19 +91,16 @@ struct HomeView: View {
     private var searchEntryCard: some View {
         Button(action: onOpenSearch) {
             HStack(spacing: AppSpacing.md) {
-                Image(systemName: "magnifyingglass")
-                    .font(.headline)
-                    .foregroundStyle(AppTint.accent)
-                    .frame(width: 38, height: 38)
-                    .background(AppTint.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                AppIconBadge(systemImage: "magnifyingglass")
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: AppSpacing.xs) {
                     Text(AppLocalization.text("home.search.title", "Search Comics"))
-                        .font(.headline)
+                        .font(AppTypography.cardTitle)
                         .foregroundStyle(.primary)
                     Text(AppLocalization.text("home.search.subtitle", "Jump straight to titles, authors, and tags."))
-                        .font(.caption)
+                        .font(AppTypography.meta)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer(minLength: 0)
@@ -127,16 +108,22 @@ struct HomeView: View {
                 Image(systemName: "arrow.up.right")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
-            .appCardStyle()
+            .appCardStyle(elevated: true)
+            .contentShape(RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .appSoftPress()
+        .accessibilityHint(AppLocalization.text("home.search.accessibility_hint", "Opens global search"))
     }
 
+    @ViewBuilder
     private var continueReadingSection: some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            Text(AppLocalization.text("home.continue.title", "Continue Reading"))
-                .font(.title3.weight(.semibold))
+            AppSectionHeader(
+                title: AppLocalization.text("home.continue.title", "Continue Reading"),
+                subtitle: AppLocalization.text("home.continue.subtitle", "Pick up where you left off")
+            )
 
             if let latestHistory {
                 VStack(alignment: .leading, spacing: AppSpacing.md) {
@@ -144,24 +131,17 @@ struct HomeView: View {
                         CoverArtworkView(
                             urlString: latestHistory.coverURL,
                             refererURLString: latestHistory.comicID,
-                            width: 92,
-                            height: 132
+                            size: AppCoverSize.spotlight
                         )
 
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: AppSpacing.xs) {
                             Text(latestHistory.title)
-                                .font(.title3.weight(.semibold))
-                                .foregroundStyle(.primary)
+                                .font(AppTypography.cardTitle)
                                 .lineLimit(2)
 
-                            Text(latestHistory.author?.isEmpty == false ? latestHistory.author! : latestHistory.sourceKey)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-
                             if let chapter = latestHistory.chapter, !chapter.isEmpty {
-                                Label(chapter, systemImage: "book.closed")
-                                    .font(.caption)
+                                Text(chapter)
+                                    .font(AppTypography.secondary)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }
@@ -169,28 +149,34 @@ struct HomeView: View {
                             Text(
                                 AppLocalization.format(
                                     "home.continue.page_updated",
-                                    "Page %@ • Updated %@",
+                                    "Page %@ · %@",
                                     String(latestHistory.page),
                                     model.relativeText(for: latestHistory.updatedAt)
                                 )
                             )
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                            .font(AppTypography.meta)
+                            .foregroundStyle(.secondary)
 
-                            Spacer(minLength: 0)
+                            if let author = latestHistory.author, !author.isEmpty {
+                                Text(author)
+                                    .font(AppTypography.meta)
+                                    .foregroundStyle(.tertiary)
+                                    .lineLimit(1)
+                            }
                         }
+
+                        Spacer(minLength: 0)
                     }
 
                     HStack(spacing: AppSpacing.md) {
-                        metricCard(
+                        AppMetricCard(
                             title: AppLocalization.text("home.metric.today", "Today"),
                             value: model.formatReadingDuration(library.todayReadingDurationSeconds),
                             subtitle: AppLocalization.text("home.metric.reading_time", "Reading time"),
                             tint: AppTint.accent
                         )
 
-                        metricCard(
+                        AppMetricCard(
                             title: AppLocalization.text("home.metric.library", "Library"),
                             value: "\(library.favorites.count)",
                             subtitle: AppLocalization.text("home.metric.bookmarks", "Bookmarks"),
@@ -202,166 +188,154 @@ struct HomeView: View {
                         Button {
                             openRecentReading(latestHistory)
                         } label: {
-                            actionChip(title: AppLocalization.text("home.action.resume", "Resume"), systemImage: "play.fill", prominent: true)
+                            AppActionChip(
+                                title: AppLocalization.text("home.action.resume", "Resume"),
+                                systemImage: "play.fill",
+                                prominent: true,
+                                expands: true
+                            )
                         }
-                        .buttonStyle(.plain)
+                        .appSoftPress()
 
                         Button(action: onOpenLibrary) {
-                            actionChip(title: AppLocalization.text("home.action.library", "Library"), systemImage: "books.vertical", prominent: false)
+                            AppActionChip(
+                                title: AppLocalization.text("home.action.library", "Library"),
+                                systemImage: "books.vertical",
+                                expands: true
+                            )
                         }
-                        .buttonStyle(.plain)
+                        .appSoftPress()
                     }
                 }
                 .appCardStyle()
             } else {
-                VStack(alignment: .leading, spacing: AppSpacing.md) {
-                    Text(AppLocalization.text("home.empty.title", "No reading session yet"))
-                        .font(.headline)
-                    Text(AppLocalization.text("home.empty.subtitle", "Start from Discover or Search, then Home will surface your current comic and today's reading time."))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                AppEmptyStateCard(
+                    title: AppLocalization.text("home.empty.title", "No reading session yet"),
+                    message: AppLocalization.text(
+                        "home.empty.subtitle",
+                        "Start from Discover or Search, then Home will surface your current comic and today's reading time."
+                    ),
+                    systemImage: "book.closed",
+                    actionTitle: AppLocalization.text("home.action.browse_discover", "Browse Discover"),
+                    action: onOpenDiscover
+                )
 
-                    HStack(spacing: AppSpacing.md) {
-                        metricCard(
-                            title: AppLocalization.text("home.metric.today", "Today"),
-                            value: model.formatReadingDuration(library.todayReadingDurationSeconds),
-                            subtitle: AppLocalization.text("home.metric.reading_time", "Reading time"),
-                            tint: AppTint.accent
-                        )
-
-                        metricCard(
-                            title: AppLocalization.text("home.metric.installed", "Installed"),
-                            value: "\(sourceManager.installedSources.count)",
-                            subtitle: AppLocalization.text("home.metric.sources", "Sources"),
-                            tint: AppTint.warning
+                HStack(spacing: AppSpacing.sm) {
+                    Button(action: onOpenSearch) {
+                        AppActionChip(
+                            title: AppLocalization.text("home.action.search_short", "Search"),
+                            systemImage: "magnifyingglass",
+                            expands: true
                         )
                     }
+                    .appSoftPress()
 
-                    HStack(spacing: AppSpacing.sm) {
-                        Button(action: onOpenDiscover) {
-                            actionChip(title: AppLocalization.text("home.action.browse_discover", "Browse Discover"), systemImage: "sparkles", prominent: true)
-                        }
-                        .buttonStyle(.plain)
-
-                        Button(action: onOpenSearch) {
-                            actionChip(title: AppLocalization.text("home.action.search_short", "Search"), systemImage: "magnifyingglass", prominent: false)
-                        }
-                        .buttonStyle(.plain)
+                    Button(action: onOpenLibrary) {
+                        AppActionChip(
+                            title: AppLocalization.text("home.action.library", "Library"),
+                            systemImage: "books.vertical",
+                            expands: true
+                        )
                     }
+                    .appSoftPress()
                 }
-                .appCardStyle()
             }
         }
     }
 
     private func homeStatusSection(readyOfflineCount: Int) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            Text(AppLocalization.text("home.glance.title", "At a Glance"))
-                .font(.title3.weight(.semibold))
+            AppSectionHeader(
+                title: AppLocalization.text("home.glance.title", "At a Glance"),
+                subtitle: AppLocalization.text("home.glance.subtitle", "Library health and active source")
+            )
 
             HStack(spacing: AppSpacing.md) {
-                compactMetricCard(
-                    title: AppLocalization.text("home.metric.today", "Today"),
-                    value: model.formatReadingDuration(library.todayReadingDurationSeconds),
-                    subtitle: AppLocalization.text("home.metric.reading", "Reading"),
-                    tint: AppTint.accent
+                AppMetricCard(
+                    title: AppLocalization.text("home.metric.reading", "Reading"),
+                    value: "\(library.history.count)",
+                    subtitle: AppLocalization.text("home.metric.history_items", "History items"),
+                    tint: AppTint.info
                 )
-                compactMetricCard(
+                AppMetricCard(
                     title: AppLocalization.text("home.metric.offline", "Offline"),
                     value: "\(readyOfflineCount)",
-                    subtitle: AppLocalization.text("home.metric.ready", "Ready"),
-                    tint: AppTint.success
-                )
-                compactMetricCard(
-                    title: AppLocalization.text("home.metric.sources", "Sources"),
-                    value: "\(sourceManager.installedSources.count)",
-                    subtitle: AppLocalization.text("home.metric.installed", "Installed"),
+                    subtitle: AppLocalization.text("home.metric.ready", "Ready chapters"),
                     tint: AppTint.warning
                 )
             }
 
             HStack(spacing: AppSpacing.md) {
-                sourceStatusCard
-                sourcesSnapshotCard
+                AppMetricCard(
+                    title: AppLocalization.text("home.metric.sources", "Sources"),
+                    value: "\(sourceManager.installedSources.count)",
+                    subtitle: AppLocalization.text("home.metric.installed", "Installed"),
+                    tint: AppTint.accent
+                )
+                AppMetricCard(
+                    title: AppLocalization.text("home.metric.bookmarks", "Bookmarks"),
+                    value: "\(library.favorites.count)",
+                    subtitle: AppLocalization.text("home.metric.library", "Library"),
+                    tint: AppTint.success
+                )
             }
-        }
-    }
 
-    private var sourceStatusCard: some View {
-        Button(action: onOpenDiscover) {
             VStack(alignment: .leading, spacing: AppSpacing.sm) {
-                Label(AppLocalization.text("home.source.active", "Active Source"), systemImage: "dot.radiowaves.left.and.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(model.activeSourceSubtitle(using: sourceManager))
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                Text(sourceManager.selectedSourceKey.isEmpty ? AppLocalization.text("home.source.empty_hint", "Open Discover to choose a source.") : AppLocalization.text("home.source.browse_hint", "Browse fresh content from the current source."))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                HStack(spacing: AppSpacing.sm) {
+                    AppIconBadge(systemImage: "puzzlepiece.extension", tint: AppTint.accent, size: 34)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(AppLocalization.text("home.source.active", "Active Source"))
+                            .font(AppTypography.meta)
+                            .foregroundStyle(.secondary)
+                        Text(model.activeSourceSubtitle(using: sourceManager))
+                            .font(AppTypography.cardTitle)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                Text(
+                    sourceManager.selectedSourceKey.isEmpty
+                        ? AppLocalization.text("home.source.empty_hint", "Open Discover to choose a source.")
+                        : AppLocalization.text("home.source.browse_hint", "Browse fresh content from the current source.")
+                )
+                .font(AppTypography.meta)
+                .foregroundStyle(.secondary)
+
+                HStack(spacing: AppSpacing.sm) {
+                    Button(action: onOpenDiscover) {
+                        AppActionChip(
+                            title: AppLocalization.text("home.action.browse_discover", "Browse Discover"),
+                            systemImage: "safari",
+                            prominent: true,
+                            expands: true
+                        )
+                    }
+                    .appSoftPress()
+
+                    if let onOpenSources {
+                        Button(action: onOpenSources) {
+                            AppActionChip(
+                                title: AppLocalization.text("home.sources_snapshot.title", "Sources"),
+                                systemImage: "square.stack.3d.up",
+                                expands: true
+                            )
+                        }
+                        .appSoftPress()
+                    }
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
             .appCardStyle()
         }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private var sourcesSnapshotCard: some View {
-        if let onOpenSources {
-            Button(action: onOpenSources) {
-                sourcesSnapshotCardLabel
-            }
-            .buttonStyle(.plain)
-        } else {
-            NavigationLink {
-                SourceManagementView(vm: vm, sourceManager: sourceManager)
-            } label: {
-                sourcesSnapshotCardLabel
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var sourcesSnapshotCardLabel: some View {
-        VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            Label(AppLocalization.text("home.sources_snapshot.title", "Sources"), systemImage: "tray.full")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(
-                AppLocalization.format(
-                    "home.sources_snapshot.installed",
-                    "%@ installed",
-                    String(sourceManager.installedSources.count)
-                )
-            )
-                .font(.headline)
-                .foregroundStyle(.primary)
-            Text(sourceManager.availableSourceUpdates.isEmpty
-                 ? AppLocalization.text("home.sources_snapshot.up_to_date", "All sources up to date")
-                 : AppLocalization.format(
-                     "home.sources_snapshot.updates",
-                     "%@ updates available",
-                     String(sourceManager.availableSourceUpdates.count)
-                 ))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .appCardStyle()
     }
 
     private func offlineSpotlightSection(_ item: OfflineChapterAsset) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            HStack {
-                Text(AppLocalization.text("home.offline_spotlight.title", "Offline Spotlight"))
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                downloadsLink
-            }
+            AppSectionHeader(
+                title: AppLocalization.text("home.offline_spotlight.title", "Offline Spotlight"),
+                subtitle: nil,
+                trailing: { downloadsLink }
+            )
 
             NavigationLink {
                 ReaderRoutingView(
@@ -380,15 +354,19 @@ struct HomeView: View {
                 .environment(library)
             } label: {
                 HStack(spacing: AppSpacing.md) {
-                    CoverArtworkView(urlString: item.coverURL, refererURLString: item.comicID, width: 72, height: 102)
+                    CoverArtworkView(
+                        urlString: item.coverURL,
+                        refererURLString: item.comicID,
+                        size: AppCoverSize.spotlight
+                    )
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: AppSpacing.xs) {
                         Text(item.comicTitle)
-                            .font(.headline)
+                            .font(AppTypography.cardTitle)
                             .foregroundStyle(.primary)
                             .lineLimit(2)
                         Text(item.chapterTitle)
-                            .font(.subheadline)
+                            .font(AppTypography.secondary)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                         Text(
@@ -398,8 +376,8 @@ struct HomeView: View {
                                 String(item.pageCount)
                             )
                         )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        .font(AppTypography.meta)
+                        .foregroundStyle(.secondary)
                     }
 
                     Spacer(minLength: 0)
@@ -407,8 +385,9 @@ struct HomeView: View {
                     Image(systemName: "play.circle.fill")
                         .font(.title2)
                         .foregroundStyle(AppTint.accent)
+                        .accessibilityHidden(true)
                 }
-                .appCardStyle()
+                .appCardStyle(elevated: true)
             }
             .buttonStyle(.plain)
         }
@@ -446,54 +425,5 @@ struct HomeView: View {
         }
         pendingDetailReadRoute = context
         selectedDetailItem = context.item
-    }
-
-    private func metricCard(title: String, value: String, subtitle: String, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(.primary)
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(AppSpacing.md)
-        .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
-    }
-
-    private func compactMetricCard(title: String, value: String, subtitle: String, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(.primary)
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(AppSpacing.md)
-        .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
-    }
-
-    private func actionChip(title: String, systemImage: String, prominent: Bool) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-            Text(title)
-        }
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(prominent ? Color.white : .primary)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            prominent ? AppTint.accent : AppSurface.subtle,
-            in: RoundedRectangle(cornerRadius: AppRadius.sm, style: .continuous)
-        )
     }
 }

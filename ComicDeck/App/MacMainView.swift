@@ -148,7 +148,11 @@ struct MacMainView: View {
             .environment(vm.library)
             .environment(vm.tracker)
         case .discover:
-            DiscoverView(vm: vm, onOpenSearch: openSearchWindow)
+            DiscoverView(
+                vm: vm,
+                onOpenSearch: openSearchWindow,
+                onOpenSources: { selectedDestination = .sources }
+            )
                 .environment(vm.library)
                 .environment(vm.tracker)
         case .library:

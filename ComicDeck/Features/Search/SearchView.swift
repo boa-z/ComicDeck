@@ -24,7 +24,7 @@ struct SearchView: View {
 
         NavigationStack {
             searchWorkspace(snapshot: snapshot)
-            .background(AppSurface.grouped.ignoresSafeArea())
+            .appScreenBackground()
             .navigationTitle(AppLocalization.text("search.title", "Search"))
             .searchable(
                 text: Binding(
@@ -191,29 +191,30 @@ struct SearchView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: AppSpacing.sm) {
-            Image(systemName: model.isSearching ? "hourglass" : "text.magnifyingglass")
-                .font(.system(size: 26))
-                .foregroundStyle(.secondary)
+        Group {
             if model.isSearching {
-                Text(AppLocalization.text("search.searching", "Searching..."))
-                    .foregroundStyle(.secondary)
+                AppLoadingStateCard(
+                    title: AppLocalization.text("search.searching", "Searching..."),
+                    message: model.status
+                )
             } else if model.keyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text(AppLocalization.text("search.comics", "Search comics"))
-                    .foregroundStyle(.secondary)
+                AppEmptyStateCard(
+                    title: AppLocalization.text("search.comics", "Search comics"),
+                    message: model.status.isEmpty
+                        ? AppLocalization.text("search.empty_hint", "Enter a keyword or pick a recent search to start.")
+                        : model.status,
+                    systemImage: "text.magnifyingglass"
+                )
             } else {
-                Text(AppLocalization.text("search.no_results", "No results"))
-                    .foregroundStyle(.secondary)
+                AppEmptyStateCard(
+                    title: AppLocalization.text("search.no_results", "No results"),
+                    message: model.status.isEmpty
+                        ? AppLocalization.text("search.no_results_hint", "Try another keyword or adjust filters.")
+                        : model.status,
+                    systemImage: "magnifyingglass"
+                )
             }
-
-            Text(model.status)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
         }
-        .frame(maxWidth: .infinity, minHeight: 240)
-        .padding(AppSpacing.lg)
-        .appCardStyle()
     }
 
     @ViewBuilder
@@ -306,13 +307,7 @@ struct SearchView: View {
     }
 
     private func sectionHeader(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.headline)
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
+        AppSectionHeader(title: title, subtitle: subtitle)
     }
 
     private func statusPill(title: String, value: String) -> some View {

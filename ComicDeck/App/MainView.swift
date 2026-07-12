@@ -19,6 +19,7 @@ struct MainView: View {
     @State private var selectedTab: MainTab = .home
     @State private var sourceSearchRoute: SourceSearchRoute?
     @State private var showGlobalSearch = false
+    @State private var showSources = false
     @State private var showSettings = false
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("ui.appAppearance") private var appAppearanceRaw = AppAppearance.system.rawValue
@@ -43,7 +44,7 @@ struct MainView: View {
                 onOpenDiscover: { selectedTab = .discover },
                 onOpenLibrary: { selectedTab = .library },
                 onOpenDownloads: nil,
-                onOpenSources: nil,
+                onOpenSources: { showSources = true },
                 onTagSearchRequested: { tag, sourceKey in
                     sourceSearchRoute = SourceSearchRoute(sourceKey: sourceKey, keyword: tag)
                 }
@@ -55,7 +56,11 @@ struct MainView: View {
             }
             .tag(MainTab.home)
 
-            DiscoverView(vm: vm, onOpenSearch: { showGlobalSearch = true })
+            DiscoverView(
+                vm: vm,
+                onOpenSearch: { showGlobalSearch = true },
+                onOpenSources: { showSources = true }
+            )
                 .environment(vm.library)
                 .environment(vm.tracker)
                 .tabItem {
@@ -97,6 +102,11 @@ struct MainView: View {
             SearchView(vm: vm)
                 .environment(vm.library)
                 .environment(vm.tracker)
+        }
+        .sheet(isPresented: $showSources) {
+            NavigationStack {
+                SourceManagementView(vm: vm, sourceManager: vm.sourceManager)
+            }
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()

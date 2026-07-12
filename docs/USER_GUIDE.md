@@ -36,6 +36,12 @@ Installed sources can then be:
 - configured
 - logged into where supported
 
+When no source is installed, `Discover` shows a `Manage Sources` recovery action. On iOS it opens source management as a sheet; on macOS it switches to the native Sources workspace.
+
+### Home Glance
+
+Home surfaces resume reading, today's reading time, offline readiness, and the active source. Empty states on Home, Search, Discover, Favorites, and History include recovery actions when available.
+
 ### Find Comics
 
 You can discover content in two main ways.

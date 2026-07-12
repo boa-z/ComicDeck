@@ -458,15 +458,21 @@ Location:
 - `ComicDeck/DesignSystem`
 
 Responsibilities:
-- spacing
-- radius
-- surfaces
-- tint choices
-- shared card presentation
+- spacing, radius, motion, and cover size tokens
+- surface/tint hierarchy for light and dark modes
+- shared card, section header, metric, chip, empty, and loading presentation
+- soft-press interaction affordances and minimum touch targets
+
+Primary building blocks:
+- `AppSpacing` / `AppRadius` / `AppSurface` / `AppTint` / `AppMotion`
+- `AppCardStyle`, `AppScreenBackground`, `AppSoftPressButtonStyle`
+- `AppSectionHeader`, `AppMetricCard`, `AppActionChip`, `AppStatusPill`
+- `AppEmptyStateCard`, `AppLoadingStateCard`, `AppInlineStatusRow`, `AppIconBadge`
 
 This keeps the app visually consistent across:
-- home cards
-- library cards
+- home cards and glance metrics
+- discover/search empty and loading states
+- library workspace cards and shelf previews
 - source management cards
 - detail sections
 

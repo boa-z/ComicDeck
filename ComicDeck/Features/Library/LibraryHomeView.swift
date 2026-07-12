@@ -41,7 +41,7 @@ struct LibraryHomeView: View {
                 .padding(.top, AppSpacing.md)
                 .padding(.bottom, AppSpacing.xl)
             }
-            .background(AppSurface.grouped.ignoresSafeArea())
+            .appScreenBackground()
             .navigationTitle(AppLocalization.text("library.navigation.title", "Library"))
             .navigationDestination(item: $selectedDetailItem) { item in
                 ComicDetailRoutingView(
@@ -58,8 +58,10 @@ struct LibraryHomeView: View {
 
     private func workspacesSection(readyOfflineCount: Int) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            Text(AppLocalization.text("library.workspaces.title", "Workspaces"))
-                .font(.title3.weight(.semibold))
+            AppSectionHeader(
+                title: AppLocalization.text("library.workspaces.title", "Workspaces"),
+                subtitle: AppLocalization.text("library.workspaces.subtitle", "Jump into bookmarks, trackers, and offline tools")
+            )
 
             VStack(spacing: AppSpacing.sm) {
                 NavigationLink {
@@ -73,7 +75,7 @@ struct LibraryHomeView: View {
                         tint: AppTint.success
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppSoftPressButtonStyle())
 
                 ForEach(TrackerProvider.mangaListWorkspaceProviders) { provider in
                     NavigationLink {
@@ -94,7 +96,7 @@ struct LibraryHomeView: View {
                             tint: AppTint.accent
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppSoftPressButtonStyle())
                 }
 
                 NavigationLink {
@@ -108,7 +110,7 @@ struct LibraryHomeView: View {
                         tint: AppTint.warning
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppSoftPressButtonStyle())
 
                 NavigationLink {
                     HistoryView(vm: vm, onTagSearchRequested: onTagSearchRequested)
@@ -121,7 +123,7 @@ struct LibraryHomeView: View {
                         tint: AppTint.warning
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppSoftPressButtonStyle())
 
                 NavigationLink {
                     DownloadManagerView(vm: vm)
@@ -134,31 +136,32 @@ struct LibraryHomeView: View {
                         tint: AppTint.accent
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppSoftPressButtonStyle())
             }
         }
     }
 
     private func recentReadingSection(recentHistory: [ReadingHistoryItem]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            HStack {
-                Text(AppLocalization.text("library.recent.title", "Recent Activity"))
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                if !recentHistory.isEmpty {
-                    NavigationLink(AppLocalization.text("library.workspace.history.title", "History")) {
-                        HistoryView(vm: vm, onTagSearchRequested: onTagSearchRequested)
+            AppSectionHeader(
+                title: AppLocalization.text("library.recent.title", "Recent Activity"),
+                subtitle: AppLocalization.text("library.recent.subtitle", "Latest chapters and progress"),
+                trailing: {
+                    if !recentHistory.isEmpty {
+                        NavigationLink(AppLocalization.text("library.workspace.history.title", "History")) {
+                            HistoryView(vm: vm, onTagSearchRequested: onTagSearchRequested)
+                        }
+                        .font(.subheadline.weight(.semibold))
                     }
-                    .font(.subheadline.weight(.semibold))
                 }
-            }
+            )
 
             if recentHistory.isEmpty {
-                Text(AppLocalization.text("library.recent.empty", "Your reading history will appear here after you open a chapter."))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .appCardStyle()
+                AppEmptyStateCard(
+                    title: AppLocalization.text("library.recent.empty_title", "No recent activity"),
+                    message: AppLocalization.text("library.recent.empty", "Your reading history will appear here after you open a chapter."),
+                    systemImage: "clock.arrow.circlepath"
+                )
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: AppSpacing.md) {
@@ -173,7 +176,7 @@ struct LibraryHomeView: View {
                                     refererURLString: item.comicID
                                 )
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(AppSoftPressButtonStyle())
                         }
                     }
                     .padding(.vertical, 2)
@@ -184,15 +187,16 @@ struct LibraryHomeView: View {
 
     private func downloadsSnapshotSection(recentCompletedDownloads: [OfflineChapterAsset]) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.md) {
-            HStack {
-                Text(AppLocalization.text("library.offline_ready.title", "Offline Ready"))
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                NavigationLink(AppLocalization.text("library.workspace.downloads.title", "Downloads")) {
-                    DownloadManagerView(vm: vm)
+            AppSectionHeader(
+                title: AppLocalization.text("library.offline_ready.title", "Offline Ready"),
+                subtitle: AppLocalization.text("library.offline_ready.subtitle", "Ready to read without network"),
+                trailing: {
+                    NavigationLink(AppLocalization.text("library.workspace.downloads.title", "Downloads")) {
+                        DownloadManagerView(vm: vm)
+                    }
+                    .font(.subheadline.weight(.semibold))
                 }
-                .font(.subheadline.weight(.semibold))
-            }
+            )
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: AppSpacing.md) {
@@ -225,7 +229,7 @@ struct LibraryHomeView: View {
                                 refererURLString: item.comicID
                             )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(AppSoftPressButtonStyle())
                     }
                 }
                 .padding(.vertical, 2)
@@ -249,34 +253,35 @@ struct LibraryHomeView: View {
 
     private func workspaceCard(title: String, subtitle: String, value: String, systemImage: String, tint: Color) -> some View {
         HStack(spacing: AppSpacing.md) {
-            Image(systemName: systemImage)
-                .font(.headline)
-                .foregroundStyle(tint)
-                .frame(width: 40, height: 40)
-                .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            AppIconBadge(systemImage: systemImage, tint: tint, size: 40)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 Text(title)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                     .foregroundStyle(.primary)
                 Text(subtitle)
-                    .font(.caption)
+                    .font(AppTypography.meta)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 0)
 
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: AppSpacing.xs) {
                 Text(value)
-                    .font(.headline.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
         }
         .appCardStyle()
+        .contentShape(RoundedRectangle(cornerRadius: AppRadius.md, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     private func recentReadingSubtitle(_ item: ReadingHistoryItem) -> String {
@@ -293,21 +298,27 @@ struct LibraryHomeView: View {
         refererURLString: String?
     ) -> some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            CoverArtworkView(urlString: coverURL, refererURLString: refererURLString, width: 128, height: 182)
-                .frame(width: 128, height: 182)
+            CoverArtworkView(
+                urlString: coverURL,
+                refererURLString: refererURLString,
+                size: AppCoverSize.shelf
+            )
+            .frame(width: AppCoverSize.shelf.width, height: AppCoverSize.shelf.height)
 
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
+                .frame(minHeight: 36, alignment: .topLeading)
 
             Text(subtitle)
-                .font(.caption)
+                .font(AppTypography.meta)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
         }
         .frame(width: 148, alignment: .leading)
         .appCardStyle()
+        .accessibilityElement(children: .combine)
     }
 
     private func openRecentReading(_ item: ReadingHistoryItem) {

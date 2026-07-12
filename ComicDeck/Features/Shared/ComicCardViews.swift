@@ -13,6 +13,7 @@ struct ComicBrowseModePicker: View {
             }
         } label: {
             Image(systemName: mode.systemImage)
+                .appMinTouchTarget()
         }
         .accessibilityLabel(AppLocalization.text("settings.appearance.browse_layout", "Comic Browse Layout"))
         .accessibilityValue(mode.title)
@@ -30,29 +31,34 @@ struct SearchResultCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: AppSpacing.md) {
-            CoverArtworkView(urlString: item.coverURL, refererURLString: item.id, width: 68, height: 96)
+            CoverArtworkView(
+                urlString: item.coverURL,
+                refererURLString: item.id,
+                size: AppCoverSize.list
+            )
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 Text(item.title)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
                 if let author = item.author, !author.isEmpty {
                     Text(author)
-                        .font(.subheadline)
+                        .font(AppTypography.secondary)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
 
                 Text(item.sourceKey)
-                    .font(.caption)
+                    .font(AppTypography.meta)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
 
                 if let tagSummary {
                     Text(tagSummary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTypography.meta)
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
             }
@@ -60,6 +66,12 @@ struct SearchResultCard: View {
         }
         .appCardStyle()
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(comicAccessibilityLabel(
+            title: item.title,
+            author: item.author,
+            sourceKey: item.sourceKey,
+            tags: tagSummary
+        ))
     }
 }
 
@@ -74,35 +86,47 @@ struct SearchResultGridCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppSpacing.sm) {
-            CoverArtworkView(urlString: item.coverURL, refererURLString: item.id, width: 140, height: 196)
-                .frame(maxWidth: .infinity)
+            CoverArtworkView(
+                urlString: item.coverURL,
+                refererURLString: item.id,
+                size: AppCoverSize.grid
+            )
+            .frame(maxWidth: .infinity)
 
             Text(item.title)
-                .font(.headline)
+                .font(AppTypography.cardTitle)
                 .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minHeight: 44, alignment: .topLeading)
 
             if let author = item.author, !author.isEmpty {
                 Text(author)
-                    .font(.caption)
+                    .font(AppTypography.meta)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
             Text(item.sourceKey)
-                .font(.caption2.monospaced())
+                .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
             if let tagSummary {
                 Text(tagSummary)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(AppTypography.meta)
+                    .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .appCardStyle()
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(comicAccessibilityLabel(
+            title: item.title,
+            author: item.author,
+            sourceKey: item.sourceKey,
+            tags: tagSummary
+        ))
     }
 }
 
@@ -143,14 +167,13 @@ struct ComicPreviewCard: View {
             CoverArtworkView(
                 urlString: coverURL,
                 refererURLString: entityID,
-                width: 56,
-                height: 80,
+                size: AppCoverSize.listCompact,
                 reloadToken: coverReloadToken
             )
 
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: AppSpacing.xs) {
                 Text(title)
-                    .font(.headline)
+                    .font(AppTypography.cardTitle)
                     .lineLimit(2)
 
                 Text("\(sourceKey) · \(entityID)")
@@ -160,21 +183,21 @@ struct ComicPreviewCard: View {
 
                 if let author, !author.isEmpty {
                     Text(AppLocalization.format("comic.author_format", "Author: %@", author))
-                        .font(.caption)
+                        .font(AppTypography.meta)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
 
                 if let tagSummary {
                     Text(tagSummary)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(AppTypography.meta)
+                        .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
 
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.caption2)
+                        .font(AppTypography.meta)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -183,6 +206,13 @@ struct ComicPreviewCard: View {
         }
         .appCardStyle()
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(comicAccessibilityLabel(
+            title: title,
+            author: author,
+            sourceKey: sourceKey,
+            tags: tagSummary,
+            subtitle: subtitle
+        ))
     }
 }
 
@@ -223,41 +253,42 @@ struct ComicPreviewGridCard: View {
             CoverArtworkView(
                 urlString: coverURL,
                 refererURLString: entityID,
-                width: 140,
-                height: 196,
+                size: AppCoverSize.grid,
                 reloadToken: coverReloadToken
             )
-                .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity)
 
             Text(title)
-                .font(.headline)
+                .font(AppTypography.cardTitle)
                 .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minHeight: 44, alignment: .topLeading)
 
             Text(sourceKey)
-                .font(.caption2.monospaced())
+                .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
             if let author, !author.isEmpty {
                 Text(author)
-                    .font(.caption)
+                    .font(AppTypography.meta)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             } else if let tagSummary {
                 Text(tagSummary)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(AppTypography.meta)
+                    .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
 
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(.caption2)
+                    .font(AppTypography.meta)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             } else {
                 Text(entityID)
-                    .font(.caption2.monospaced())
+                    .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -265,6 +296,13 @@ struct ComicPreviewGridCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .appCardStyle()
         .accessibilityElement(children: .combine)
+        .accessibilityLabel(comicAccessibilityLabel(
+            title: title,
+            author: author,
+            sourceKey: sourceKey,
+            tags: tagSummary,
+            subtitle: subtitle
+        ))
     }
 }
 
@@ -282,4 +320,25 @@ private func comicTagSummary(from tags: [String], limit: Int, trimsEmptyValues: 
 
     guard !visibleTags.isEmpty else { return nil }
     return visibleTags.joined(separator: " · ")
+}
+
+private func comicAccessibilityLabel(
+    title: String,
+    author: String?,
+    sourceKey: String,
+    tags: String?,
+    subtitle: String? = nil
+) -> String {
+    var parts = [title]
+    if let author, !author.isEmpty {
+        parts.append(author)
+    }
+    parts.append(sourceKey)
+    if let tags, !tags.isEmpty {
+        parts.append(tags)
+    }
+    if let subtitle, !subtitle.isEmpty {
+        parts.append(subtitle)
+    }
+    return parts.joined(separator: ", ")
 }

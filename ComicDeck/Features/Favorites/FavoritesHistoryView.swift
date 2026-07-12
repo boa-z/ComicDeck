@@ -423,9 +423,12 @@ struct FavoritesView: View {
                     .padding(AppSpacing.md)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else if model.sourceFavorites.isEmpty {
-                Text(AppLocalization.text("favorites.empty.source", "No source favorites"))
-                    .foregroundStyle(.secondary)
-                    .padding(AppSpacing.lg)
+                AppEmptyStateCard(
+                    title: AppLocalization.text("favorites.empty.source", "No source favorites"),
+                    message: AppLocalization.text("favorites.empty.source_hint", "Favorites from the active source will appear here after sync."),
+                    systemImage: "star"
+                )
+                .padding(AppSpacing.md)
             } else {
                 LazyVGrid(columns: [
                     GridItem(.flexible(), spacing: AppSpacing.md),
@@ -550,8 +553,13 @@ struct FavoritesView: View {
             Text(model.sourceError)
                 .foregroundStyle(.red)
         } else if model.sourceFavorites.isEmpty {
-            Text(AppLocalization.text("favorites.empty.source", "No source favorites"))
-                .foregroundStyle(.secondary)
+            AppEmptyStateCard(
+                title: AppLocalization.text("favorites.empty.source", "No source favorites"),
+                message: AppLocalization.text("favorites.empty.source_hint", "Favorites from the active source will appear here after sync."),
+                systemImage: "star"
+            )
+            .listRowInsets(EdgeInsets(top: AppSpacing.sm, leading: AppSpacing.md, bottom: AppSpacing.sm, trailing: AppSpacing.md))
+            .listRowBackground(Color.clear)
         } else {
             ForEach(model.sourceFavorites) { item in
                 favoriteEntry(for: item) {
@@ -860,9 +868,12 @@ struct HistoryView: View {
     private var historyGrid: some View {
         ScrollView {
             if model.items.isEmpty {
-                Text(AppLocalization.text("history.empty", "No reading history"))
-                    .foregroundStyle(.secondary)
-                    .padding(AppSpacing.lg)
+                AppEmptyStateCard(
+                    title: AppLocalization.text("history.empty", "No reading history"),
+                    message: AppLocalization.text("history.empty_hint", "Open a chapter to start building your reading history."),
+                    systemImage: "clock"
+                )
+                .padding(AppSpacing.md)
             } else {
                 LazyVGrid(columns: [
                     GridItem(.flexible(), spacing: AppSpacing.md),
@@ -891,8 +902,13 @@ struct HistoryView: View {
     @ViewBuilder
     private var historyContent: some View {
         if model.items.isEmpty {
-            Text(AppLocalization.text("history.empty", "No reading history"))
-                .foregroundStyle(.secondary)
+            AppEmptyStateCard(
+                title: AppLocalization.text("history.empty", "No reading history"),
+                message: AppLocalization.text("history.empty_hint", "Open a chapter to start building your reading history."),
+                systemImage: "clock"
+            )
+            .listRowInsets(EdgeInsets(top: AppSpacing.sm, leading: AppSpacing.md, bottom: AppSpacing.sm, trailing: AppSpacing.md))
+            .listRowBackground(Color.clear)
         } else {
             ForEach(model.items) { item in
                 historyEntry(for: item) {
